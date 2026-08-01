@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /login.html
+Disallow: /precio.html
+Disallow: /lector.html
+
+Sitemap: https://jireh-mayorista.netlify.app/sitemap.xml
