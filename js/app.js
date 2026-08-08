@@ -27,7 +27,7 @@ function normalizarTextoTransporte(texto){
 // API_URL se carga desde config.json para permitir instalaciones
 // multi-cliente sin modificar el código fuente.
 // Si config.json no existe o falla, usa la URL de respaldo.
-let API_URL = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
+let API_URL = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
