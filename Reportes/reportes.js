@@ -1,11 +1,11 @@
 /* ===================================================================
-   REPORTES PWA — CASA LUMA
+   REPORTES PWA — Jireh Mayorista
    Reusa los mismos endpoints del backend (Apps Script) que ya usa el
    panel admin completo. Esta página solo MUESTRA y EXPORTA reportes,
    no escribe nada en la base.
 =================================================================== */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
 
 /* ---- Sesión: requiere haber pasado por login.html ---- */
 if (sessionStorage.getItem("admin") !== "true") {
@@ -287,7 +287,7 @@ function exportarReportePDF(cardId, tituloReporte) {
     const hasta = document.getElementById("repHasta").value || "—";
 
     doc.setFontSize(14);
-    doc.text(`CASA LUMA — ${tituloReporte}`, 30, 30);
+    doc.text(`Jireh Mayorista — ${tituloReporte}`, 30, 30);
     doc.setFontSize(10);
     doc.setTextColor(110, 110, 110);
     doc.text(`Período: ${desde} a ${hasta}  ·  Generado: ${new Date().toLocaleString("es-AR")}`, 30, 46);

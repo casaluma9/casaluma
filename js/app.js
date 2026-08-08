@@ -27,7 +27,7 @@ function normalizarTextoTransporte(texto){
 // API_URL se carga desde config.json para permitir instalaciones
 // multi-cliente sin modificar el código fuente.
 // Si config.json no existe o falla, usa la URL de respaldo.
-let API_URL = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+let API_URL = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -95,7 +95,9 @@ const estado = {
     productosVisibles: [],
     carrito: JSON.parse(localStorage.getItem("carrito")) || [],
     busqueda: "",
-    categoria: ""
+    categoria: "",
+    precioMin: null,
+    precioMax: null
 };
 
 // Número de WhatsApp usado por el botón flotante y por el checkout.
@@ -115,6 +117,7 @@ let nombreNegocio = "Catálogo";
 
 let qvProductoActual = null;
 let debounceTimer = null;
+let precioDebounceTimer = null;
 
 /* =========================================================
    HELPERS
@@ -263,14 +266,56 @@ function limpiarFiltros(){
 
     estado.categoria = "";
     estado.busqueda = "";
+    estado.precioMin = null;
+    estado.precioMax = null;
 
     document.getElementById("search").value = "";
     document.getElementById("search-clear").classList.remove("visible");
+
+    document.getElementById("precio-min").value = "";
+    document.getElementById("precio-max").value = "";
+    document.getElementById("precio-clear").classList.remove("visible");
 
     document.querySelectorAll("#categoria-chips .chip").forEach(c => c.classList.remove("active"));
 
     const todas = document.querySelector('#categoria-chips .chip[data-cat=""]');
     if(todas) todas.classList.add("active");
+
+    aplicarFiltros();
+}
+
+/* =========================================================
+   FILTRO DE PRECIO (rango mín/máx)
+========================================================= */
+
+function filtrarPorPrecio(){
+
+    clearTimeout(precioDebounceTimer);
+
+    precioDebounceTimer = setTimeout(()=>{
+
+        const minVal = document.getElementById("precio-min").value;
+        const maxVal = document.getElementById("precio-max").value;
+
+        estado.precioMin = minVal !== "" ? Number(minVal) : null;
+        estado.precioMax = maxVal !== "" ? Number(maxVal) : null;
+
+        const hayFiltro = estado.precioMin !== null || estado.precioMax !== null;
+        document.getElementById("precio-clear").classList.toggle("visible", hayFiltro);
+
+        aplicarFiltros();
+
+    }, 300);
+}
+
+function limpiarFiltroPrecio(){
+
+    document.getElementById("precio-min").value = "";
+    document.getElementById("precio-max").value = "";
+    document.getElementById("precio-clear").classList.remove("visible");
+
+    estado.precioMin = null;
+    estado.precioMax = null;
 
     aplicarFiltros();
 }
@@ -291,6 +336,14 @@ function aplicarFiltros(){
         lista = lista.filter(p =>
             String(p.PRODUCTO || "").toLowerCase().includes(estado.busqueda)
         );
+    }
+
+    if(estado.precioMin !== null){
+        lista = lista.filter(p => Number(p.PRECIO) >= estado.precioMin);
+    }
+
+    if(estado.precioMax !== null){
+        lista = lista.filter(p => Number(p.PRECIO) <= estado.precioMax);
     }
 
     // Se guarda la lista visible actual, para que el botón de descarga
@@ -1048,12 +1101,30 @@ async function checkoutWhatsapp(){
         return;
     }
 
-    // Último chequeo antes de enviar: puede haber pasado tiempo desde
-    // que se abrió el carrito (o directamente nunca se abrió si el
-    // cliente fue directo a completar sus datos con un carrito viejo
-    // guardado de una visita anterior). Si algo cambió, se corta acá
-    // y se le pide que revise el carrito ya actualizado, en vez de
-    // mandar un pedido con datos viejos.
+    // Último chequeo antes de enviar: puede haber pasado tiempo (incluso
+    // horas) desde que se cargó la página, y el cliente puede haber ido
+    // agregando productos de a poco mientras tanto. estado.productos es
+    // el catálogo que se trajo UNA sola vez al entrar al sitio, así que
+    // compararse contra él ya no alcanza — hay que volver a pedirle los
+    // precios y el stock actuales al backend recién antes de enviar, y
+    // recién ahí validar el carrito contra eso.
+    const textoBtnCheckout = document.getElementById("btn-checkout-texto");
+    if(textoBtnCheckout) textoBtnCheckout.textContent = "Verificando precios y stock...";
+
+    try{
+        const resProductos = await fetchAPI(API_URL + "?action=productos");
+        const dataProductos = await resProductos.json();
+        estado.productos = (dataProductos.productos || [])
+            .filter(p => Number(String(p.STOCK).trim()) > 0);
+    }catch(err){
+        console.error("No se pudo revalidar el catálogo antes de enviar el pedido:", err);
+        mostrarToast("No pudimos confirmar los precios y el stock actuales. Revisá tu conexión e intentá de nuevo.", "error");
+        desactivarCargaCheckout();
+        return;
+    }
+
+    if(textoBtnCheckout) textoBtnCheckout.textContent = "Enviando pedido...";
+
     if(sincronizarCarritoConStockActual()){
         mostrarToast("Algunos productos de tu carrito cambiaron de stock — revisalo antes de enviar el pedido.", "error");
         desactivarCargaCheckout();
@@ -1108,7 +1179,7 @@ async function checkoutWhatsapp(){
             return;
         }
 
-        let mensaje = `*PEDIDO CASA LUMA*
+        let mensaje = `*PEDIDO JIREH MAYORISTA*
 
 🧾 Pedido: ${resultado.pedidoId}
 
