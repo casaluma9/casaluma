@@ -1179,7 +1179,7 @@ async function checkoutWhatsapp(){
             return;
         }
 
-        let mensaje = `*PEDIDO JIREH MAYORISTA*
+        let mensaje = `*PEDIDO CASA LUMA*
 
 🧾 Pedido: ${resultado.pedidoId}
 
