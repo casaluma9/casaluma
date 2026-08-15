@@ -1,5 +1,5 @@
 /* ===================================================================
-   JIREH ADMIN — app logic v2
+   CASA LUMA ADMIN — app logic v2
    • All original Apps Script API calls preserved
    • Thermal print (POS80 80mm) added
    • Dashboard POS summary added
@@ -258,14 +258,14 @@ function actualizarElemento(id, valor) {
 // Valores por defecto — son los que ya venía usando el ticket, así que
 // si todavía no cargó la config del servidor, todo se imprime igual que antes.
 const CONFIG_NEGOCIO_DEFAULT = {
-  nombre:     "JIREH",
+  nombre:     "CASA LUMA",
   subtitulo:  "Punto de Venta",
   direccion:  "",
   telefono1:  "",
   telefono2:  "",
   pie:        "¡Gracias por su compra!",
 
-  bannerTitulo:    "Mayorista Jireh",
+  bannerTitulo:    "CASA LUMA",
   bannerSubtitulo: "Catálogo Mayorista Online",
   bannerImagen:    "",
   tema:            "navy",
@@ -332,7 +332,7 @@ async function cargarConfigNegocioForm() {
   cargarDrivePedidosForm(cfg);
   cargarUrlCatalogoForm(cfg);
 
-  if (form) form.placeholder = "Ej: JIREH";
+  if (form) form.placeholder = "Ej: CASA LUMA";
 }
 
 /** Reads the form fields and saves them to the backend (hoja CONFIGURACION) */
@@ -461,8 +461,8 @@ function vistaPreviaTicketConfig() {
 /* ===================== APARIENCIA DEL PANEL ADMIN (letra + nombre del sidebar) ===================== */
 
 const SIDEBAR_BRAND_DEFAULT = {
-  sidebarMark:  "J",
-  sidebarTexto: "JIREH"
+  sidebarMark:  "L",
+  sidebarTexto: "CASA LUMA"
 };
 
 /** Applies the saved letter/name to the sidebar in the DOM — runs on every page load, not just inside Configuración */
@@ -774,9 +774,9 @@ async function guardarPasswordStockForm() {
 /* ===================== APARIENCIA DEL CATÁLOGO WEB (banner + tema) ===================== */
 
 const APARIENCIA_DEFAULT = {
-  navbarTexto:     "Jireh Mayorista",
+  navbarTexto:     "CASA LUMA",
   navbarIcono:     "🏬",
-  bannerTitulo:    "Mayorista Jireh",
+  bannerTitulo:    "CASA LUMA",
   bannerSubtitulo: "Catálogo Mayorista Online",
   bannerImagen:    "",
   tema:            "navy",
@@ -784,8 +784,8 @@ const APARIENCIA_DEFAULT = {
   gradA: "#241536",
   gradB: "#3a2856",
 
-  urlCatalogo: "https://horus254-svg.github.io/Jireh-Mayorista",
-  nombreCorto: "JIREH",
+  urlCatalogo: "https://casaluma9.github.io/casaluma",
+  nombreCorto: "CASA LUMA",
 
   iconoUrl: "icon-512.png",
   whatsappIconoUrl: "https://cdn-icons-png.flaticon.com/512/733/733585.png",
@@ -2615,7 +2615,7 @@ function imprimirNotaPedidoA4() {
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif; width:190mm; margin:10mm auto; padding:8mm; box-sizing:border-box; border:2px solid #000; border-radius:4mm;">
       <div style="text-align:center; margin-bottom:6mm;">
-        <div style="font-size:20pt; font-weight:900;">Jireh Mayorista</div>
+        <div style="font-size:20pt; font-weight:900;">CASA LUMA</div>
       </div>
       <div style="background:#0b1633; color:#fff; text-align:center; padding:4mm; border-radius:2mm; margin-bottom:6mm;">
         <div style="font-size:14pt; font-weight:900; letter-spacing:2px;">NOTA DE PEDIDO</div>
