@@ -293,10 +293,13 @@
     <a href="#" data-target="movimientosCaja"   onclick="mostrarSeccion('movimientosCaja')"><span class="ic">💸</span> Movimientos de Caja</a>
     <a href="#" data-target="pedidos"          onclick="mostrarSeccion('pedidos')"><span class="ic">📦</span> Pedidos</a>
     <a href="#" data-target="productos"        onclick="mostrarSeccion('productos')"><span class="ic">🛒</span> Productos</a>
+    <a href="#" data-target="ingresoProductos" onclick="mostrarSeccion('ingresoProductos')"><span class="ic">📥</span> Ingreso de Productos</a>
     <a href="#" data-target="clientes"         onclick="mostrarSeccion('clientes'); cargarClientes();"><span class="ic">👥</span> Clientes</a>
     <a href="#" data-target="reportes"         onclick="mostrarSeccion('reportes')"><span class="ic">📈</span> Reportes</a>
     <a href="#" data-target="reportesCompras"  onclick="mostrarSeccion('reportesCompras')"><span class="ic">📦</span> Reportes de Compras</a>
     <a href="#" data-target="configuracion"    onclick="mostrarSeccion('configuracion')"><span class="ic">⚙️</span> Configuración</a>
+    <a href="#" data-target="usuarios"         onclick="mostrarSeccion('usuarios'); cargarUsuarios();"><span class="ic">🔐</span> Usuarios</a>
+    <a href="#" data-target="instalador"       onclick="mostrarSeccion('instalador')" style="display:none;" title="Oculto — descomentar el style para volver a mostrarlo"><span class="ic">🛠️</span> Instalador</a>
   </nav>
   <button class="logout-btn" onclick="logout()">⏻ Cerrar sesión</button>
 </div>
@@ -508,7 +511,10 @@
   <div id="pedidos" class="seccion">
     <div class="page-header">
       <div><h1>Pedidos</h1><div class="sub">Seguimiento y estado de pedidos del catálogo web</div></div>
-      <button class="btn btn-outline-secondary btn-sm" onclick="recargarPedidos()">↻ Actualizar</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-danger btn-sm" id="btnEliminarPedidosCancelados" onclick="eliminarPedidosCancelados()">🗑️ Eliminar cancelados</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="recargarPedidos()">↻ Actualizar</button>
+      </div>
     </div>
     <div class="card p-3">
       <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -580,6 +586,118 @@
             <th style="width:56px;">Foto</th><th>Código</th><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tablaProductos"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== INGRESO DE PRODUCTOS (recepción de mercadería) ===== -->
+  <div id="ingresoProductos" class="seccion">
+    <div class="page-header">
+      <div><h1>Ingreso de Productos</h1><div class="sub">Recepción de mercadería con proveedor</div></div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="cargarHistorialIngresos()">↻ Actualizar</button>
+        <button class="btn btn-outline-dark" onclick="exportarIngresosPDF()">📄 Informe PDF</button>
+      </div>
+    </div>
+
+    <div class="card p-3 mb-3">
+      <label class="form-label">Escaneá o tipeá el código de barras del producto que llegó</label>
+      <div class="d-flex gap-2 flex-wrap">
+        <input type="text" id="ipCodigoScan" class="form-control" autocomplete="off"
+          placeholder="Código de barras — Enter para buscar"
+          style="max-width:340px; font-size:16px;"
+          onkeydown="if(event.key==='Enter'){ event.preventDefault(); buscarProductoParaIngreso(); }">
+        <button class="btn btn-primary" onclick="buscarProductoParaIngreso()">🔍 Buscar</button>
+        <button class="btn btn-outline-secondary" onclick="generarCodigoIngresoAutomatico()" title="Para productos sin código de barras propio">🔢 Generar código</button>
+        <span class="text-muted align-self-center" id="ipEstadoBusqueda" style="font-size:13px;"></span>
+      </div>
+    </div>
+
+    <div class="card p-3 mb-3" id="ipFormularioWrap" style="display:none;">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+        <h6 class="mb-0" id="ipTituloProducto">Producto</h6>
+        <span class="badge" id="ipBadgeEstado"></span>
+      </div>
+
+      <input type="hidden" id="ipCodigo">
+
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Código</label>
+          <input type="text" class="form-control" id="ipCodigoMostrado" readonly>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Nombre del producto *</label>
+          <input type="text" class="form-control" id="ipNombre" placeholder="Ej: Coca Cola 500ml">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Categoría</label>
+          <input type="text" class="form-control" id="ipCategoria" list="ipCategoriasList" placeholder="Ej: Bebidas">
+          <datalist id="ipCategoriasList"></datalist>
+        </div>
+      </div>
+
+      <div class="row g-2 mt-2">
+        <div class="col-md-4">
+          <label class="form-label">Precio actual / nuevo</label>
+          <input type="number" class="form-control" id="ipPrecio" min="0" step="1" placeholder="0">
+          <div class="form-text" style="font-size:11px;" id="ipPrecioHint"></div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Cantidad que llega *</label>
+          <input type="number" class="form-control" id="ipCantidad" min="1" step="1" placeholder="Ej: 24">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Fecha de recepción</label>
+          <input type="date" class="form-control" id="ipFecha">
+        </div>
+      </div>
+
+      <div class="row g-2 mt-2">
+        <div class="col-md-6">
+          <label class="form-label">Proveedor *</label>
+          <input type="text" class="form-control" id="ipProveedor" list="ipProveedoresList" placeholder="Nombre del proveedor">
+          <datalist id="ipProveedoresList"></datalist>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Contacto del proveedor</label>
+          <input type="text" class="form-control" id="ipProveedorContacto" placeholder="Teléfono / email (opcional)">
+        </div>
+      </div>
+
+      <div class="mt-2">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" id="ipObservaciones" placeholder="Ej: Remito N° 0001-000123 (opcional)">
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-outline-secondary" onclick="cancelarIngresoProducto()">Cancelar</button>
+        <button class="btn btn-success" id="btnConfirmarIngreso" onclick="confirmarIngresoProducto()">📥 Registrar ingreso</button>
+      </div>
+    </div>
+
+    <div style="position:sticky; top:-26px; z-index:10; background:var(--slate-50); padding:8px 0 6px; margin:-26px -30px 0; padding-left:30px; padding-right:30px;">
+      <div class="card p-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="text" id="ipBuscarHistorial" class="form-control form-control-sm" style="max-width:220px"
+            placeholder="Buscar por código o producto..." oninput="filtrarHistorialIngresos()">
+          <input type="text" id="ipFiltroProveedor" class="form-control form-control-sm" style="max-width:200px"
+            placeholder="Filtrar por proveedor..." oninput="filtrarHistorialIngresos()">
+          <input type="date" id="ipFiltroDesde" class="form-control form-control-sm" style="max-width:150px" onchange="filtrarHistorialIngresos()">
+          <input type="date" id="ipFiltroHasta" class="form-control form-control-sm" style="max-width:150px" onchange="filtrarHistorialIngresos()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-3">
+      <div class="table-responsive">
+        <table class="table table-striped" id="tablaIngresosProductos">
+          <thead><tr>
+            <th>Fecha</th><th>Código</th><th>Producto</th><th>Categoría</th>
+            <th>Cantidad</th><th>Precio</th><th>Proveedor</th><th>Contacto</th><th>Obs.</th>
+          </tr></thead>
+          <tbody id="tablaIngresosBody"><tr><td colspan="9" class="text-center text-muted py-4">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -984,6 +1102,9 @@
         <h6 class="mb-0">🏆 Productos más vendidos</h6>
         <button class="btn btn-outline-secondary btn-sm" onclick="exportarReportePDF('repProductos','Productos mas vendidos')">⬇️ Exportar PDF</button>
       </div>
+      <input type="text" id="repProductosBuscador" class="form-control form-control-sm mb-2"
+             placeholder="🔍 Buscar producto por nombre o código..."
+             oninput="filtrarReporteProductos(this.value)">
       <div class="table-responsive">
         <table class="table table-striped table-sm">
           <thead><tr><th>Código</th><th>Producto</th><th>Unidades vendidas</th><th>Ingresos</th></tr></thead>
@@ -1045,6 +1166,76 @@
           <thead><tr><th>Cliente</th><th>Transporte</th><th>Pedidos</th><th>Total comprado</th></tr></thead>
           <tbody id="repClientesTabla"><tr><td colspan="4" class="text-center text-muted py-3">Sin datos para el rango elegido</td></tr></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== USUARIOS Y ROLES ===== -->
+  <div id="usuarios" class="seccion">
+    <div class="page-header">
+      <div><h1>Usuarios</h1><div class="sub">Accesos al panel y sus permisos</div></div>
+      <button class="btn btn-success" onclick="nuevoUsuario()">+ Nuevo Usuario</button>
+    </div>
+
+    <div class="card p-3 mb-3">
+      <div class="d-flex flex-wrap gap-3" style="font-size:13px;">
+        <div><strong>👑 Admin:</strong> acceso a todo el panel, incluida esta pantalla.</div>
+        <div><strong>🏪 Vendedor:</strong> Punto de Venta, Ventas, Cierre de Caja, Pedidos y Clientes.</div>
+        <div><strong>📦 Depósito:</strong> Productos, Ingreso de Productos y Reportes de Compras.</div>
+      </div>
+    </div>
+
+    <div class="card p-3">
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tablaUsuarios"><tr><td colspan="5" class="text-center text-muted py-4">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL USUARIO ===== -->
+  <div class="product-modal-backdrop" id="usuarioModalBackdrop">
+    <div class="product-modal">
+      <div class="product-modal-header">
+        <h6 id="usuarioModalTitle">+ Nuevo Usuario</h6>
+        <button onclick="cerrarModalUsuario()">✕</button>
+      </div>
+      <div class="product-modal-body">
+        <input type="hidden" id="umUsuarioId">
+        <div class="mt-2">
+          <label class="form-label">Nombre *</label>
+          <input type="text" class="form-control" id="umNombre" placeholder="Ej: Juan Pérez">
+        </div>
+        <div class="mt-2">
+          <label class="form-label">Nombre de usuario *</label>
+          <input type="text" class="form-control" id="umUsername" placeholder="Ej: juan">
+        </div>
+        <div class="mt-2">
+          <label class="form-label">Contraseña <span class="text-muted" id="umPasswordHint" style="font-size:11px;">*</span></label>
+          <input type="text" class="form-control" id="umPassword" placeholder="Mínimo 4 caracteres">
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-8">
+            <label class="form-label">Rol *</label>
+            <select class="form-select" id="umRol">
+              <option value="admin">👑 Admin — acceso total</option>
+              <option value="vendedor">🏪 Vendedor — ventas y clientes</option>
+              <option value="deposito">📦 Depósito — productos y stock</option>
+            </select>
+          </div>
+          <div class="col-4 d-flex align-items-end">
+            <label class="pm-switch">
+              <input type="checkbox" id="umActivo" checked>
+              <span>Activo</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="product-modal-actions">
+        <button class="btn btn-outline-secondary" onclick="cerrarModalUsuario()">Cancelar</button>
+        <button class="btn btn-success" id="btnGuardarUsuario" onclick="guardarUsuarioForm()">💾 Guardar Usuario</button>
       </div>
     </div>
   </div>
@@ -1211,6 +1402,22 @@
       <div class="mb-3">
         <label class="form-label">Pie de página <span class="text-muted" style="font-size:11px;">(opcional)</span></label>
         <input type="text" class="form-control" id="cfgPie" placeholder="Ej: ¡Gracias por su compra!">
+      </div>
+
+      <hr class="my-4">
+      <h6 style="margin-bottom:6px;">🏦 Datos bancarios</h6>
+      <p class="text-muted" style="font-size:12.5px; margin-top:-4px; margin-bottom:14px;">
+        Se incluyen en el mensaje de WhatsApp que se manda al cliente cuando un pedido queda en estado "Nuevo".
+      </p>
+      <div class="row g-2 mb-3">
+        <div class="col-md-7">
+          <label class="form-label">CBU / Alias para transferencia</label>
+          <input type="text" class="form-control" id="cfgCbuTransferencia" placeholder="Ej: 0000000000000000000000">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Titular de la cuenta</label>
+          <input type="text" class="form-control" id="cfgNombreTitularCbu" placeholder="Ej: NOMBRE APELLIDO">
+        </div>
       </div>
 
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
@@ -1589,6 +1796,79 @@
         <button class="btn btn-success" id="btnGuardarApariencia" onclick="guardarAparienciaForm()">💾 Guardar apariencia</button>
       </div>
 
+      <!-- Datos generales, íconos y SEO del catálogo -->
+      <hr class="my-4">
+      <h6 style="margin-bottom:6px;">🌐 Datos generales, ícono y SEO</h6>
+      <p class="text-muted" style="font-size:13px;">Se usan al compartir el link del catálogo (WhatsApp, Facebook, X) y para buscadores como Google.</p>
+
+      <div class="mb-3">
+        <span class="form-label d-block">URL del catálogo online</span>
+        <div class="form-text" style="font-size:11.5px;">
+          Ese dato ya se edita en la sección <strong>"📱 Catálogo online (para los QR de precio)"</strong> más arriba — se usa tanto para los QR como para el SEO/redes, no hace falta repetirlo acá.
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Nombre corto <span class="text-muted" style="font-size:11px;">(pantalla de acceso a Reportes)</span></label>
+        <input type="text" class="form-control" id="cfgNombreCorto" placeholder="Ej: JIREH">
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-md-6">
+          <label class="form-label">Ícono del catálogo <span class="text-muted" style="font-size:11px;">(archivo icon-512.png o URL)</span></label>
+          <input type="text" class="form-control" id="cfgIconoUrl" placeholder="icon-512.png">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Ícono del botón flotante de WhatsApp</label>
+          <input type="url" class="form-control" id="cfgWhatsappIconoUrl" placeholder="https://...">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Título SEO <span class="text-muted" style="font-size:11px;">(pestaña del navegador y buscadores)</span></label>
+        <input type="text" class="form-control" id="cfgSeoTitulo" placeholder="Ej: Mi Negocio — Venta mayorista">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Descripción SEO</label>
+        <textarea class="form-control" id="cfgSeoDescripcion" rows="2" placeholder="Descripción corta que aparece en Google y al compartir el link"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Palabras clave SEO <span class="text-muted" style="font-size:11px;">(separadas por coma)</span></label>
+        <input type="text" class="form-control" id="cfgSeoKeywords" placeholder="mayorista, juguetes, ...">
+      </div>
+
+      <!-- Footer del catálogo -->
+      <hr class="my-4">
+      <h6 style="margin-bottom:6px;">🦶 Pie de página del catálogo</h6>
+
+      <div class="mb-3">
+        <label class="form-label">Título de la primera columna</label>
+        <input type="text" class="form-control" id="cfgFooterTitulo1" placeholder="Ej: Mi Negocio">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Texto de la primera columna</label>
+        <textarea class="form-control" id="cfgFooterTexto1" rows="2"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Texto de la columna "Categorías"</label>
+        <textarea class="form-control" id="cfgFooterTexto2" rows="2"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Texto de la columna "Envíos y pedidos"</label>
+        <textarea class="form-control" id="cfgFooterTexto3" rows="2"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Copyright (línea final del footer)</label>
+        <input type="text" class="form-control" id="cfgFooterCopyright" placeholder="© 2026 Mi Negocio">
+      </div>
+
+      <div class="d-flex justify-content-end mt-3">
+        <button class="btn btn-success" onclick="guardarAparienciaForm()">💾 Guardar</button>
+      </div>
+
+
       <!-- Popup promocional -->
       <hr class="my-4">
       <h6 style="margin-bottom:6px;">🎯 Popup promocional (catálogo web)</h6>
@@ -1600,8 +1880,22 @@
         </div>
       </div>
 
+      <!-- Tipo de contenido del popup -->
+      <div class="mb-3 d-flex align-items-center gap-3">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="radio" name="cfgPopupTipo" id="cfgPopupTipoImagen" value="imagen" checked
+            onchange="onCambiarTipoPopup()">
+          <label class="form-check-label" for="cfgPopupTipoImagen">🖼️ Imagen</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="radio" name="cfgPopupTipo" id="cfgPopupTipoVideo" value="video"
+            onchange="onCambiarTipoPopup()">
+          <label class="form-check-label" for="cfgPopupTipoVideo">🎬 Video</label>
+        </div>
+      </div>
+
       <!-- Preview de imagen del popup -->
-      <div class="pm-image-wrap mb-2" style="max-width:320px;">
+      <div class="pm-image-wrap mb-2" style="max-width:320px;" id="popupImagenWrap">
         <div class="pm-image-preview" id="popupImagenPreview" style="height:160px;">
           <span class="pm-image-placeholder">Sin imagen</span>
         </div>
@@ -1615,6 +1909,21 @@
         </div>
         <div class="pm-image-status" id="popupImagenStatus"></div>
         <input type="hidden" id="cfgPopupImagen">
+      </div>
+
+      <!-- URL de video del popup (oculto salvo que se elija "Video") -->
+      <div class="mb-2" id="popupVideoWrap" style="max-width:420px; display:none;">
+        <label class="form-label" style="font-size:13px;" for="cfgPopupVideoUrl">URL directa del video (.mp4, .webm)</label>
+        <input type="url" class="form-control form-control-sm" id="cfgPopupVideoUrl"
+          placeholder="https://.../promo.mp4" oninput="onCambiarUrlVideoPopup()">
+        <div class="pm-image-status" id="popupVideoStatus"></div>
+        <p class="text-muted mt-1" style="font-size:12px;">
+          Subí el video a Drive, Firebase Storage o un CDN y pegá acá el enlace directo al archivo
+          (que termine en .mp4/.webm). No se puede subir el video desde acá.
+        </p>
+        <div class="pm-image-preview mt-2" id="popupVideoPreview" style="height:160px; display:none;">
+          <video id="popupVideoPreviewTag" src="" muted loop autoplay playsinline style="width:100%;height:100%;object-fit:contain;"></video>
+        </div>
       </div>
 
       <div class="mt-2">
@@ -1675,27 +1984,6 @@
 
       <div class="d-flex justify-content-end mt-3">
         <button class="btn btn-success" id="btnGuardarBeneficios" onclick="guardarBeneficiosForm()">💾 Guardar beneficios</button>
-      </div>
-    </div>
-
-    <div class="card p-3 mt-3">
-      <h6 style="margin-bottom:14px;">🏦 Datos para transferencia (mensaje de WhatsApp)</h6>
-      <p class="text-muted" style="font-size:12.5px; margin-top:-8px; margin-bottom:14px;">
-        Estos datos se incluyen automáticamente en el mensaje de WhatsApp que se manda a los clientes cuando un pedido queda en estado "Nuevo".
-      </p>
-
-      <div class="mb-3">
-        <label class="form-label">CBU / Alias <span class="text-muted" style="font-size:11px;">(para recibir transferencias)</span></label>
-        <input type="text" class="form-control" id="cfgCbuTransferencia" placeholder="Ej: 1910249655024901554778">
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Nombre del titular</label>
-        <input type="text" class="form-control" id="cfgNombreTitularCbu" placeholder="Ej: ESCALERA CARBAJAL DANIEL">
-      </div>
-
-      <div class="d-flex justify-content-end mt-3">
-        <button class="btn btn-success" id="btnGuardarDatosTransferencia" onclick="guardarDatosTransferenciaForm()">💾 Guardar datos de transferencia</button>
       </div>
     </div>
 

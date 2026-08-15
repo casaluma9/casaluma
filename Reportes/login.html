@@ -10,6 +10,8 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+<script src="config.js"></script>
+
 <style>
 
 :root{
@@ -167,7 +169,7 @@ body{
   <div class="login-brand">
     <div class="mark">📊</div>
     <div class="label">
-      <strong>CASA LUMA</strong>
+      <strong id="loginNombreCorto">JIREH</strong>
       <small>REPORTES</small>
     </div>
   </div>
@@ -214,7 +216,13 @@ body{
 
 <script>
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+const API_URL = CONFIG_NEGOCIO.API_URL;
+
+(async function inicializar(){
+  await cargarConfigNegocio();
+  document.getElementById("loginNombreCorto").textContent = CONFIG_NEGOCIO.NOMBRE_CORTO;
+  document.title = "Acceso · " + CONFIG_NEGOCIO.NOMBRE_CORTO;
+})();
 
 function togglePassword(){
   const input = document.getElementById("password");

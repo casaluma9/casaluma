@@ -10,7 +10,7 @@
 // Permite instalar el mismo código para distintos clientes
 // sin modificar nada manualmente.
 let API_URL =
-  "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+  "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -69,16 +69,19 @@ async function cargarConfigCliente() {
   // de OTRA instalación) sin ningún aviso — cualquier venta o cambio
   // de stock se habría guardado en la planilla equivocada.
   const bridge = window.posOffline || window.veekpos;
+  console.log("[cargarConfigCliente] bridge detectado:", bridge ? (window.posOffline ? "posOffline" : "veekpos") : "ninguno (modo navegador)");
   if (bridge && typeof bridge.obtenerConfigLocal === "function") {
     try {
       const guardada = await bridge.obtenerConfigLocal("api_url", "");
+      console.log("[cargarConfigCliente] api_url leída de SQLite:", JSON.stringify(guardada));
       if (guardada) {
         API_URL = guardada;
         return true; // ya configurada vía Instalador (setup.html)
       }
     } catch (e) {
-      console.error("Error al leer api_url desde el almacenamiento local:", e);
+      console.error("[cargarConfigCliente] Error al leer api_url desde el almacenamiento local:", e);
     }
+    console.log("[cargarConfigCliente] Sin api_url guardada — se considera instalación nueva.");
     // Estamos en Electron pero todavía no hay api_url guardada: no
     // caer al config.json de navegador (no aplica en este modo) ni al
     // default de otra instalación — se trata como no configurada.
@@ -159,7 +162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // que en Electron no se usa para nada. Mandar ahí por error
       // dejaría a la persona completando un formulario que no guarda
       // los datos donde admin.js realmente los busca.
-      window.location.href = "../setup.html";
+      window.location.href = "setup.html";
       return;
     }
 
@@ -183,6 +186,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.location.href = "login.html";
     return;
   }
+
+  aplicarPermisosPorRol();
 
   // Verificar licencia (solo en Electron con window.veekpos disponible)
   aplicarEstadoLicencia();
@@ -302,19 +307,26 @@ async function cargarConfigNegocioForm() {
 
   const cfg = await cargarConfigNegocioDesdeBackend();
 
-  document.getElementById("cfgNombreLocal").value = cfg.nombre;
-  document.getElementById("cfgSubtitulo").value   = cfg.subtitulo;
-  document.getElementById("cfgDireccion").value   = cfg.direccion;
-  document.getElementById("cfgTelefono1").value   = cfg.telefono1;
-  document.getElementById("cfgTelefono2").value   = cfg.telefono2;
-  document.getElementById("cfgPie").value         = cfg.pie;
+  // Setter seguro: si el input no existe en este HTML, no rompe el resto de la carga.
+  const setVal = (id, valor) => {
+    const el = document.getElementById(id);
+    if (el) el.value = valor ?? "";
+    else console.warn(`cargarConfigNegocioForm: no existe #${id} en este HTML, se omite.`);
+  };
+
+  setVal("cfgNombreLocal", cfg.nombre);
+  setVal("cfgSubtitulo", cfg.subtitulo);
+  setVal("cfgDireccion", cfg.direccion);
+  setVal("cfgTelefono1", cfg.telefono1);
+  setVal("cfgTelefono2", cfg.telefono2);
+  setVal("cfgPie", cfg.pie);
 
   cargarAparienciaForm(cfg);
   cargarBeneficiosForm(cfg);
-  document.getElementById("cfgCbuTransferencia").value = cfg.cbuTransferencia ?? CONFIG_NEGOCIO_DEFAULT.cbuTransferencia;
-  document.getElementById("cfgNombreTitularCbu").value = cfg.nombreTitularCbu ?? CONFIG_NEGOCIO_DEFAULT.nombreTitularCbu;
-  document.getElementById("cfgBannerTopMensajes").value = cfg.bannerTopMensajes ?? "";
-  document.getElementById("cfgTransportesNoDisponibles").value = cfg.transportesNoDisponibles ?? "";
+  setVal("cfgCbuTransferencia", cfg.cbuTransferencia ?? CONFIG_NEGOCIO_DEFAULT.cbuTransferencia);
+  setVal("cfgNombreTitularCbu", cfg.nombreTitularCbu ?? CONFIG_NEGOCIO_DEFAULT.nombreTitularCbu);
+  setVal("cfgBannerTopMensajes", cfg.bannerTopMensajes ?? "");
+  setVal("cfgTransportesNoDisponibles", cfg.transportesNoDisponibles ?? "");
   cargarSidebarForm(cfg);
   cargarDriveProductosForm(cfg);
   cargarDrivePedidosForm(cfg);
@@ -340,6 +352,11 @@ async function guardarConfigNegocioForm() {
     telefono2: document.getElementById("cfgTelefono2").value.trim(),
     pie:       document.getElementById("cfgPie").value.trim()
   };
+
+  const cbuEl = document.getElementById("cfgCbuTransferencia");
+  const titularEl = document.getElementById("cfgNombreTitularCbu");
+  if (cbuEl) cfg.cbuTransferencia = cbuEl.value.trim();
+  if (titularEl) cfg.nombreTitularCbu = titularEl.value.trim();
 
   const btn = document.getElementById("btnGuardarConfigNegocio");
   const textoOriginal = btn ? btn.innerHTML : "";
@@ -437,6 +454,7 @@ function vistaPreviaTicketConfig() {
 
   frame.innerHTML = buildThermalHTML("PREVIEW", itemsEjemplo, total, "EFECTIVO", new Date(), null, cfgPreview);
 
+  _setPrintPageSize("80mm");
   setTimeout(() => { window.print(); }, 120);
 }
 
@@ -764,7 +782,23 @@ const APARIENCIA_DEFAULT = {
   tema:            "navy",
   gradPersonalizado: false,
   gradA: "#241536",
-  gradB: "#3a2856"
+  gradB: "#3a2856",
+
+  urlCatalogo: "https://horus254-svg.github.io/Jireh-Mayorista",
+  nombreCorto: "JIREH",
+
+  iconoUrl: "icon-512.png",
+  whatsappIconoUrl: "https://cdn-icons-png.flaticon.com/512/733/733585.png",
+
+  seoTitulo: "",
+  seoDescripcion: "",
+  seoKeywords: "",
+
+  footerTitulo1: "",
+  footerTexto1: "",
+  footerTexto2: "",
+  footerTexto3: "",
+  footerCopyright: ""
 };
 
 /**
@@ -797,6 +831,20 @@ function cargarAparienciaForm(cfg) {
   document.getElementById("cfgGradB").value = cfg.gradB || APARIENCIA_DEFAULT.gradB;
   document.getElementById("cfgGradWrap").style.display = gradActivo ? "" : "none";
 
+  // Dominio del catálogo, nombre corto y SEO/redes
+  const setIfExists = (id, valor) => { const el = document.getElementById(id); if(el) el.value = valor ?? ""; };
+  setIfExists("cfgNombreCorto", cfg.nombreCorto ?? APARIENCIA_DEFAULT.nombreCorto);
+  setIfExists("cfgIconoUrl", cfg.iconoUrl ?? APARIENCIA_DEFAULT.iconoUrl);
+  setIfExists("cfgWhatsappIconoUrl", cfg.whatsappIconoUrl ?? APARIENCIA_DEFAULT.whatsappIconoUrl);
+  setIfExists("cfgSeoTitulo", cfg.seoTitulo ?? APARIENCIA_DEFAULT.seoTitulo);
+  setIfExists("cfgSeoDescripcion", cfg.seoDescripcion ?? APARIENCIA_DEFAULT.seoDescripcion);
+  setIfExists("cfgSeoKeywords", cfg.seoKeywords ?? APARIENCIA_DEFAULT.seoKeywords);
+  setIfExists("cfgFooterTitulo1", cfg.footerTitulo1 ?? APARIENCIA_DEFAULT.footerTitulo1);
+  setIfExists("cfgFooterTexto1", cfg.footerTexto1 ?? APARIENCIA_DEFAULT.footerTexto1);
+  setIfExists("cfgFooterTexto2", cfg.footerTexto2 ?? APARIENCIA_DEFAULT.footerTexto2);
+  setIfExists("cfgFooterTexto3", cfg.footerTexto3 ?? APARIENCIA_DEFAULT.footerTexto3);
+  setIfExists("cfgFooterCopyright", cfg.footerCopyright ?? APARIENCIA_DEFAULT.footerCopyright);
+
   // Pedido mínimo
   const cfgPedidoMinimoEl = document.getElementById("cfgPedidoMinimo");
   if (cfgPedidoMinimoEl && cfg.pedidoMinimo !== undefined) cfgPedidoMinimoEl.value = cfg.pedidoMinimo;
@@ -805,12 +853,76 @@ function cargarAparienciaForm(cfg) {
   const popupActivo = document.getElementById("cfgPopupActivo");
   const popupImagen = document.getElementById("cfgPopupImagen");
   if (popupActivo) popupActivo.checked = !!cfg.popupActivo;
-  if (popupImagen) popupImagen.value = cfg.popupImagen || "";
+
+  const tipo = cfg.popupTipo === "video" ? "video" : "imagen";
+  const radioImagen = document.getElementById("cfgPopupTipoImagen");
+  const radioVideo = document.getElementById("cfgPopupTipoVideo");
+  if (radioImagen) radioImagen.checked = tipo === "imagen";
+  if (radioVideo) radioVideo.checked = tipo === "video";
+
+  if (tipo === "video") {
+    if (popupImagen) popupImagen.value = "";
+    const videoUrlEl = document.getElementById("cfgPopupVideoUrl");
+    if (videoUrlEl) videoUrlEl.value = cfg.popupImagen || "";
+  } else {
+    if (popupImagen) popupImagen.value = cfg.popupImagen || "";
+    const videoUrlEl = document.getElementById("cfgPopupVideoUrl");
+    if (videoUrlEl) videoUrlEl.value = "";
+  }
+
+  onCambiarTipoPopup();
+
   // Mostrar preview si ya hay imagen guardada
   const popupPreviewEl = document.getElementById("popupImagenPreview");
-  if (popupPreviewEl && cfg.popupImagen) {
+  if (popupPreviewEl && tipo === "imagen" && cfg.popupImagen) {
     popupPreviewEl.innerHTML = `<img src="${cfg.popupImagen}" alt="" style="width:100%;height:100%;object-fit:contain;">`;
   }
+
+  // Mostrar preview de video si corresponde
+  if (tipo === "video" && cfg.popupImagen) {
+    const videoPreview = document.getElementById("popupVideoPreview");
+    const videoPreviewTag = document.getElementById("popupVideoPreviewTag");
+    if (videoPreview && videoPreviewTag) {
+      videoPreviewTag.src = cfg.popupImagen;
+      videoPreview.style.display = "block";
+    }
+  }
+}
+
+/** Alterna entre el bloque de "Imagen" y el de "Video" según el radio elegido */
+function onCambiarTipoPopup() {
+  const esVideo = document.getElementById("cfgPopupTipoVideo")?.checked;
+  const wrapImagen = document.getElementById("popupImagenWrap");
+  const wrapVideo = document.getElementById("popupVideoWrap");
+  if (wrapImagen) wrapImagen.style.display = esVideo ? "none" : "";
+  if (wrapVideo) wrapVideo.style.display = esVideo ? "" : "none";
+}
+
+/** Previsualiza el video pegado por URL, sin subir nada */
+function onCambiarUrlVideoPopup() {
+  const url = (document.getElementById("cfgPopupVideoUrl")?.value || "").trim();
+  const statusEl = document.getElementById("popupVideoStatus");
+  const preview = document.getElementById("popupVideoPreview");
+  const previewTag = document.getElementById("popupVideoPreviewTag");
+  if (!preview || !previewTag) return;
+
+  if (!url) {
+    preview.style.display = "none";
+    previewTag.src = "";
+    if (statusEl) { statusEl.className = "pm-image-status"; statusEl.textContent = ""; }
+    return;
+  }
+
+  const pareceVideo = /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url);
+  if (!pareceVideo) {
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "⚠️ La URL debería terminar en .mp4, .webm, etc."; }
+  } else if (statusEl) {
+    statusEl.className = "pm-image-status success";
+    statusEl.textContent = "✓ URL de video lista";
+  }
+
+  previewTag.src = url;
+  preview.style.display = "block";
 }
 
 async function guardarPedidoMinimoForm() {
@@ -909,6 +1021,15 @@ function quitarImagenPopup() {
   if (preview) preview.innerHTML = `<span class="pm-image-placeholder">Sin imagen</span>`;
   const status = document.getElementById("popupImagenStatus");
   if (status) { status.className = "pm-image-status"; status.textContent = ""; }
+
+  const videoUrlEl = document.getElementById("cfgPopupVideoUrl");
+  if (videoUrlEl) videoUrlEl.value = "";
+  const videoPreview = document.getElementById("popupVideoPreview");
+  if (videoPreview) videoPreview.style.display = "none";
+  const videoPreviewTag = document.getElementById("popupVideoPreviewTag");
+  if (videoPreviewTag) videoPreviewTag.src = "";
+  const videoStatus = document.getElementById("popupVideoStatus");
+  if (videoStatus) { videoStatus.className = "pm-image-status"; videoStatus.textContent = ""; }
 }
 
 async function onSeleccionarImagenPopup(event) {
@@ -962,9 +1083,25 @@ async function subirImagenPopup() {}  // legacy
 
 async function guardarPopupPromoForm() {
   const activo = document.getElementById("cfgPopupActivo")?.checked ? "SI" : "NO";
-  const imagen = (document.getElementById("cfgPopupImagen")?.value || "").trim();
+  const esVideo = document.getElementById("cfgPopupTipoVideo")?.checked;
+  const tipo = esVideo ? "video" : "imagen";
+
+  const imagen = esVideo
+    ? (document.getElementById("cfgPopupVideoUrl")?.value || "").trim()
+    : (document.getElementById("cfgPopupImagen")?.value || "").trim();
+
+  if (esVideo && imagen && !/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(imagen)) {
+    toast("La URL del video debería terminar en .mp4, .webm, etc.", "error");
+    return;
+  }
+
   try {
-    const params = new URLSearchParams({ action: "guardarConfiguracionNegocio", popupImagen: imagen, popupActivo: activo });
+    const params = new URLSearchParams({
+      action: "guardarConfiguracionNegocio",
+      popupImagen: imagen,
+      popupActivo: activo,
+      popupTipo: tipo
+    });
     const res = await fetchAPI(API_URL + "?" + params.toString());
     const data = await res.json();
     if (data.success) toast("Popup guardado correctamente", "success");
@@ -1012,6 +1149,24 @@ async function guardarAparienciaForm() {
     navbarTexto:     document.getElementById("cfgNavbarTexto").value.trim(),
     navbarIcono:     document.getElementById("cfgNavbarIcono").value.trim()
   };
+
+  // Campos opcionales nuevos (URL del catálogo, nombre corto, íconos, SEO, footer)
+  const getIfExists = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : undefined; };
+  const extra = {
+    nombreCorto: getIfExists("cfgNombreCorto"),
+    iconoUrl: getIfExists("cfgIconoUrl"),
+    whatsappIconoUrl: getIfExists("cfgWhatsappIconoUrl"),
+    seoTitulo: getIfExists("cfgSeoTitulo"),
+    seoDescripcion: getIfExists("cfgSeoDescripcion"),
+    seoKeywords: getIfExists("cfgSeoKeywords"),
+    footerTitulo1: getIfExists("cfgFooterTitulo1"),
+    footerTexto1: getIfExists("cfgFooterTexto1"),
+    footerTexto2: getIfExists("cfgFooterTexto2"),
+    footerTexto3: getIfExists("cfgFooterTexto3"),
+    footerCopyright: getIfExists("cfgFooterCopyright")
+  };
+  Object.keys(extra).forEach(k => { if(extra[k] === undefined) delete extra[k]; });
+  Object.assign(cfg, extra);
 
   const btn = document.getElementById("btnGuardarApariencia");
   const textoOriginal = btn ? btn.innerHTML : "";
@@ -1601,6 +1756,11 @@ function cargarSiVencido(clave, fn) {
 }
 
 function mostrarSeccion(id) {
+  if (!seccionPermitidaParaRol(id)) {
+    toast("No tenés permiso para acceder a esta sección", "error");
+    id = "dashboard";
+  }
+
   document.querySelectorAll(".seccion").forEach(sec => { sec.style.display = "none"; });
 
   const seccion = document.getElementById(id);
@@ -1618,6 +1778,7 @@ function mostrarSeccion(id) {
 
   if (id === "pedidos")   cargarSiVencido("pedidos", cargarPedidos);
   if (id === "productos") cargarSiVencido("productos", cargarProductos);
+  if (id === "ingresoProductos") { cargarProductos(); cargarHistorialIngresos(); setTimeout(() => document.getElementById("ipCodigoScan")?.focus(), 100); }
   if (id === "ventasPOS") cargarSiVencido("ventasPOS", cargarVentasPOSHistorial);
   if (id === "configuracion") {
     cargarConfigNegocioForm();
@@ -1890,6 +2051,54 @@ function recargarPedidos() {
   invalidarCache("pedidos");
   delete ULTIMA_CARGA_SECCION["pedidos"];
   cargarPedidos();
+}
+
+/** Botón "Eliminar cancelados" en la sección Pedidos — borra
+ *  permanentemente todos los pedidos en estado CANCELADO junto con su
+ *  detalle en DETALLE_PEDIDOS. Acción destructiva, por eso pide
+ *  confirmación antes de mandar nada al backend. */
+function eliminarPedidosCancelados() {
+  if (obtenerRolActual() === "vendedor") {
+    toast("Tu usuario (Vendedor) no tiene permiso para eliminar pedidos", "error");
+    return;
+  }
+  confirmarAccion(
+    "¿Eliminar todos los pedidos cancelados? Se van a borrar de forma permanente, junto con el detalle de sus productos. Esta acción no se puede deshacer.",
+    _eliminarPedidosCanceladosConfirmado,
+    "🗑️ Eliminar pedidos cancelados"
+  );
+}
+
+async function _eliminarPedidosCanceladosConfirmado() {
+  try {
+    const response = await fetchAPI(
+      API_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "eliminarPedidosCancelados", rol: obtenerRolActual() })
+      },
+      { timeoutMs: 20000 }
+    );
+    const data = await response.json();
+
+    if (!data.success) {
+      toast(data.message || "No se pudieron eliminar los pedidos cancelados", "error");
+      return;
+    }
+
+    if (data.eliminados === 0) {
+      toast("No había pedidos cancelados para eliminar", "info");
+      return;
+    }
+
+    toast(`✓ Se eliminaron ${data.eliminados} pedido(s) cancelado(s)`, "success");
+    recargarPedidos();
+
+  } catch (error) {
+    console.error("Error al eliminar pedidos cancelados:", error);
+    toast("Error de conexión al eliminar los pedidos cancelados", "error");
+  }
 }
 
 function recargarVentasPOSHistorial() {
@@ -2452,8 +2661,15 @@ function imprimirNotaPedidoA4() {
       <div style="text-align:center; font-size:8pt; color:#aaa; margin-top:4mm;">Impreso el ${ahora}</div>
     </div>`;
 
+  // Por si quedó contenido de una impresión de ticket térmico anterior
+  // a medio camino, se limpia el otro contenedor de impresión para que
+  // el CSS de :empty/:not(:empty) elija el correcto sin ambigüedad.
+  const thermalFrameNota = document.getElementById("thermalPrintFrame");
+  if (thermalFrameNota) thermalFrameNota.innerHTML = "";
+
   const area = document.getElementById("etiquetasPrintArea");
   area.innerHTML = html;
+  _setPrintPageSize("A4");
   setTimeout(() => window.print(), 120);
 }
 
@@ -2982,7 +3198,8 @@ async function confirmarAgregarStock() {
     const params = new URLSearchParams({
       action: "sumarStockProducto",
       codigo: codigo,
-      cantidad: cantidad
+      cantidad: cantidad,
+      rol: obtenerRolActual()
     });
 
     const response = await fetchAPI(API_URL + "?" + params.toString());
@@ -3199,6 +3416,7 @@ async function guardarProductoForm() {
   try {
     const params = new URLSearchParams({
       action: esEdicion ? "actualizarProducto" : "guardarProducto",
+      rol: obtenerRolActual(),
       CODIGO: codigo,
       PRODUCTO: nombre,
       CATEGORIA: categoria,
@@ -4001,8 +4219,15 @@ function imprimirInformeCliente() {
     </div>
   `;
 
+  // Por si quedó contenido de una impresión de ticket térmico anterior
+  // a medio camino, se limpia el otro contenedor de impresión para que
+  // el CSS de :empty/:not(:empty) elija el correcto sin ambigüedad.
+  const thermalFrameInforme = document.getElementById("thermalPrintFrame");
+  if (thermalFrameInforme) thermalFrameInforme.innerHTML = "";
+
   document.getElementById("etiquetasPrintArea").innerHTML = html;
 
+  _setPrintPageSize("A4");
   setTimeout(() => {
     window.print();
   }, 100);
@@ -4081,8 +4306,15 @@ function imprimirEtiquetaEnvio(datos) {
     </div>
   `;
 
+  // Por si quedó contenido de una impresión de ticket térmico anterior
+  // a medio camino, se limpia el otro contenedor de impresión para que
+  // el CSS de :empty/:not(:empty) elija el correcto sin ambigüedad.
+  const thermalFrameEnvio = document.getElementById("thermalPrintFrame");
+  if (thermalFrameEnvio) thermalFrameEnvio.innerHTML = "";
+
   const area = document.getElementById("etiquetasPrintArea");
   area.innerHTML = html;
+  _setPrintPageSize("A4");
 
   // Generar el código de barras después de que el DOM esté listo
   setTimeout(() => {
@@ -4335,7 +4567,7 @@ function renderPosGrid(filtroTexto) {
           <span class="tile-price">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</span>
           ${stockBadge}
         </div>
-        <button type="button" class="tile-edit" data-idx="${idx}" title="Editar precio y stock" onclick="event.stopPropagation(); abrirEdicionRapidaPOS('${escapeHtml(p.CODIGO)}');">✏️</button>
+        ${obtenerRolActual() === "vendedor" ? "" : `<button type="button" class="tile-edit" data-idx="${idx}" title="Editar precio y stock" onclick="event.stopPropagation(); abrirEdicionRapidaPOS('${escapeHtml(p.CODIGO)}');">✏️</button>`}
         ${Number(p.UNIDADES_POR_CAJA) > 0 ? `<button type="button" class="tile-caja" title="Agregar 1 caja (${p.UNIDADES_POR_CAJA} uds) a $${Number(p.PRECIO_CAJA || 0).toLocaleString("es-AR")}" onclick="event.stopPropagation(); agregarCajaAlTicket(productosPOS.find(x => String(x.CODIGO)==='${escapeHtml(p.CODIGO)}'));">📦x${p.UNIDADES_POR_CAJA}</button>` : ""}
         <span class="tile-add">+</span>
       </div>`;
@@ -4440,6 +4672,10 @@ function agregarCajaAlTicket(producto) {
 let _codigoEdicionRapidaPOS = null;
 
 function abrirEdicionRapidaPOS(codigo) {
+  if (obtenerRolActual() === "vendedor") {
+    toast("Tu usuario (Vendedor) no tiene permiso para modificar precio o stock", "error");
+    return;
+  }
   const producto = productosPOS.find(p => String(p.CODIGO).trim() === String(codigo).trim());
   if (!producto) { toast("Producto no encontrado", "error"); return; }
 
@@ -4490,6 +4726,7 @@ async function guardarEdicionRapidaPOS() {
     // caja, que este modal no permite editar pero tampoco debe borrar.
     const params = new URLSearchParams({
       action: "actualizarProducto",
+      rol: obtenerRolActual(),
       codigoOriginal: producto.CODIGO,
       CODIGO: codigoNuevo,
       PRODUCTO: producto.PRODUCTO,
@@ -5556,6 +5793,25 @@ function buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, cf
 const USB_PRINT_PREF_KEY = "jireh_usb_print_enabled";
 const ANCHO_TICKET_USB = 42; // columnas para fuente normal en 80mm (12 cpl aprox.)
 
+// Inyecta un <style> con el @page correcto justo antes de imprimir.
+// No usamos "@page nombreDePagina" + "page: nombreDePagina" en el CSS
+// porque el soporte de páginas con nombre es poco confiable en
+// Chromium/Electron: sin esto, el navegador cae al @page por defecto
+// (80mm, pensado para el ticket térmico) incluso al imprimir una
+// etiqueta o un A4, dando como resultado una impresión con forma de
+// ticket térmico en vez del tamaño esperado.
+function _setPrintPageSize(size) {
+  let tag = document.getElementById("dynamicPrintPageSize");
+  if (!tag) {
+    tag = document.createElement("style");
+    tag.id = "dynamicPrintPageSize";
+    document.head.appendChild(tag);
+  }
+  tag.textContent = size === "A4"
+    ? "@media print { @page { size:A4; margin:8mm; } }"
+    : "@media print { @page { size:80mm auto; margin:0; } }";
+}
+
 let puertoImpresoraUSB = null; // SerialPort activo, o null si no hay conexión
 
 /** Whether the browser supports Web Serial at all */
@@ -6062,6 +6318,11 @@ async function _imprimirConDialogo(html) {
   // en la práctica. Se vuelve a un alto fijo, simple y sin trucos:
   // menos veloz en teoría, pero nunca corta ni desalinea un ticket.
   const altoMicrones = 297000; // 297mm (largo A4) — margen de sobra para cualquier ticket, incluido el de cierre de caja
+
+  // Asegura que, si se cae al diálogo normal (window.print más abajo),
+  // la página tenga el tamaño térmico (80mm) y no el A4 que pudo haber
+  // quedado configurado por una impresión de etiqueta anterior.
+  _setPrintPageSize("80mm");
 
   // En Electron: impresión silenciosa sin diálogo del sistema
   const bridge = window.veekpos || window.posOffline;
@@ -6957,6 +7218,8 @@ function _aplicarReporteVentas(data, tbody, resumenWrap) {
 }
 
 /* ---- Reporte 2: Productos más vendidos ---- */
+let _repProductosDatosActuales = []; // último set de productos cargado, para filtrar sin re-pedir al backend
+
 async function cargarReporteProductos() {
   const _ck_repProductos = "reporteProductosVendidos" + obtenerRangoReportes();
   const _cd_repProductos = _getCacheReporte(_ck_repProductos);
@@ -6968,25 +7231,63 @@ async function cargarReporteProductos() {
     const data = await response.json();
     if (!data.success) return;
 
-    sincronizarRangoReportes(data.desde, data.hasta);
-
-    if (!data.productos || data.productos.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Sin ventas para el rango elegido</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = data.productos.map(p => `
-      <tr>
-        <td class="mono">${escapeHtml(p.CODIGO)}</td>
-        <td>${escapeHtml(p.PRODUCTO)}</td>
-        <td class="money">${Number(p.VENDIDOS || 0).toLocaleString("es-AR")}</td>
-        <td class="money">$${Number(p.INGRESOS || 0).toLocaleString("es-AR")}</td>
-      </tr>`).join("");
+    _cacheReporte(_ck_repProductos, data);
+    _aplicar_cargarReporteProductos(data);
 
   } catch (error) {
     console.error("Error al cargar reporte de productos vendidos:", error);
     tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
   }
+}
+
+/** Aplica los datos del reporte (desde backend o caché) a la tabla, y guarda la lista
+ *  completa en _repProductosDatosActuales para que el buscador pueda filtrar localmente
+ *  sin tener que volver a pedirle nada al servidor. */
+function _aplicar_cargarReporteProductos(data) {
+  sincronizarRangoReportes(data.desde, data.hasta);
+  _repProductosDatosActuales = data.productos || [];
+
+  // Si había algo tipeado en el buscador, se respeta al recargar/cambiar de rango
+  const buscador = document.getElementById("repProductosBuscador");
+  const filtro = buscador ? buscador.value : "";
+  renderReporteProductos(_repProductosDatosActuales, filtro);
+}
+
+/** Renderiza la tabla de productos más vendidos, opcionalmente filtrada por texto
+ *  (coincidencia parcial, sin distinguir mayúsculas/minúsculas, contra código o nombre). */
+function renderReporteProductos(productos, filtro = "") {
+  const tbody = document.getElementById("repProductosTabla");
+  if (!tbody) return;
+
+  const texto = filtro.trim().toLowerCase();
+  const lista = texto
+    ? productos.filter(p =>
+        String(p.PRODUCTO || "").toLowerCase().includes(texto) ||
+        String(p.CODIGO || "").toLowerCase().includes(texto))
+    : productos;
+
+  if (!productos || productos.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Sin ventas para el rango elegido</td></tr>`;
+    return;
+  }
+
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Ningún producto coincide con "${escapeHtml(filtro)}"</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map(p => `
+    <tr>
+      <td class="mono">${escapeHtml(p.CODIGO)}</td>
+      <td>${escapeHtml(p.PRODUCTO)}</td>
+      <td class="money">${Number(p.VENDIDOS || 0).toLocaleString("es-AR")}</td>
+      <td class="money">$${Number(p.INGRESOS || 0).toLocaleString("es-AR")}</td>
+    </tr>`).join("");
+}
+
+/** Llamado por el input del buscador (oninput) en la tabla de productos más vendidos. */
+function filtrarReporteProductos(texto) {
+  renderReporteProductos(_repProductosDatosActuales, texto);
 }
 
 /* ---- Reporte 3: Ventas por categoría ---- */
@@ -7709,6 +8010,7 @@ function renderTablaMovimientosCaja(lista) {
     const fpIcon = iconoFormaPago[fp] || "💵";
     const fpLabel = fp.charAt(0) + fp.slice(1).toLowerCase();
 
+    const esVendedorRol = obtenerRolActual() === "vendedor";
     html += `
     <tr>
       <td>${hora}</td>
@@ -7719,8 +8021,8 @@ function renderTablaMovimientosCaja(lista) {
         ${esIngreso ? "+" : "-"}$${Number(m.MONTO || 0).toLocaleString("es-AR")}
       </td>
       <td>${escapeHtml(m.VENDEDOR || "—")}</td>
-      <td><button class="btn btn-outline-danger btn-sm"
-        onclick="confirmarEliminarMovimiento('${escapeHtml(m.MOVIMIENTO_ID)}', '${escapeHtml(m.MOTIVO || "")}')">✕</button></td>
+      <td>${esVendedorRol ? "" : `<button class="btn btn-outline-danger btn-sm"
+        onclick="confirmarEliminarMovimiento('${escapeHtml(m.MOVIMIENTO_ID)}', '${escapeHtml(m.MOTIVO || "")}')">✕</button>`}</td>
     </tr>`;
   });
 
@@ -7751,8 +8053,13 @@ async function eliminarMovimientoCajaForm(movimientoId) {
   cerrarModalEliminarMov();
   if (!id) return;
 
+  if (obtenerRolActual() === "vendedor") {
+    toast("Tu usuario (Vendedor) no tiene permiso para eliminar movimientos de caja", "error");
+    return;
+  }
+
   try {
-    const response = await fetchAPI(API_URL + "?action=eliminarMovimientoCaja&movimientoId=" + encodeURIComponent(id));
+    const response = await fetchAPI(API_URL + "?action=eliminarMovimientoCaja&movimientoId=" + encodeURIComponent(id) + "&rol=" + encodeURIComponent(obtenerRolActual()));
     const data = await response.json();
 
     if (!data.success) {
@@ -7787,12 +8094,14 @@ async function guardarMovimientoCajaForm() {
   btn.innerHTML = "Guardando...";
 
   try {
+    const nombreUsuarioActual = sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "ADMIN";
     const params = new URLSearchParams({
       action: "guardarMovimientoCaja",
       tipo: tipoMovimientoCajaActivo,
       monto: monto,
       motivo: motivo,
-      formaPago: formaPago
+      formaPago: formaPago,
+      vendedor: nombreUsuarioActual
     });
 
     const response = await fetchAPI(API_URL + "?" + params.toString());
@@ -7963,6 +8272,7 @@ function imprimirEtiquetas() {
 
   cerrarModalEtiquetas();
 
+  _setPrintPageSize("A4");
   // Pequeño delay para asegurar que los SVG ya se pintaron en el DOM
   // antes de que el navegador capture el contenido para imprimir.
   setTimeout(() => {
@@ -8086,6 +8396,7 @@ function imprimirQR() {
 
   cerrarModalQR();
 
+  _setPrintPageSize("A4");
   setTimeout(() => {
     window.print();
   }, 200);
@@ -8187,6 +8498,7 @@ function imprimirQROffline() {
 
   cerrarModalQROffline();
 
+  _setPrintPageSize("A4");
   setTimeout(() => {
     window.print();
   }, 200);
@@ -8962,5 +9274,446 @@ async function ejecutarMigracionFormaPago() {
   } catch(e) {
     if (status) status.textContent = "Error de conexión";
     toast("Error al ejecutar migración", "error");
+  }
+}
+
+/* ===================================================================
+   INGRESO DE PRODUCTOS — recepción de mercadería con proveedor
+   Escanea/tipea un código: si el producto existe recupera nombre y
+   categoría (desde productosAdminGlobal, ya en memoria); si no
+   existe, permite crearlo. En ambos casos deja registro con fecha,
+   precio y proveedor, y permite exportar el historial a PDF.
+=================================================================== */
+
+let ingresosProductosGlobal = [];
+let ipProductoActualEsNuevo = false;
+
+function _hoyISO() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+/** Busca el código escaneado/tipeado en productosAdminGlobal; si no está, abre el formulario en modo "producto nuevo" */
+function buscarProductoParaIngreso() {
+  const input = document.getElementById("ipCodigoScan");
+  const codigo = (input.value || "").trim();
+  const estado = document.getElementById("ipEstadoBusqueda");
+
+  if (!codigo) {
+    toast("Escaneá o escribí un código de barras", "error");
+    return;
+  }
+
+  const producto = (productosAdminGlobal || []).find(p => String(p.CODIGO) === codigo);
+
+  poblarDatalistCategoriasIngreso();
+  poblarDatalistProveedoresIngreso();
+
+  document.getElementById("ipFormularioWrap").style.display = "";
+  document.getElementById("ipCodigo").value = codigo;
+  document.getElementById("ipCodigoMostrado").value = codigo;
+  document.getElementById("ipFecha").value = _hoyISO();
+  document.getElementById("ipCantidad").value = "";
+  document.getElementById("ipCantidad").focus();
+  document.getElementById("ipProveedorContacto").value = "";
+  document.getElementById("ipObservaciones").value = "";
+
+  if (producto) {
+    ipProductoActualEsNuevo = false;
+    document.getElementById("ipTituloProducto").textContent = "✏️ " + (producto.PRODUCTO || codigo);
+    document.getElementById("ipBadgeEstado").textContent = "Producto existente";
+    document.getElementById("ipBadgeEstado").className = "badge bg-success";
+    document.getElementById("ipNombre").value = producto.PRODUCTO || "";
+    document.getElementById("ipNombre").readOnly = true;
+    document.getElementById("ipCategoria").value = producto.CATEGORIA || "";
+    document.getElementById("ipPrecio").value = Number(producto.PRECIO || 0);
+    document.getElementById("ipPrecioHint").textContent = "Dejalo así si no cambió, o corregilo si vino con un precio nuevo.";
+    if (estado) { estado.textContent = "✓ Producto encontrado: " + (producto.PRODUCTO || ""); estado.style.color = "var(--green-600, green)"; }
+  } else {
+    ipProductoActualEsNuevo = true;
+    document.getElementById("ipTituloProducto").textContent = "+ Producto nuevo";
+    document.getElementById("ipBadgeEstado").textContent = "No existe — se va a crear";
+    document.getElementById("ipBadgeEstado").className = "badge bg-warning text-dark";
+    document.getElementById("ipNombre").value = "";
+    document.getElementById("ipNombre").readOnly = false;
+    document.getElementById("ipCategoria").value = "";
+    document.getElementById("ipPrecio").value = "";
+    document.getElementById("ipPrecioHint").textContent = "Precio de venta con el que se va a dar de alta.";
+    if (estado) { estado.textContent = "No existe todavía — completá los datos para crearlo"; estado.style.color = "var(--amber-600, #b45309)"; }
+    document.getElementById("ipNombre").focus();
+  }
+}
+
+/** Genera un código automático (pide uno al backend) para un producto sin código de barras */
+async function generarCodigoIngresoAutomatico() {
+  try {
+    const res = await fetchAPI(API_URL + "?action=generarCodigoProducto");
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("ipCodigoScan").value = data.codigo;
+      buscarProductoParaIngreso();
+    }
+  } catch (e) {
+    toast("No se pudo generar el código", "error");
+  }
+}
+
+function cancelarIngresoProducto() {
+  document.getElementById("ipFormularioWrap").style.display = "none";
+  document.getElementById("ipCodigoScan").value = "";
+  document.getElementById("ipEstadoBusqueda").textContent = "";
+  document.getElementById("ipCodigoScan").focus();
+}
+
+function poblarDatalistCategoriasIngreso() {
+  const dl = document.getElementById("ipCategoriasList");
+  if (!dl) return;
+  const categorias = [...new Set((productosAdminGlobal || []).map(p => p.CATEGORIA).filter(Boolean))];
+  dl.innerHTML = categorias.map(c => `<option value="${escapeHtml(c)}">`).join("");
+}
+
+function poblarDatalistProveedoresIngreso() {
+  const dl = document.getElementById("ipProveedoresList");
+  if (!dl) return;
+  const proveedores = [...new Set((ingresosProductosGlobal || []).map(i => i.PROVEEDOR).filter(Boolean))];
+  dl.innerHTML = proveedores.map(p => `<option value="${escapeHtml(p)}">`).join("");
+}
+
+/** Envía el ingreso al backend: crea el producto si es nuevo, o suma stock/actualiza precio si ya existe */
+async function confirmarIngresoProducto() {
+  const codigo = document.getElementById("ipCodigo").value.trim();
+  const nombre = document.getElementById("ipNombre").value.trim();
+  const categoria = document.getElementById("ipCategoria").value.trim();
+  const precio = document.getElementById("ipPrecio").value;
+  const cantidad = document.getElementById("ipCantidad").value;
+  const proveedor = document.getElementById("ipProveedor").value.trim();
+  const proveedorContacto = document.getElementById("ipProveedorContacto").value.trim();
+  const observaciones = document.getElementById("ipObservaciones").value.trim();
+  const fecha = document.getElementById("ipFecha").value || _hoyISO();
+
+  if (ipProductoActualEsNuevo && !nombre) {
+    toast("Ingresá el nombre del producto para poder crearlo", "error");
+    return;
+  }
+  if (!cantidad || Number(cantidad) <= 0) {
+    toast("Ingresá una cantidad válida, mayor a 0", "error");
+    return;
+  }
+  if (!proveedor) {
+    toast("Ingresá el proveedor de esta mercadería", "error");
+    return;
+  }
+
+  const btn = document.getElementById("btnConfirmarIngreso");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "Guardando...";
+
+  try {
+    const res = await fetchAPI(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "registrarIngresoProducto",
+        rol: obtenerRolActual(),
+        codigo, producto: nombre, categoria, precio, cantidad,
+        proveedor, proveedorContacto, observaciones, fecha
+      })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      toast(data.message || "No se pudo registrar el ingreso", "error");
+      return;
+    }
+
+    toast(data.esProductoNuevo
+      ? `Producto creado y stock cargado (${cantidad} u.)`
+      : `Stock actualizado (+${cantidad} u.)`, "success");
+
+    try { localStorage.removeItem("vpos_cache_productosAdmin"); } catch(e) {}
+    await cargarProductos();
+    await cargarHistorialIngresos();
+    cancelarIngresoProducto();
+
+  } catch (error) {
+    console.error("Error al registrar ingreso:", error);
+    toast("Error de conexión al registrar el ingreso", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
+
+/** Carga el historial de ingresos (recepciones) desde el backend */
+async function cargarHistorialIngresos() {
+  const tbody = document.getElementById("tablaIngresosBody");
+  try {
+    const res = await fetchAPI(API_URL + "?action=ingresosProductos");
+    const data = await res.json();
+    ingresosProductosGlobal = data.ingresos || [];
+    filtrarHistorialIngresos();
+  } catch (error) {
+    console.error("Error al cargar historial de ingresos:", error);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Error al cargar el historial</td></tr>`;
+  }
+}
+
+function filtrarHistorialIngresos() {
+  const tbody = document.getElementById("tablaIngresosBody");
+  if (!tbody) return;
+
+  const texto = (document.getElementById("ipBuscarHistorial")?.value || "").trim().toLowerCase();
+  const proveedor = (document.getElementById("ipFiltroProveedor")?.value || "").trim().toLowerCase();
+  const desde = document.getElementById("ipFiltroDesde")?.value || "";
+  const hasta = document.getElementById("ipFiltroHasta")?.value || "";
+
+  let lista = ingresosProductosGlobal || [];
+
+  if (texto) {
+    lista = lista.filter(i =>
+      String(i.CODIGO || "").toLowerCase().includes(texto) ||
+      String(i.PRODUCTO || "").toLowerCase().includes(texto));
+  }
+  if (proveedor) {
+    lista = lista.filter(i => String(i.PROVEEDOR || "").toLowerCase().includes(proveedor));
+  }
+  if (desde) lista = lista.filter(i => String(i.FECHA) >= desde);
+  if (hasta) lista = lista.filter(i => String(i.FECHA) <= hasta);
+
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Sin ingresos registrados para este filtro</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map(i => `
+    <tr>
+      <td>${escapeHtml(i.FECHA || "—")}</td>
+      <td class="mono">${escapeHtml(i.CODIGO || "—")}</td>
+      <td>${escapeHtml(i.PRODUCTO || "—")}</td>
+      <td>${escapeHtml(i.CATEGORIA || "—")}</td>
+      <td class="money">${Number(i.CANTIDAD || 0).toLocaleString("es-AR")}</td>
+      <td class="money">$${Number(i.PRECIO_NUEVO || i.PRECIO_ANTERIOR || 0).toLocaleString("es-AR")}</td>
+      <td>${escapeHtml(i.PROVEEDOR || "—")}</td>
+      <td>${escapeHtml(i.PROVEEDOR_CONTACTO || "—")}</td>
+      <td>${escapeHtml(i.OBSERVACIONES || "—")}</td>
+    </tr>`).join("");
+}
+
+/** Exporta el historial de ingresos (según los filtros aplicados) a PDF, con jsPDF + autoTable */
+function exportarIngresosPDF() {
+  try {
+    const tabla = document.getElementById("tablaIngresosProductos");
+    if (!tabla) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+
+    const nombreLocal = (obtenerConfigNegocio().nombre || "Reporte").toString();
+    const desde = document.getElementById("ipFiltroDesde").value || "—";
+    const hasta = document.getElementById("ipFiltroHasta").value || "—";
+
+    doc.setFontSize(14);
+    doc.text(`${nombreLocal} — Ingreso de Productos (Recepción de mercadería)`, 30, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(110, 110, 110);
+    doc.text(`Período: ${desde} a ${hasta}  ·  Generado: ${new Date().toLocaleString("es-AR")}`, 30, 46);
+
+    doc.autoTable({
+      html: tabla,
+      startY: 58,
+      theme: "grid",
+      styles: { fontSize: 9, cellPadding: 5 },
+      headStyles: { fillColor: [18, 32, 71], textColor: [255, 255, 255] }
+    });
+
+    doc.save(`Ingreso_Productos_${desde}_a_${hasta}.pdf`);
+
+  } catch (error) {
+    console.error("Error al exportar ingresos a PDF:", error);
+    toast("No se pudo generar el PDF", "error");
+  }
+}
+
+/* ===================================================================
+   ROLES Y PERMISOS
+   El login (login.html) guarda en sessionStorage: "admin"="true" (ya
+   existía) y, además, "rol", "nombreUsuario" y "usuarioLogueado" —
+   estos tres son nuevos. Instalaciones que todavía tengan un
+   login.html viejo (sin mandar el rol) siguen funcionando: sin rol
+   guardado, se asume "admin" (acceso total), igual que siempre.
+=================================================================== */
+
+const PERMISOS_POR_ROL = {
+  admin: null, // null = acceso a todas las secciones
+  vendedor: ["dashboard", "pos", "ventasPOS", "cierreCaja", "movimientosCaja", "pedidos", "clientes"],
+  deposito: ["dashboard", "productos", "ingresoProductos", "reportesCompras"]
+};
+
+function obtenerRolActual() {
+  return sessionStorage.getItem("rol") || "admin";
+}
+
+function seccionPermitidaParaRol(id) {
+  const permitidas = PERMISOS_POR_ROL[obtenerRolActual()];
+  if (!permitidas) return true; // admin, o rol desconocido -> no restringe
+  return permitidas.includes(id);
+}
+
+/** Oculta del menú (desktop y mobile) las secciones que el rol logueado no puede ver */
+function aplicarPermisosPorRol() {
+  const rol = obtenerRolActual();
+  const permitidas = PERMISOS_POR_ROL[rol];
+
+  const nombre = sessionStorage.getItem("nombreUsuario");
+  if (nombre) {
+    const label = document.getElementById("sidebarLabelSub");
+    if (label) label.textContent = nombre + (rol !== "admin" ? " · " + rol : "");
+  }
+
+  if (!permitidas) return; // admin: ve todo, no se toca el menú
+
+  document.querySelectorAll("#navLinks a[data-target], #bottomNavLinks a[data-target]").forEach(a => {
+    const target = a.getAttribute("data-target");
+    if (!permitidas.includes(target)) a.style.display = "none";
+  });
+
+  // El rol vendedor ve la sección Pedidos y Movimientos de Caja, pero
+  // no puede eliminar pedidos cancelados ni movimientos de caja — esos
+  // botones se ocultan puntualmente (el backend también rechaza estas
+  // acciones si llega el rol "vendedor", por si alguien fuerza el llamado).
+  if (rol === "vendedor") {
+    const btnPed = document.getElementById("btnEliminarPedidosCancelados");
+    if (btnPed) btnPed.style.display = "none";
+  }
+}
+
+/* ===================== GESTIÓN DE USUARIOS (solo admin) ===================== */
+
+let usuariosGlobal = [];
+
+async function cargarUsuarios() {
+  const tbody = document.getElementById("tablaUsuarios");
+  try {
+    const res = await fetchAPI(API_URL + "?action=usuarios");
+    const data = await res.json();
+    usuariosGlobal = data.usuarios || [];
+
+    if (usuariosGlobal.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Todavía no creaste ningún usuario adicional</td></tr>`;
+      return;
+    }
+
+    const etiquetaRol = { admin: "👑 Admin", vendedor: "🏪 Vendedor", deposito: "📦 Depósito" };
+
+    tbody.innerHTML = usuariosGlobal.map(u => `
+      <tr>
+        <td>${escapeHtml(u.NOMBRE || "—")}</td>
+        <td class="mono">${escapeHtml(u.USERNAME || "—")}</td>
+        <td>${etiquetaRol[u.ROL] || escapeHtml(u.ROL || "—")}</td>
+        <td>${String(u.ACTIVO || "SI").toUpperCase() === "NO" ? '<span class="badge bg-secondary">Inactivo</span>' : '<span class="badge bg-success">Activo</span>'}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-primary" onclick="abrirModalEditarUsuario('${u.USUARIO_ID}')">✏️</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="eliminarUsuarioClick('${u.USUARIO_ID}', '${escapeHtml(u.NOMBRE || "")}')">🗑️</button>
+        </td>
+      </tr>`).join("");
+
+  } catch (error) {
+    console.error("Error al cargar usuarios:", error);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Error al cargar los usuarios</td></tr>`;
+  }
+}
+
+function nuevoUsuario() {
+  document.getElementById("usuarioModalTitle").textContent = "+ Nuevo Usuario";
+  document.getElementById("umUsuarioId").value = "";
+  document.getElementById("umNombre").value = "";
+  document.getElementById("umUsername").value = "";
+  document.getElementById("umPassword").value = "";
+  document.getElementById("umPasswordHint").textContent = "*";
+  document.getElementById("umRol").value = "vendedor";
+  document.getElementById("umActivo").checked = true;
+  document.getElementById("usuarioModalBackdrop").classList.add("show");
+  setTimeout(() => document.getElementById("umNombre").focus(), 80);
+}
+
+function abrirModalEditarUsuario(usuarioId) {
+  const u = usuariosGlobal.find(x => String(x.USUARIO_ID) === String(usuarioId));
+  if (!u) { toast("No se encontró el usuario", "error"); return; }
+
+  document.getElementById("usuarioModalTitle").textContent = "✏️ Editar Usuario";
+  document.getElementById("umUsuarioId").value = u.USUARIO_ID;
+  document.getElementById("umNombre").value = u.NOMBRE || "";
+  document.getElementById("umUsername").value = u.USERNAME || "";
+  document.getElementById("umPassword").value = "";
+  document.getElementById("umPasswordHint").textContent = "(dejar vacío para no cambiarla)";
+  document.getElementById("umRol").value = u.ROL || "vendedor";
+  document.getElementById("umActivo").checked = String(u.ACTIVO || "SI").toUpperCase() !== "NO";
+  document.getElementById("usuarioModalBackdrop").classList.add("show");
+}
+
+function cerrarModalUsuario() {
+  document.getElementById("usuarioModalBackdrop").classList.remove("show");
+}
+
+async function guardarUsuarioForm() {
+  const usuarioId = document.getElementById("umUsuarioId").value.trim();
+  const nombre = document.getElementById("umNombre").value.trim();
+  const username = document.getElementById("umUsername").value.trim();
+  const password = document.getElementById("umPassword").value;
+  const rol = document.getElementById("umRol").value;
+  const activo = document.getElementById("umActivo").checked;
+
+  if (!nombre || !username) {
+    toast("Nombre y nombre de usuario son obligatorios", "error");
+    return;
+  }
+  if (!usuarioId && !password) {
+    toast("La contraseña es obligatoria para un usuario nuevo", "error");
+    return;
+  }
+
+  const btn = document.getElementById("btnGuardarUsuario");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "Guardando...";
+
+  try {
+    const body = usuarioId
+      ? { action: "editarUsuario", usuarioId, nombre, username, password, rol, activo }
+      : { action: "crearUsuario", nombre, username, password, rol };
+
+    const res = await fetchAPI(API_URL, { method: "POST", body: JSON.stringify(body) });
+    const data = await res.json();
+
+    if (!data.success) {
+      toast(data.message || "No se pudo guardar el usuario", "error");
+      return;
+    }
+
+    toast(usuarioId ? "Usuario actualizado" : "Usuario creado", "success");
+    cerrarModalUsuario();
+    cargarUsuarios();
+
+  } catch (error) {
+    console.error("Error al guardar usuario:", error);
+    toast("Error de conexión al guardar el usuario", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
+
+async function eliminarUsuarioClick(usuarioId, nombre) {
+  if (!confirm(`¿Eliminar el usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
+
+  try {
+    const res = await fetchAPI(API_URL, { method: "POST", body: JSON.stringify({ action: "eliminarUsuario", usuarioId }) });
+    const data = await res.json();
+    if (!data.success) { toast(data.message || "No se pudo eliminar el usuario", "error"); return; }
+    toast("Usuario eliminado", "success");
+    cargarUsuarios();
+  } catch (error) {
+    console.error("Error al eliminar usuario:", error);
+    toast("Error de conexión al eliminar el usuario", "error");
   }
 }

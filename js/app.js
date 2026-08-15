@@ -24,10 +24,13 @@ function normalizarTextoTransporte(texto){
         .replace(/\s+/g, " ");
 }
 
-// API_URL se carga desde config.json para permitir instalaciones
-// multi-cliente sin modificar el código fuente.
-// Si config.json no existe o falla, usa la URL de respaldo.
-let API_URL = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+// API_URL viene de config.js (window.CONFIG_NEGOCIO.API_URL), que ya se
+// carga con <script src="config.js"> antes que este archivo en el HTML.
+// Es el único valor que sigue siendo fijo por instalación — todo lo
+// demás (nombre, WhatsApp, apariencia) se edita desde el panel admin.
+// Si por algún motivo config.js no llegó a cargar, se usa esta URL de
+// respaldo para que el catálogo nunca quede totalmente roto.
+let API_URL = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -70,16 +73,11 @@ async function fetchAPI(url, opciones = {}, config = {}) {
   throw ultimoError;
 }
 
-async function cargarConfigCliente() {
-  try {
-    const res = await fetch("../config.json?_=" + Date.now(), { cache: "no-store" });
-    if (res.ok) {
-      const cfg = await res.json();
-      if (cfg.apiUrl) API_URL = cfg.apiUrl;
-    }
-  } catch(e) {
-    // config.json no disponible — usar URL por defecto
-    console.log("config.json no encontrado, usando URL por defecto");
+function cargarConfigCliente() {
+  if (typeof CONFIG_NEGOCIO !== "undefined" && CONFIG_NEGOCIO.API_URL) {
+    API_URL = CONFIG_NEGOCIO.API_URL;
+  } else {
+    console.warn("config.js no está cargado o no define API_URL — usando la URL de respaldo.");
   }
 }
 
@@ -97,7 +95,8 @@ const estado = {
     busqueda: "",
     categoria: "",
     precioMin: null,
-    precioMax: null
+    precioMax: null,
+    orden: "relevancia"
 };
 
 // Número de WhatsApp usado por el botón flotante y por el checkout.
@@ -346,11 +345,60 @@ function aplicarFiltros(){
         lista = lista.filter(p => Number(p.PRECIO) <= estado.precioMax);
     }
 
+    lista = ordenarLista(lista);
+
     // Se guarda la lista visible actual, para que el botón de descarga
     // de PDF siempre tome exactamente lo que se está mostrando en pantalla.
     estado.productosVisibles = lista;
 
     mostrarProductos(lista);
+}
+
+/* =========================================================
+   ORDEN DE RESULTADOS
+========================================================= */
+
+/**
+ * Aplica el criterio de orden elegido sobre una copia de la lista
+ * (nunca sobre estado.productos directamente, para no perder el
+ * orden original de "destacados primero" con el que llega del server).
+ */
+function ordenarLista(lista){
+
+    const criterio = estado.orden || "relevancia";
+
+    if(criterio === "relevancia") return lista;
+
+    const copia = [...lista];
+
+    switch(criterio){
+
+        case "precio-asc":
+            copia.sort((a,b) => Number(a.PRECIO) - Number(b.PRECIO));
+            break;
+
+        case "precio-desc":
+            copia.sort((a,b) => Number(b.PRECIO) - Number(a.PRECIO));
+            break;
+
+        case "nombre-asc":
+            copia.sort((a,b) => String(a.PRODUCTO || "").localeCompare(String(b.PRODUCTO || ""), "es", { sensitivity: "base" }));
+            break;
+
+        case "nombre-desc":
+            copia.sort((a,b) => String(b.PRODUCTO || "").localeCompare(String(a.PRODUCTO || ""), "es", { sensitivity: "base" }));
+            break;
+    }
+
+    return copia;
+}
+
+function ordenarProductos(){
+
+    const select = document.getElementById("orden-select");
+    estado.orden = select ? select.value : "relevancia";
+
+    aplicarFiltros();
 }
 
 function buscarProductos(){
@@ -604,9 +652,73 @@ function abrirQuickView(producto){
 
     document.getElementById("qv-cantidad").value = 1;
 
+    renderRelacionados(producto);
+
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById("quickViewModal"));
     modal.show();
 }
+
+/**
+ * Muestra hasta 8 productos de la misma categoría (con stock) en el
+ * Quick View, para incentivar que el cliente agregue más de un
+ * producto al pedido antes de cerrar el modal. Si la categoría no
+ * tiene más productos, la sección se oculta directamente.
+ */
+function renderRelacionados(producto){
+
+    const wrap = document.getElementById("qv-relacionados-wrap");
+    const cont = document.getElementById("qv-relacionados");
+    if(!wrap || !cont) return;
+
+    const categoria = String(producto.CATEGORIA || "").trim();
+
+    const relacionados = categoria
+        ? estado.productos
+            .filter(p =>
+                String(p.CATEGORIA || "").trim() === categoria &&
+                String(p.CODIGO) !== String(producto.CODIGO) &&
+                (Number(String(p.STOCK ?? "").trim()) || 0) > 0
+            )
+            .slice(0, 8)
+        : [];
+
+    if(relacionados.length === 0){
+        wrap.classList.add("d-none");
+        cont.innerHTML = "";
+        return;
+    }
+
+    cont.innerHTML = relacionados.map(p => `
+        <button
+            type="button"
+            class="qv-relacionado-card"
+            data-code="${escapeHtml(p.CODIGO)}"
+            aria-label="Ver ${escapeHtml(p.PRODUCTO)}">
+            <img
+                src="${p.IMAGEN || ""}"
+                alt="${escapeHtml(p.PRODUCTO)}"
+                loading="lazy"
+                onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
+            <span class="qv-relacionado-nombre">${escapeHtml(p.PRODUCTO)}</span>
+            <span class="qv-relacionado-precio">$${formatearPrecio(p.PRECIO)}</span>
+        </button>
+    `).join("");
+
+    wrap.classList.remove("d-none");
+}
+
+// Al hacer click en un producto relacionado, se abre su propio Quick
+// View — reemplaza al actual sin cerrar el modal, así el cliente
+// puede seguir explorando la categoría sin perder el lugar.
+document.getElementById("qv-relacionados").addEventListener("click", function(e){
+
+    const card = e.target.closest(".qv-relacionado-card");
+    if(!card) return;
+
+    const codigo = card.dataset.code;
+    const producto = estado.productos.find(p => String(p.CODIGO) === String(codigo));
+    if(producto) abrirQuickView(producto);
+});
 
 document.getElementById("qv-agregar").addEventListener("click", function(){
 
@@ -617,6 +729,42 @@ document.getElementById("qv-agregar").addEventListener("click", function(){
     const modal = bootstrap.Modal.getInstance(document.getElementById("quickViewModal"));
     if(modal) modal.hide();
 });
+
+/**
+ * Zoom estilo Amazon sobre la imagen del Quick View: al mover el
+ * mouse, la imagen se agranda y el punto bajo el cursor queda como
+ * centro de la ampliación. Solo se activa en dispositivos con mouse
+ * (matchMedia "hover: hover") para no dejar el zoom trabado en
+ * celulares, donde no tiene sentido este gesto.
+ */
+(function initZoomQuickView(){
+
+    const wrap = document.getElementById("qv-imagen-zoom-wrap");
+    const img = document.getElementById("qv-imagen");
+    if(!wrap || !img) return;
+
+    const tieneHover = window.matchMedia && window.matchMedia("(hover: hover)").matches;
+    if(!tieneHover) return;
+
+    wrap.addEventListener("mouseenter", function(){
+        wrap.classList.add("zoom-activo");
+    });
+
+    wrap.addEventListener("mousemove", function(e){
+
+        const rect = wrap.getBoundingClientRect();
+        const xPorc = ((e.clientX - rect.left) / rect.width) * 100;
+        const yPorc = ((e.clientY - rect.top) / rect.height) * 100;
+
+        img.style.transformOrigin =
+            `${Math.max(0, Math.min(100, xPorc))}% ${Math.max(0, Math.min(100, yPorc))}%`;
+    });
+
+    wrap.addEventListener("mouseleave", function(){
+        wrap.classList.remove("zoom-activo");
+        img.style.transformOrigin = "center";
+    });
+})();
 
 /* =========================================================
    CARRITO
@@ -739,6 +887,55 @@ function actualizarContador(){
 
         mcb.classList.add("d-none");
     }
+
+    actualizarBarraMinimo(totalPrecio);
+}
+
+/**
+ * Barra de progreso hacia el pedido mínimo, visible en la parte
+ * superior del catálogo (debajo del navbar) apenas hay algo en el
+ * carrito. Se oculta sola cuando ya se llegó al mínimo o cuando el
+ * carrito está vacío, para no ocupar espacio innecesariamente.
+ */
+function actualizarBarraMinimo(totalPrecio){
+
+    const cont = document.getElementById("minimo-progress");
+    if(!cont) return;
+
+    if(totalPrecio <= 0){
+        cont.classList.add("d-none");
+        document.documentElement.style.setProperty("--minimo-bar-h", "0px");
+        return;
+    }
+
+    const fill = document.getElementById("minimo-progress-fill");
+    const texto = document.getElementById("minimo-progress-texto");
+
+    if(totalPrecio >= pedidoMinimo){
+
+        fill.style.width = "100%";
+        cont.classList.add("minimo-progress-completo");
+        texto.innerHTML = `✅ Pedido mínimo alcanzado — Total: <b>$${formatearPrecio(totalPrecio)}</b>`;
+
+    }else{
+
+        const porcentaje = Math.max(0, Math.min(100, (totalPrecio / pedidoMinimo) * 100));
+        const falta = pedidoMinimo - totalPrecio;
+
+        cont.classList.remove("minimo-progress-completo");
+        fill.style.width = porcentaje + "%";
+        texto.innerHTML =
+            `🛒 Te faltan <b>$${formatearPrecio(falta)}</b> para llegar al pedido mínimo de $${formatearPrecio(pedidoMinimo)}`;
+    }
+
+    cont.classList.remove("d-none");
+
+    // La barra es "position:fixed", así que reserva su espacio real
+    // (--minimo-bar-h) para que el contenido no quede tapado detrás
+    // de ella — mismo patrón que --top-banner-h.
+    requestAnimationFrame(()=>{
+        document.documentElement.style.setProperty("--minimo-bar-h", cont.offsetHeight + "px");
+    });
 }
 
 function cambiarCantidad(codigo, cambio){
@@ -1101,30 +1298,12 @@ async function checkoutWhatsapp(){
         return;
     }
 
-    // Último chequeo antes de enviar: puede haber pasado tiempo (incluso
-    // horas) desde que se cargó la página, y el cliente puede haber ido
-    // agregando productos de a poco mientras tanto. estado.productos es
-    // el catálogo que se trajo UNA sola vez al entrar al sitio, así que
-    // compararse contra él ya no alcanza — hay que volver a pedirle los
-    // precios y el stock actuales al backend recién antes de enviar, y
-    // recién ahí validar el carrito contra eso.
-    const textoBtnCheckout = document.getElementById("btn-checkout-texto");
-    if(textoBtnCheckout) textoBtnCheckout.textContent = "Verificando precios y stock...";
-
-    try{
-        const resProductos = await fetchAPI(API_URL + "?action=productos");
-        const dataProductos = await resProductos.json();
-        estado.productos = (dataProductos.productos || [])
-            .filter(p => Number(String(p.STOCK).trim()) > 0);
-    }catch(err){
-        console.error("No se pudo revalidar el catálogo antes de enviar el pedido:", err);
-        mostrarToast("No pudimos confirmar los precios y el stock actuales. Revisá tu conexión e intentá de nuevo.", "error");
-        desactivarCargaCheckout();
-        return;
-    }
-
-    if(textoBtnCheckout) textoBtnCheckout.textContent = "Enviando pedido...";
-
+    // Último chequeo antes de enviar: puede haber pasado tiempo desde
+    // que se abrió el carrito (o directamente nunca se abrió si el
+    // cliente fue directo a completar sus datos con un carrito viejo
+    // guardado de una visita anterior). Si algo cambió, se corta acá
+    // y se le pide que revise el carrito ya actualizado, en vez de
+    // mandar un pedido con datos viejos.
     if(sincronizarCarritoConStockActual()){
         mostrarToast("Algunos productos de tu carrito cambiaron de stock — revisalo antes de enviar el pedido.", "error");
         desactivarCargaCheckout();
@@ -1179,7 +1358,7 @@ async function checkoutWhatsapp(){
             return;
         }
 
-        let mensaje = `*PEDIDO CASA LUMA*
+        let mensaje = `*PEDIDO ${nombreNegocio.toUpperCase()}*
 
 🧾 Pedido: ${resultado.pedidoId}
 
@@ -1259,6 +1438,17 @@ window.addEventListener("pageshow", function(){
     estado.carrito = JSON.parse(localStorage.getItem("carrito")) || [];
 
     actualizarContador();
+});
+
+// Recalcula la altura reservada para la barra del pedido mínimo si
+// cambia el ancho de pantalla (p. ej. al rotar el celular), ya que
+// el texto puede pasar de una a dos líneas y cambiar su alto real.
+window.addEventListener("resize", function(){
+
+    const cont = document.getElementById("minimo-progress");
+    if(cont && !cont.classList.contains("d-none")){
+        document.documentElement.style.setProperty("--minimo-bar-h", cont.offsetHeight + "px");
+    }
 });
 
 /* =========================================================
@@ -1453,6 +1643,11 @@ function aplicarBeneficios(cfg){
         pedidoMinimo = minimoConfigurado;
     }
 
+    // Recalcula la barra de progreso del mínimo por si el carrito ya
+    // traía productos de una visita anterior (localStorage) antes de
+    // que llegara este valor configurado del negocio.
+    actualizarContador();
+
     // Transportes que el negocio no trabaja — el cliente no puede
     // escribirlos en el campo "Transporte" del carrito (ver
     // validarCampoTransporte()).
@@ -1590,264 +1785,60 @@ function renderBeneficioTextoLibre(idWrap, texto){
 
 /* =========================================================
    DESCARGA DE CATÁLOGO EN PDF
-   Genera un PDF con los productos que se están mostrando AHORA
-   (respeta búsqueda y filtro de categoría activos), 4 por hoja,
-   en una grilla de 2x2 con foto, nombre, categoría y precio.
+   El PDF ya está generado en el servidor (se arma solo todos los
+   días a las 3 AM, con los productos que tengan stock a esa hora —
+   ver generarCatalogoPDFDiario en code.gs) y guardado en Drive. Acá
+   no se genera nada: solo se pide el link ya listo
+   (?action=catalogoPDFInfo) y se abre para descargar. Por eso el
+   botón responde casi al instante en vez de tener que armar el PDF
+   en el navegador del cliente cada vez que lo aprieta.
 ========================================================= */
 
-/**
- * Loads an image URL and returns it as a base64 data URL ready for
- * jsPDF.addImage(), or null if it couldn't be loaded — never rejects.
- *
- * Importante: pasa por el backend (?action=imagenProxy), no se pide
- * la imagen directo al navegador. Esto es a propósito: Drive no
- * siempre responde con los headers de CORS necesarios para que el
- * navegador pueda leer los píxeles de una imagen externa, y además
- * el navegador puede haber cacheado esa misma imagen antes (mostrada
- * en una tarjeta del catálogo) sin esos headers, lo que hace fallar
- * cualquier intento posterior de leerla para el PDF. Apps Script, al
- * descargarla del lado del servidor, no tiene esa restricción.
- */
-async function cargarImagenParaPDF(url){
-    if(!url) return null;
-
-    try{
-        const response = await fetchAPI(API_URL + "?action=imagenProxy&url=" + encodeURIComponent(url));
-        const data = await response.json();
-
-        if(!data.success || !data.dataUrl) return null;
-
-        return data.dataUrl;
-
-    }catch(error){
-        // Falla de red, backend caído, URL inválida, etc. — la
-        // tarjeta se dibuja sin foto, no se interrumpe el PDF entero.
-        return null;
-    }
-}
-
-/** Reads the real image format from a data URL's MIME type, for jsPDF.addImage()'s format argument */
-function detectarFormatoImagenPDF(dataUrl){
-    const match = /^data:image\/(\w+);/.exec(dataUrl);
-    const tipo = match ? match[1].toLowerCase() : "jpeg";
-
-    if(tipo === "png") return "PNG";
-    if(tipo === "webp") return "WEBP";
-    return "JPEG"; // jpeg, jpg, y cualquier otro caso por defecto
-}
-
-/** Draws a single product card inside the given box (x, y, width, height) */
-function dibujarTarjetaProductoPDF(doc, producto, imagenCargada, x, y, w, h){
-
-    const margenInterno = 10;
-    const anchoImagen = w - margenInterno * 2;
-    const altoImagen = anchoImagen; // tarjeta de imagen cuadrada
-
-    // --- Marco de la tarjeta ---
-    doc.setDrawColor(225, 228, 235);
-    doc.setLineWidth(0.6);
-    doc.roundedRect(x, y, w, h, 4, 4, "S");
-
-    // --- Imagen (o placeholder si no cargó) ---
-    const imgX = x + margenInterno;
-    const imgY = y + margenInterno;
-
-    if(imagenCargada){
-        try{
-            const formato = detectarFormatoImagenPDF(imagenCargada);
-            doc.addImage(imagenCargada, formato, imgX, imgY, anchoImagen, altoImagen, undefined, "FAST");
-        }catch(e){
-            dibujarPlaceholderImagenPDF(doc, imgX, imgY, anchoImagen, altoImagen);
-        }
-    } else {
-        dibujarPlaceholderImagenPDF(doc, imgX, imgY, anchoImagen, altoImagen);
-    }
-
-    // --- Textos, debajo de la imagen ---
-    let cursorY = imgY + altoImagen + 14;
-    const textoX = x + margenInterno;
-    const anchoTexto = w - margenInterno * 2;
-
-    const categoria = String(producto.CATEGORIA || "").trim();
-    if(categoria){
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(140, 145, 160);
-        doc.text(categoria.toUpperCase(), textoX, cursorY);
-        cursorY += 13;
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(30, 35, 50);
-    const nombreLineas = doc.splitTextToSize(String(producto.PRODUCTO || ""), anchoTexto);
-    doc.text(nombreLineas.slice(0, 2), textoX, cursorY); // máximo 2 líneas, para no desbordar la tarjeta
-    cursorY += nombreLineas.slice(0, 2).length * 13 + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(20, 130, 90);
-    doc.text("$" + formatearPrecio(producto.PRECIO), textoX, cursorY);
-}
-
-/** Simple gray placeholder box, used when a product has no image or it failed to load */
-function dibujarPlaceholderImagenPDF(doc, x, y, w, h){
-    doc.setFillColor(238, 241, 246);
-    doc.rect(x, y, w, h, "F");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(170, 175, 190);
-    doc.text("Sin imagen", x + w / 2, y + h / 2, { align: "center" });
-}
-
-/** Draws the small header repeated at the top of every page */
-function dibujarEncabezadoPaginaPDF(doc, anchoPagina, margen){
-    const fecha = new Date().toLocaleDateString("es-AR");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(20, 25, 40);
-    doc.text(nombreNegocio, margen, margen + 4);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(140, 145, 160);
-    doc.text(fecha, anchoPagina - margen, margen + 4, { align: "right" });
-
-    doc.setDrawColor(225, 228, 235);
-    doc.setLineWidth(0.8);
-    doc.line(margen, margen + 12, anchoPagina - margen, margen + 12);
-}
-
-/** Shows (or updates, if already shown) a single persistent progress toast — used for the PDF generation progress */
-function mostrarProgresoToast(mensaje){
-    let el = document.getElementById("pdf-progreso-toast");
-
-    if(!el){
-        el = document.createElement("div");
-        el.id = "pdf-progreso-toast";
-        el.className = "app-toast info";
-        document.getElementById("toast-container").appendChild(el);
-        requestAnimationFrame(()=> el.classList.add("show"));
-    }
-
-    el.textContent = mensaje;
-}
-
-/** Removes the persistent progress toast, if present */
-function ocultarProgresoToast(){
-    const el = document.getElementById("pdf-progreso-toast");
-    if(!el) return;
-    el.classList.remove("show");
-    setTimeout(()=> el.remove(), 300);
-}
-
-/**
- * Carga las imágenes de a lotes (no todas en paralelo de una sola vez).
- * Necesario porque cada imagen pasa por el backend (?action=imagenProxy,
- * ver cargarImagenParaPDF), y Apps Script tiene un límite de cuántas
- * ejecuciones puede atender en simultáneo por usuario — con catálogos
- * grandes (100+ productos), lanzar todo de una vez puede saturar esa
- * cuota y hacer que varias fallen. `onProgreso` se llama después de
- * cada lote, para poder mostrar un mensaje de avance al usuario.
- */
-async function cargarImagenesEnLotes(urls, tamanoLote, onProgreso){
-    const resultados = [];
-
-    for(let i = 0; i < urls.length; i += tamanoLote){
-        const lote = urls.slice(i, i + tamanoLote);
-        const cargadas = await Promise.all(lote.map(url => cargarImagenParaPDF(url)));
-        resultados.push(...cargadas);
-
-        if(onProgreso) onProgreso(resultados.length, urls.length);
-    }
-
-    return resultados;
-}
-
-/** Main entry point: builds and downloads the PDF for the products currently visible on screen */
+/** Main entry point: pide el link del catálogo PDF ya generado y lo descarga */
 async function descargarCatalogoPDF(){
-
-    const lista = estado.productosVisibles || [];
-
-    if(lista.length === 0){
-        mostrarToast("No hay productos para descargar con el filtro actual.", "error");
-        return;
-    }
 
     const btn = document.getElementById("btn-descargar-pdf");
     const textoOriginal = btn ? btn.innerHTML : "";
-    if(btn){ btn.disabled = true; btn.innerHTML = "⏳ Generando..."; }
+    if(btn){ btn.disabled = true; btn.innerHTML = "⏳ Preparando..."; }
 
     try{
 
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+        const response = await fetchAPI(API_URL + "?action=catalogoPDFInfo");
+        const data = await response.json();
 
-        const anchoPagina = doc.internal.pageSize.getWidth();
-        const altoPagina = doc.internal.pageSize.getHeight();
-        const margen = 36;
-        const espacioEncabezado = 50;
+        if(!data.success){
+            mostrarToast(data.message || "No se pudo obtener el catálogo en PDF.", "error");
+            return;
+        }
 
-        const anchoDisponible = anchoPagina - margen * 2;
-        const altoDisponible = altoPagina - margen * 2 - espacioEncabezado;
+        // Descarga directa del archivo ya generado en Drive.
+        const link = document.createElement("a");
+        link.href = data.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
 
-        const gap = 14;
-        const anchoTarjeta = (anchoDisponible - gap) / 2;
-        const altoTarjeta = (altoDisponible - gap) / 2;
-
-        // Pre-carga todas las imágenes antes de dibujar — en lotes, no
-        // todas en paralelo de una sola vez (ver cargarImagenesEnLotes),
-        // mostrando el avance real si hay muchos productos.
-        const TAMANO_LOTE = 8;
-        mostrarProgresoToast(`Preparando PDF... (0/${lista.length} fotos)`);
-        const imagenesCargadas = await cargarImagenesEnLotes(
-            lista.map(p => p.IMAGEN),
-            TAMANO_LOTE,
-            (cargadas, total) => mostrarProgresoToast(`Preparando PDF... (${cargadas}/${total} fotos)`)
-        );
-        ocultarProgresoToast();
-
-        lista.forEach((producto, idx) => {
-
-            const posicionEnPagina = idx % 4;
-
-            if(posicionEnPagina === 0){
-                if(idx > 0) doc.addPage();
-                dibujarEncabezadoPaginaPDF(doc, anchoPagina, margen);
-            }
-
-            const col = posicionEnPagina % 2;
-            const fila = Math.floor(posicionEnPagina / 2);
-
-            const x = margen + col * (anchoTarjeta + gap);
-            const y = margen + espacioEncabezado + fila * (altoTarjeta + gap);
-
-            dibujarTarjetaProductoPDF(doc, producto, imagenesCargadas[idx], x, y, anchoTarjeta, altoTarjeta);
-        });
-
-        const fechaArchivo = new Date().toISOString().slice(0, 10);
-        doc.save(`catalogo_${fechaArchivo}.pdf`);
-
-        mostrarToast("PDF descargado correctamente.", "success");
+        mostrarToast("Descargando catálogo...", "success");
 
     }catch(error){
-        console.error("Error al generar el PDF del catálogo:", error);
-        ocultarProgresoToast();
-        mostrarToast("No se pudo generar el PDF. Intentá de nuevo.", "error");
+        console.error("Error al descargar el catálogo PDF:", error);
+        mostrarToast("No se pudo descargar el catálogo. Intentá de nuevo.", "error");
     }finally{
         if(btn){ btn.disabled = false; btn.innerHTML = textoOriginal; }
     }
 }
 
+
 /* =========================================================
    INICIO
 ========================================================= */
 
-// Inicialización asíncrona: primero cargar config del cliente,
-// luego apariencia y productos para que API_URL ya esté lista.
+// Inicialización: primero fijar API_URL desde config.js, luego
+// apariencia y productos para que API_URL ya esté lista.
 (async () => {
-  await cargarConfigCliente();
+  cargarConfigCliente();
   apariencaCargadaPromise = aplicarApariencia();
   actualizarContador();
   cargarProductos();
@@ -1973,26 +1964,59 @@ document.addEventListener("DOMContentLoaded", () => {
    POPUP PROMOCIONAL
 ========================================================= */
 
-function mostrarPopupPromo(url) {
+// Extensiones que se consideran video. Si la URL no tiene ninguna
+// de estas extensiones (por ej. viene de Google Drive sin .mp4 al final),
+// se puede forzar el tipo con el 2do parámetro ("imagen" | "video").
+const EXTENSIONES_VIDEO_POPUP = [".mp4", ".webm", ".ogg", ".mov", ".m4v"];
+
+function esUrlDeVideo(url) {
+  const limpia = String(url || "").split("?")[0].toLowerCase();
+  return EXTENSIONES_VIDEO_POPUP.some(ext => limpia.endsWith(ext));
+}
+
+function mostrarPopupPromo(url, tipo) {
   if (!url) return;
   const popup = document.getElementById("popupPromo");
   const img = document.getElementById("popupPromoImg");
-  if (!popup || !img) return;
-  img.src = url;
+  const video = document.getElementById("popupPromoVideo");
+  if (!popup || !img || !video) return;
+
+  const esVideo = tipo ? tipo === "video" : esUrlDeVideo(url);
+
+  if (esVideo) {
+    img.style.display = "none";
+    img.src = "";
+    video.src = url;
+    video.style.display = "block";
+    video.currentTime = 0;
+    video.play().catch(() => {}); // algunos navegadores bloquean autoplay con sonido
+  } else {
+    video.style.display = "none";
+    video.pause();
+    video.src = "";
+    img.src = url;
+    img.style.display = "block";
+  }
+
   popup.style.display = "flex";
   document.body.style.overflow = "hidden";
 }
 
 function cerrarPopupPromo() {
   const popup = document.getElementById("popupPromo");
+  const video = document.getElementById("popupPromoVideo");
   if (popup) popup.style.display = "none";
+  if (video) video.pause();
   document.body.style.overflow = "";
 }
 
 // Cargar popup si está activo — se llama desde aplicarApariencia
+// Soporta config.popupImagen (imagen o video, se detecta por extensión)
+// y opcionalmente config.popupTipo ("imagen" | "video") para forzar el tipo
+// cuando la URL no tiene extensión reconocible (ej: enlaces de Drive/Sheets).
 function cargarPopupPromo(config) {
   if (config && config.popupActivo && config.popupImagen) {
     // Pequeña espera para que el catálogo cargue primero
-    setTimeout(() => mostrarPopupPromo(config.popupImagen), 800);
+    setTimeout(() => mostrarPopupPromo(config.popupImagen, config.popupTipo), 800);
   }
 }
