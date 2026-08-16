@@ -293,7 +293,7 @@ async function resolverApiUrl(){
   // sin instalar todavía), se sigue usando la URL por defecto tal
   // como antes.
   try{
-    const res = await fetch("config.json?_=" + Date.now(), { cache: "no-store" });
+    const res = await fetch("../config.json?_=" + Date.now(), { cache: "no-store" });
     if(res.ok){
       const cfg = await res.json();
       if(cfg.apiUrl) API_URL = cfg.apiUrl;
