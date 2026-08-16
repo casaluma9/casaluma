@@ -280,6 +280,26 @@ async function resolverApiUrl(){
     // falló al decidir mostrar setup.html antes que login.html —
     // por las dudas, volvemos a setup en vez de quedar sin URL.
     window.location.href = "setup.html";
+    return;
+  }
+
+  // Modo navegador (sin Electron): igual que cargarConfigCliente() en
+  // admin.js, cada instalación multi-cliente tiene su propio
+  // config.json con la URL de Apps Script de ESE cliente. Antes este
+  // login.html no lo leía nunca y usaba directo API_URL_POR_DEFECTO
+  // (la URL fija de un cliente en particular) — por eso el login
+  // terminaba autenticando contra el backend equivocado y mandaba al
+  // admin de otro cliente. Si no hay config.json (instalación nueva
+  // sin instalar todavía), se sigue usando la URL por defecto tal
+  // como antes.
+  try{
+    const res = await fetch("config.json?_=" + Date.now(), { cache: "no-store" });
+    if(res.ok){
+      const cfg = await res.json();
+      if(cfg.apiUrl) API_URL = cfg.apiUrl;
+    }
+  }catch(error){
+    console.log("config.json no encontrado, usando URL por defecto");
   }
 }
 
