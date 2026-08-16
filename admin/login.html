@@ -214,7 +214,7 @@ body{
   <div class="login-brand">
     <div class="mark" id="loginMark">J</div>
     <div class="label">
-      <strong id="loginLabelTexto">CASA LUMA</strong>
+      <strong id="loginLabelTexto">JIREH</strong>
       <small>PANEL ADMIN</small>
     </div>
   </div>
@@ -266,7 +266,7 @@ body{
 // así el mismo instalador sirve para cualquier cliente. En el
 // navegador normal (sin window.posOffline) se usa esta URL fija,
 // como hasta ahora.
-const API_URL_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbzRv9ZxSJTC7v1bSpwRdqdr6MN7UUgXbxjnPEZKZEVgX4LH814uA4WGXfn2x9aGKg3x/exec";
+const API_URL_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
 let API_URL = API_URL_POR_DEFECTO;
 
 async function resolverApiUrl(){
@@ -280,33 +280,13 @@ async function resolverApiUrl(){
     // falló al decidir mostrar setup.html antes que login.html —
     // por las dudas, volvemos a setup en vez de quedar sin URL.
     window.location.href = "setup.html";
-    return;
-  }
-
-  // Modo navegador (sin Electron): igual que cargarConfigCliente() en
-  // admin.js, cada instalación multi-cliente tiene su propio
-  // config.json con la URL de Apps Script de ESE cliente. Antes este
-  // login.html no lo leía nunca y usaba directo API_URL_POR_DEFECTO
-  // (la URL fija de un cliente en particular) — por eso el login
-  // terminaba autenticando contra el backend equivocado y mandaba al
-  // admin de otro cliente. Si no hay config.json (instalación nueva
-  // sin instalar todavía), se sigue usando la URL por defecto tal
-  // como antes.
-  try{
-    const res = await fetch("../config.json?_=" + Date.now(), { cache: "no-store" });
-    if(res.ok){
-      const cfg = await res.json();
-      if(cfg.apiUrl) API_URL = cfg.apiUrl;
-    }
-  }catch(error){
-    console.log("config.json no encontrado, usando URL por defecto");
   }
 }
 
 /**
  * Trae la letra/nombre configurados en Configuración → "Apariencia del
  * panel admin" (mismo endpoint que ya usa el sidebar del admin). Si
- * falla la conexión, la página sigue mostrando "J" / "CASA LUMA" fijos del
+ * falla la conexión, la página sigue mostrando "J" / "JIREH" fijos del
  * HTML, así que nunca se queda en blanco por esto.
  */
 async function aplicarMarcaDesdeBackend(){
