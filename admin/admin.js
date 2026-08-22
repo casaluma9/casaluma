@@ -6,11 +6,13 @@
    • Responsive mobile nav sync added
 =================================================================== */
 
-// API_URL dinámica — se carga desde config.json al iniciar.
-// Permite instalar el mismo código para distintos clientes
-// sin modificar nada manualmente.
-let API_URL =
-  "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
+// API_URL dinámica — se carga desde config.json (o SQLite en Electron)
+// al iniciar. Permite instalar el mismo código para distintos clientes
+// sin modificar nada manualmente. Sin valor por defecto a propósito:
+// si no hay config.json ni api_url guardada, esta instalación todavía
+// no está configurada y no debe poder hablar con el backend de otro
+// cliente por error (ver comentario más abajo, cerca de DOMContentLoaded).
+let API_URL = "";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -255,23 +257,25 @@ function actualizarElemento(id, valor) {
 
 /* ===================== CONFIGURACIÓN DEL NEGOCIO (encabezado del ticket) ===================== */
 
-// Valores por defecto — son los que ya venía usando el ticket, así que
-// si todavía no cargó la config del servidor, todo se imprime igual que antes.
+// Valores por defecto — genéricos a propósito, sin ningún nombre de
+// cliente hardcodeado. Solo se usan como placeholder mientras todavía
+// no cargó la config real desde el backend (hoja CONFIGURACION); una
+// vez que carga, siempre gana lo que esté guardado ahí.
 const CONFIG_NEGOCIO_DEFAULT = {
-  nombre:     "JIREH",
+  nombre:     "",
   subtitulo:  "Punto de Venta",
   direccion:  "",
   telefono1:  "",
   telefono2:  "",
   pie:        "¡Gracias por su compra!",
 
-  bannerTitulo:    "Mayorista Jireh",
-  bannerSubtitulo: "Catálogo Mayorista Online",
+  bannerTitulo:    "",
+  bannerSubtitulo: "",
   bannerImagen:    "",
   tema:            "navy",
 
-  cbuTransferencia:  "1910249655024901554778",
-  nombreTitularCbu:  "ESCALERA CARBAJAL DANIEL"
+  cbuTransferencia:  "",
+  nombreTitularCbu:  ""
 };
 
 // Caché en memoria de la config, para que imprimir un ticket no tenga
@@ -332,7 +336,7 @@ async function cargarConfigNegocioForm() {
   cargarDrivePedidosForm(cfg);
   cargarUrlCatalogoForm(cfg);
 
-  if (form) form.placeholder = "Ej: JIREH";
+  if (form) form.placeholder = "Ej: Mi Negocio";
 }
 
 /** Reads the form fields and saves them to the backend (hoja CONFIGURACION) */
@@ -413,7 +417,7 @@ function _ejecutarAccionConfirmada() {
   if (typeof fn === "function") fn();
 }
 
-/** Resets the form (and the saved sheet values) back to the original JIREH defaults */
+/** Resets the form (and the saved sheet values) back to the generic empty defaults */
 function restablecerConfigNegocio() {
   confirmarAccion(
     "¿Restablecer los datos del local a los valores originales?",
@@ -461,8 +465,8 @@ function vistaPreviaTicketConfig() {
 /* ===================== APARIENCIA DEL PANEL ADMIN (letra + nombre del sidebar) ===================== */
 
 const SIDEBAR_BRAND_DEFAULT = {
-  sidebarMark:  "J",
-  sidebarTexto: "JIREH"
+  sidebarMark:  "",
+  sidebarTexto: ""
 };
 
 /** Applies the saved letter/name to the sidebar in the DOM — runs on every page load, not just inside Configuración */
@@ -774,21 +778,21 @@ async function guardarPasswordStockForm() {
 /* ===================== APARIENCIA DEL CATÁLOGO WEB (banner + tema) ===================== */
 
 const APARIENCIA_DEFAULT = {
-  navbarTexto:     "Jireh Mayorista",
+  navbarTexto:     "",
   navbarIcono:     "🏬",
-  bannerTitulo:    "Mayorista Jireh",
-  bannerSubtitulo: "Catálogo Mayorista Online",
+  bannerTitulo:    "",
+  bannerSubtitulo: "",
   bannerImagen:    "",
   tema:            "navy",
   gradPersonalizado: false,
   gradA: "#241536",
   gradB: "#3a2856",
 
-  urlCatalogo: "https://horus254-svg.github.io/Jireh-Mayorista",
-  nombreCorto: "JIREH",
+  urlCatalogo: "",
+  nombreCorto: "",
 
   iconoUrl: "icon-512.png",
-  whatsappIconoUrl: "https://cdn-icons-png.flaticon.com/512/733/733585.png",
+  whatsappIconoUrl: "",
 
   seoTitulo: "",
   seoDescripcion: "",
@@ -824,6 +828,7 @@ function cargarAparienciaForm(cfg) {
   document.getElementById("cfgBannerSubtitulo").value = cfg.bannerSubtitulo ?? APARIENCIA_DEFAULT.bannerSubtitulo;
   document.getElementById("cfgBannerImagen").value    = cfg.bannerImagen   ?? APARIENCIA_DEFAULT.bannerImagen;
   document.getElementById("cfgTema").value            = cfg.tema           || APARIENCIA_DEFAULT.tema;
+  actualizarPreviewBanner();
 
   const gradActivo = cfg.gradPersonalizado ?? APARIENCIA_DEFAULT.gradPersonalizado;
   document.getElementById("cfgGradPersonalizado").checked = !!gradActivo;
@@ -1755,6 +1760,22 @@ function cargarSiVencido(clave, fn) {
   fn();
 }
 
+/** Cambia de pestaña dentro de la sección Configuración, sin recargar nada */
+function mostrarConfigTab(tabId, btnEl) {
+  document.querySelectorAll(".cfg-tab-pane").forEach(p => p.classList.remove("active"));
+  const pane = document.getElementById("cfgTab-" + tabId);
+  if (pane) pane.classList.add("active");
+
+  document.querySelectorAll(".cfg-tab-btn").forEach(b => b.classList.remove("active"));
+  if (btnEl) btnEl.classList.add("active");
+  else {
+    const btn = document.querySelector(`.cfg-tab-btn[data-cfg-tab="${tabId}"]`);
+    if (btn) btn.classList.add("active");
+  }
+
+  try { localStorage.setItem("veekpos_cfg_tab", tabId); } catch (e) {}
+}
+
 function mostrarSeccion(id) {
   if (!seccionPermitidaParaRol(id)) {
     toast("No tenés permiso para acceder a esta sección", "error");
@@ -1778,9 +1799,20 @@ function mostrarSeccion(id) {
 
   if (id === "pedidos")   cargarSiVencido("pedidos", cargarPedidos);
   if (id === "productos") cargarSiVencido("productos", cargarProductos);
-  if (id === "ingresoProductos") { cargarProductos(); cargarHistorialIngresos(); setTimeout(() => document.getElementById("ipCodigoScan")?.focus(), 100); }
+  if (id === "ingresoProductos") {
+    cargarProductos();
+    cargarHistorialIngresos();
+    const ipbFecha = document.getElementById("ipbFecha");
+    if (ipbFecha && !ipbFecha.value) ipbFecha.value = _hoyISO();
+    setTimeout(() => document.getElementById("ipCodigoScan")?.focus(), 100);
+  }
   if (id === "ventasPOS") cargarSiVencido("ventasPOS", cargarVentasPOSHistorial);
   if (id === "configuracion") {
+    let tabInicial = "general";
+    try { tabInicial = localStorage.getItem("veekpos_cfg_tab") || "general"; } catch (e) {}
+    if (!document.getElementById("cfgTab-" + tabInicial)) tabInicial = "general";
+    mostrarConfigTab(tabInicial);
+
     cargarConfigNegocioForm();
     actualizarEstadoUSBPrint();
     // En Electron: mostrar tarjetas específicas de escritorio
@@ -2615,7 +2647,7 @@ function imprimirNotaPedidoA4() {
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif; width:190mm; margin:10mm auto; padding:8mm; box-sizing:border-box; border:2px solid #000; border-radius:4mm;">
       <div style="text-align:center; margin-bottom:6mm;">
-        <div style="font-size:20pt; font-weight:900;">Jireh Mayorista</div>
+        <div style="font-size:20pt; font-weight:900;">${escapeHtml(obtenerConfigNegocio().nombre || "")}</div>
       </div>
       <div style="background:#0b1633; color:#fff; text-align:center; padding:4mm; border-radius:2mm; margin-bottom:6mm;">
         <div style="font-size:14pt; font-weight:900; letter-spacing:2px;">NOTA DE PEDIDO</div>
@@ -2916,6 +2948,14 @@ function renderTablaProductos(lista) {
     return;
   }
 
+  // El arrastre para reordenar solo tiene sentido si la tabla muestra
+  // TODOS los productos, sin ningún filtro/búsqueda activo — si no, el
+  // orden visual de un subconjunto filtrado no representa el orden
+  // real del catálogo completo, y guardarlo así lo desordenaría.
+  const ordenamientoHabilitado = _puedeReordenarProductos();
+  const aviso = document.getElementById("avisoOrdenProductos");
+  if (aviso) aviso.style.display = (ordenamientoHabilitado && lista.length > 1) ? "flex" : "none";
+
   // Renderizar en chunks para no bloquear el hilo principal
   // con 829 productos generando DOM de golpe
   const CHUNK = 80;
@@ -2952,19 +2992,33 @@ function renderTablaProductos(lista) {
         : "🛒";
 
       const tr = document.createElement("tr");
+      tr.dataset.codigo = p.CODIGO;
+      if (ordenamientoHabilitado) {
+        tr.draggable = true;
+        tr.classList.add("fila-arrastrable");
+        tr.addEventListener("dragstart", _dragStartFilaProducto);
+        tr.addEventListener("dragover", _dragOverFilaProducto);
+        tr.addEventListener("drop", _dropFilaProducto);
+        tr.addEventListener("dragend", _dragEndFilaProducto);
+      }
       tr.innerHTML = `
-        <td><input type="checkbox" class="check-producto-etiqueta" value="${escapeHtml(p.CODIGO)}" onchange="actualizarSeleccionEtiquetas()"></td>
-        <td><div class="tabla-producto-thumb">${fotoHtml}</div></td>
+        <td class="celda-check-orden">
+          <span class="check-orden-inner">
+            <span class="drag-handle-producto" title="${ordenamientoHabilitado ? "Arrastrá para reordenar" : "Limpiá la búsqueda y los filtros para poder reordenar"}">${ordenamientoHabilitado ? "⠿" : ""}</span>
+            <input type="checkbox" class="check-producto-etiqueta" value="${escapeHtml(p.CODIGO)}" onchange="actualizarSeleccionEtiquetas()">
+          </span>
+        </td>
+        <td class="celda-foto-producto"><div class="tabla-producto-thumb">${fotoHtml}</div></td>
         <td class="mono">${escapeHtml(p.CODIGO)}</td>
         <td>${escapeHtml(p.PRODUCTO)}</td>
         <td>${escapeHtml(p.CATEGORIA || "—")}</td>
         <td class="money">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</td>
         <td>${stockBadge}</td>
         <td><span class="badge ${publicado ? "bg-success" : "bg-secondary"}">${publicado ? "Publicado" : "Oculto"}</span></td>
-        <td>
-          <button class="btn btn-outline-success btn-sm btn-accion-producto" onclick="abrirModalStock('${escapeHtml(p.CODIGO)}')" title="Sumar stock">📦 Stock</button>
-          <button class="btn btn-primary btn-sm btn-accion-producto ms-2" onclick="editarProducto('${escapeHtml(p.CODIGO)}')">Editar</button>
-          <button class="btn btn-danger btn-sm btn-accion-producto ms-2" onclick="eliminarProducto('${escapeHtml(p.CODIGO)}')">Eliminar</button>
+        <td class="celda-acciones-producto">
+          <button class="btn btn-outline-success btn-sm btn-accion-producto" onclick="abrirModalStock('${escapeHtml(p.CODIGO)}')" title="Sumar stock">📦 <span class="btn-accion-texto">Stock</span></button>
+          <button class="btn btn-primary btn-sm btn-accion-producto ms-2" onclick="editarProducto('${escapeHtml(p.CODIGO)}')" title="Editar">✏️ <span class="btn-accion-texto">Editar</span></button>
+          <button class="btn btn-danger btn-sm btn-accion-producto ms-2" onclick="eliminarProducto('${escapeHtml(p.CODIGO)}')" title="Eliminar">🗑️ <span class="btn-accion-texto">Eliminar</span></button>
         </td>`;
       frag.appendChild(tr);
     }
@@ -2983,6 +3037,90 @@ function renderTablaProductos(lista) {
   };
 
   requestAnimationFrame(renderChunk);
+}
+
+/** True solo si la tabla está mostrando TODOS los productos, sin ninguna búsqueda/filtro activo — condición para poder arrastrar y reordenar filas. */
+function _puedeReordenarProductos() {
+  const termino = document.getElementById("buscarProducto")?.value.trim() || "";
+  const categoria = document.getElementById("filtroCategoriaProductos")?.value || "";
+  const estado = document.getElementById("filtroEstadoProducto")?.value || "";
+  return !termino && !categoria && !estado;
+}
+
+let _filaArrastrada = null;
+
+function _dragStartFilaProducto(ev) {
+  _filaArrastrada = ev.currentTarget;
+  ev.currentTarget.classList.add("arrastrando");
+  ev.dataTransfer.effectAllowed = "move";
+  // Firefox necesita datos seteados en dataTransfer para permitir el arrastre
+  ev.dataTransfer.setData("text/plain", ev.currentTarget.dataset.codigo || "");
+}
+
+function _dragOverFilaProducto(ev) {
+  ev.preventDefault();
+  if (!_filaArrastrada || _filaArrastrada === ev.currentTarget) return;
+
+  const tbody = ev.currentTarget.parentNode;
+  const filas = [...tbody.querySelectorAll("tr")];
+  const idxArrastrada = filas.indexOf(_filaArrastrada);
+  const idxDestino = filas.indexOf(ev.currentTarget);
+
+  if (idxArrastrada < idxDestino) {
+    ev.currentTarget.after(_filaArrastrada);
+  } else {
+    ev.currentTarget.before(_filaArrastrada);
+  }
+}
+
+function _dropFilaProducto(ev) {
+  ev.preventDefault();
+}
+
+async function _dragEndFilaProducto(ev) {
+  ev.currentTarget.classList.remove("arrastrando");
+  if (!_filaArrastrada) return;
+  _filaArrastrada = null;
+
+  const tbody = document.getElementById("tablaProductos");
+  const nuevoOrdenCodigos = [...tbody.querySelectorAll("tr")].map(tr => tr.dataset.codigo).filter(Boolean);
+  await guardarNuevoOrdenProductos(nuevoOrdenCodigos);
+}
+
+/** Persiste en el backend el nuevo orden de productos (array de CODIGO, en el orden deseado) y actualiza la caché local para que no vuelva al orden viejo al recargar. */
+async function guardarNuevoOrdenProductos(codigos) {
+  try {
+    const response = await fetchAPI(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "reordenarProductos", codigos })
+    }, { timeoutMs: 20000 });
+    const data = await response.json();
+
+    if (!data.success) {
+      toast(data.message || "No se pudo guardar el nuevo orden", "error");
+      cargarProductos();
+      return;
+    }
+
+    // Reordenar en memoria (y en la caché local) según lo recién guardado,
+    // así el orden se ve correcto sin esperar un nuevo pedido al servidor.
+    const posicion = new Map(codigos.map((c, i) => [c, i]));
+    productosAdminGlobal = [...productosAdminGlobal].sort((a, b) => {
+      const pa = posicion.has(a.CODIGO) ? posicion.get(a.CODIGO) : Infinity;
+      const pb = posicion.has(b.CODIGO) ? posicion.get(b.CODIGO) : Infinity;
+      return pa - pb;
+    });
+    try {
+      localStorage.setItem("vpos_cache_productosAdmin", JSON.stringify({ ts: Date.now(), data: productosAdminGlobal }));
+    } catch (e) {}
+
+    toast("Orden guardado", "success");
+  } catch (error) {
+    console.error("Error al guardar el orden de productos:", error);
+    toast("Error de conexión al guardar el orden", "error");
+    cargarProductos();
+  }
 }
 
 /** Fills the category <select> filter with the distinct categories currently in use */
@@ -3322,16 +3460,25 @@ async function onSeleccionarArchivoImagenProducto(event) {
     return;
   }
 
+  // En vez de subir directo, abrimos el editor de recorte cuadrado.
+  // La subida real sigue en subirImagenProductoRecortada(), una vez confirmado el recorte.
+  abrirRecorteImagenProducto(file, event.target);
+}
+
+/** Sube (comprime + manda a Drive) el blob YA recortado por el editor de recorte */
+async function subirImagenProductoRecortada(blob, inputEl) {
+  const statusEl = document.getElementById("pmImagenStatus");
+
   // Local preview inmediata, mientras se comprime y sube en segundo plano
-  const localUrl = URL.createObjectURL(file);
+  const localUrl = URL.createObjectURL(blob);
   const preview = document.getElementById("pmImagenPreview");
   if (preview) preview.innerHTML = `<img src="${localUrl}" alt="">`;
 
   if (statusEl) { statusEl.className = "pm-image-status uploading"; statusEl.textContent = "⏳ Optimizando imagen..."; }
 
   try {
-    const pesoOriginalKB = Math.round(file.size / 1024);
-    const { base64, tipoMime } = await comprimirImagenProducto(file);
+    const pesoOriginalKB = Math.round(blob.size / 1024);
+    const { base64, tipoMime } = await comprimirImagenProducto(blob);
     const pesoFinalKB = Math.round((base64.length * 0.75) / 1024); // estimación: base64 pesa ~33% más que los bytes reales
 
     if (statusEl) {
@@ -3369,7 +3516,534 @@ async function onSeleccionarArchivoImagenProducto(event) {
     if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "⚠️ Error de conexión al subir la imagen."; }
   } finally {
     URL.revokeObjectURL(localUrl);
+    if (inputEl) inputEl.value = "";
   }
+}
+
+/* ===================== RECORTE CUADRADO DE FOTO DE PRODUCTO ===================== */
+/* Editor de recorte 1:1 nativo (sin librerías externas): el usuario arrastra la
+   imagen y ajusta el zoom dentro de un marco cuadrado fijo; al confirmar, se
+   genera un canvas cuadrado recortado que después pasa por comprimirImagenProducto(). */
+
+let _cropState = null; // { file, imgEl, natW, natH, vp, scale, minScale, maxScale, tx, ty, inputEl, dragging, dragStartX, dragStartY, txStart, tyStart }
+let _cropListenersListos = false;
+
+function abrirRecorteImagenProducto(file, inputEl) {
+  const backdrop = document.getElementById("cropImagenModalBackdrop");
+  const imgEl = document.getElementById("cropImgEl");
+  if (!backdrop || !imgEl) {
+    // Fallback de seguridad: si el modal no está en el HTML, subimos sin recortar.
+    subirImagenProductoRecortada(file, inputEl);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  imgEl.src = url;
+
+  imgEl.onload = () => {
+    // Mostramos el modal PRIMERO: mientras está oculto (display:none) el viewport
+    // mide 0px de ancho, así que si midiéramos antes, la imagen quedaría con escala 0 (invisible).
+    backdrop.classList.add("show");
+
+    const viewport = document.getElementById("cropViewport");
+    const vp = viewport.clientWidth; // el viewport es cuadrado (mismo ancho y alto por CSS)
+    const natW = imgEl.naturalWidth;
+    const natH = imgEl.naturalHeight;
+    const minScale = Math.max(vp / natW, vp / natH); // "cover": la imagen tapa todo el marco
+
+    _cropState = {
+      file, imgEl, natW, natH, vp,
+      scale: minScale, minScale, maxScale: minScale * 4,
+      tx: (vp - natW * minScale) / 2,
+      ty: (vp - natH * minScale) / 2,
+      inputEl,
+      dragging: false, dragStartX: 0, dragStartY: 0, txStart: 0, tyStart: 0
+    };
+
+    const slider = document.getElementById("cropZoomSlider");
+    if (slider) slider.value = 0;
+
+    _cropAplicarTransform();
+    _cropInicializarListeners();
+  };
+}
+
+function _cropAplicarTransform() {
+  if (!_cropState) return;
+  const { imgEl, tx, ty, scale } = _cropState;
+  imgEl.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+
+/** Evita que se pueda arrastrar/zoomear el marco fuera de los bordes de la imagen */
+function _cropClamp() {
+  if (!_cropState) return;
+  const s = _cropState;
+  s.scale = Math.min(s.maxScale, Math.max(s.minScale, s.scale));
+  const minTx = s.vp - s.natW * s.scale;
+  const minTy = s.vp - s.natH * s.scale;
+  s.tx = Math.min(0, Math.max(minTx, s.tx));
+  s.ty = Math.min(0, Math.max(minTy, s.ty));
+}
+
+function _cropInicializarListeners() {
+  if (_cropListenersListos) return;
+  _cropListenersListos = true;
+
+  const viewport = document.getElementById("cropViewport");
+  const slider = document.getElementById("cropZoomSlider");
+  if (!viewport || !slider) return;
+
+  const iniciarDrag = (clientX, clientY) => {
+    if (!_cropState) return;
+    _cropState.dragging = true;
+    _cropState.dragStartX = clientX;
+    _cropState.dragStartY = clientY;
+    _cropState.txStart = _cropState.tx;
+    _cropState.tyStart = _cropState.ty;
+    viewport.classList.add("dragging");
+  };
+  const moverDrag = (clientX, clientY) => {
+    if (!_cropState || !_cropState.dragging) return;
+    _cropState.tx = _cropState.txStart + (clientX - _cropState.dragStartX);
+    _cropState.ty = _cropState.tyStart + (clientY - _cropState.dragStartY);
+    _cropClamp();
+    _cropAplicarTransform();
+  };
+  const terminarDrag = () => {
+    if (!_cropState) return;
+    _cropState.dragging = false;
+    viewport.classList.remove("dragging");
+  };
+
+  // Mouse
+  viewport.addEventListener("mousedown", e => { e.preventDefault(); iniciarDrag(e.clientX, e.clientY); });
+  window.addEventListener("mousemove", e => moverDrag(e.clientX, e.clientY));
+  window.addEventListener("mouseup", terminarDrag);
+
+  // Touch (celular/tablet)
+  viewport.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    iniciarDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  viewport.addEventListener("touchmove", e => {
+    const t = e.touches[0];
+    moverDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  viewport.addEventListener("touchend", terminarDrag);
+
+  // Rueda del mouse también hace zoom
+  viewport.addEventListener("wheel", e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1 : -1;
+    const nuevoValor = Math.min(100, Math.max(0, Number(slider.value) + delta * 4));
+    slider.value = nuevoValor;
+    slider.dispatchEvent(new Event("input"));
+  }, { passive: false });
+
+  // Slider de zoom (0-100) → escala real, manteniendo el centro del marco fijo
+  slider.addEventListener("input", () => {
+    if (!_cropState) return;
+    const s = _cropState;
+    const t = Number(slider.value) / 100; // 0..1
+    const nuevaEscala = s.minScale + t * (s.maxScale - s.minScale);
+
+    // Punto de la imagen que hoy está en el centro del marco — lo mantenemos fijo al hacer zoom
+    const cx = (s.vp / 2 - s.tx) / s.scale;
+    const cy = (s.vp / 2 - s.ty) / s.scale;
+
+    s.scale = nuevaEscala;
+    s.tx = s.vp / 2 - cx * s.scale;
+    s.ty = s.vp / 2 - cy * s.scale;
+
+    _cropClamp();
+    _cropAplicarTransform();
+  });
+}
+
+function cancelarRecorteImagenProducto() {
+  const backdrop = document.getElementById("cropImagenModalBackdrop");
+  if (backdrop) backdrop.classList.remove("show");
+  if (_cropState) {
+    if (_cropState.imgEl && _cropState.imgEl.src) URL.revokeObjectURL(_cropState.imgEl.src);
+    if (_cropState.inputEl) _cropState.inputEl.value = "";
+  }
+  _cropState = null;
+}
+
+function confirmarRecorteImagenProducto() {
+  if (!_cropState) return;
+  const s = _cropState;
+
+  // Rectángulo recortado, en píxeles del archivo original (no de la pantalla)
+  const sx = (0 - s.tx) / s.scale;
+  const sy = (0 - s.ty) / s.scale;
+  const sSize = s.vp / s.scale;
+
+  const LADO_SALIDA_PX = 1000; // resolución del cuadrado recortado; comprimirImagenProducto() la ajusta después
+  const canvas = document.createElement("canvas");
+  canvas.width = LADO_SALIDA_PX;
+  canvas.height = LADO_SALIDA_PX;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(s.imgEl, sx, sy, sSize, sSize, 0, 0, LADO_SALIDA_PX, LADO_SALIDA_PX);
+
+  const backdrop = document.getElementById("cropImagenModalBackdrop");
+  const urlOriginal = s.imgEl.src;
+  const inputEl = s.inputEl;
+
+  canvas.toBlob(blob => {
+    if (backdrop) backdrop.classList.remove("show");
+    URL.revokeObjectURL(urlOriginal);
+    _cropState = null;
+    if (blob) subirImagenProductoRecortada(blob, inputEl);
+  }, "image/jpeg", 0.92);
+}
+
+/* ===================== RECORTE PANORÁMICO DE IMAGEN DEL BANNER ===================== */
+/* Mismo editor que el recorte de fotos de producto (abrirRecorteImagenProducto),
+   pero generalizado a un marco rectangular en vez de cuadrado: el ratio del
+   hero de escritorio real (1400:260, ver .hero.hero--imagen en style.css).
+   El recorte que el usuario elige acá es el que después el celular recorta
+   un poco más angosto de forma automática (background-size:cover), así que
+   actualizarPreviewBanner() muestra debajo cómo queda en cada tamaño. */
+
+const BANNER_RATIO_DESKTOP        = 1400 / 260; // debe coincidir con .hero.hero--imagen en style.css
+const BANNER_LADO_SALIDA_ANCHO_PX = 1600;        // resolución del recorte panorámico; comprimirImagenBanner() la ajusta después
+
+let _cropBannerState = null; // misma forma que _cropState, pero con vpW/vpH en vez de un solo vp (marco no es cuadrado)
+let _cropBannerListenersListos = false;
+
+/** Handles the banner file picker: abre el editor de recorte antes de subir */
+async function onSeleccionarArchivoBanner(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById("cfgBannerImagenStatus");
+
+  if (!file.type.startsWith("image/")) {
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "Elegí un archivo de imagen (jpg, png, webp)."; }
+    event.target.value = "";
+    return;
+  }
+
+  const TAMANO_ORIGINAL_MAXIMO_MB = 20;
+  if (file.size > TAMANO_ORIGINAL_MAXIMO_MB * 1024 * 1024) {
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = `⚠️ El archivo pesa demasiado (máx. ${TAMANO_ORIGINAL_MAXIMO_MB}MB). Elegí una foto más liviana.`; }
+    event.target.value = "";
+    return;
+  }
+
+  abrirRecorteBanner(file, event.target);
+}
+
+function abrirRecorteBanner(file, inputEl) {
+  const backdrop = document.getElementById("cropBannerModalBackdrop");
+  const imgEl = document.getElementById("cropBannerImgEl");
+  if (!backdrop || !imgEl) {
+    // Fallback de seguridad: si el modal no está en el HTML, subimos sin recortar.
+    subirImagenBanner(file, inputEl);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  imgEl.src = url;
+
+  imgEl.onload = () => {
+    // Igual que en el recorte de producto: mostramos el modal ANTES de medir,
+    // porque oculto (display:none) el viewport mide 0px.
+    backdrop.classList.add("show");
+
+    const viewport = document.getElementById("cropBannerViewport");
+    const vpW = viewport.clientWidth;
+    const vpH = viewport.clientHeight; // fijado por CSS vía aspect-ratio (crop-viewport--banner)
+    const natW = imgEl.naturalWidth;
+    const natH = imgEl.naturalHeight;
+    const minScale = Math.max(vpW / natW, vpH / natH); // "cover": la imagen tapa todo el marco
+
+    _cropBannerState = {
+      file, imgEl, natW, natH, vpW, vpH,
+      scale: minScale, minScale, maxScale: minScale * 4,
+      tx: (vpW - natW * minScale) / 2,
+      ty: (vpH - natH * minScale) / 2,
+      inputEl,
+      dragging: false, dragStartX: 0, dragStartY: 0, txStart: 0, tyStart: 0
+    };
+
+    const slider = document.getElementById("cropBannerZoomSlider");
+    if (slider) slider.value = 0;
+
+    _cropBannerAplicarTransform();
+    _cropBannerInicializarListeners();
+  };
+}
+
+function _cropBannerAplicarTransform() {
+  if (!_cropBannerState) return;
+  const { imgEl, tx, ty, scale } = _cropBannerState;
+  imgEl.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+
+/** Evita arrastrar/zoomear el marco fuera de los bordes de la imagen */
+function _cropBannerClamp() {
+  if (!_cropBannerState) return;
+  const s = _cropBannerState;
+  s.scale = Math.min(s.maxScale, Math.max(s.minScale, s.scale));
+  const minTx = s.vpW - s.natW * s.scale;
+  const minTy = s.vpH - s.natH * s.scale;
+  s.tx = Math.min(0, Math.max(minTx, s.tx));
+  s.ty = Math.min(0, Math.max(minTy, s.ty));
+}
+
+function _cropBannerInicializarListeners() {
+  if (_cropBannerListenersListos) return;
+  _cropBannerListenersListos = true;
+
+  const viewport = document.getElementById("cropBannerViewport");
+  const slider = document.getElementById("cropBannerZoomSlider");
+  if (!viewport || !slider) return;
+
+  const iniciarDrag = (clientX, clientY) => {
+    if (!_cropBannerState) return;
+    _cropBannerState.dragging = true;
+    _cropBannerState.dragStartX = clientX;
+    _cropBannerState.dragStartY = clientY;
+    _cropBannerState.txStart = _cropBannerState.tx;
+    _cropBannerState.tyStart = _cropBannerState.ty;
+    viewport.classList.add("dragging");
+  };
+  const moverDrag = (clientX, clientY) => {
+    if (!_cropBannerState || !_cropBannerState.dragging) return;
+    _cropBannerState.tx = _cropBannerState.txStart + (clientX - _cropBannerState.dragStartX);
+    _cropBannerState.ty = _cropBannerState.tyStart + (clientY - _cropBannerState.dragStartY);
+    _cropBannerClamp();
+    _cropBannerAplicarTransform();
+  };
+  const terminarDrag = () => {
+    if (!_cropBannerState) return;
+    _cropBannerState.dragging = false;
+    viewport.classList.remove("dragging");
+  };
+
+  // Mouse
+  viewport.addEventListener("mousedown", e => { e.preventDefault(); iniciarDrag(e.clientX, e.clientY); });
+  window.addEventListener("mousemove", e => moverDrag(e.clientX, e.clientY));
+  window.addEventListener("mouseup", terminarDrag);
+
+  // Touch (celular/tablet)
+  viewport.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    iniciarDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  viewport.addEventListener("touchmove", e => {
+    const t = e.touches[0];
+    moverDrag(t.clientX, t.clientY);
+  }, { passive: true });
+  viewport.addEventListener("touchend", terminarDrag);
+
+  // Rueda del mouse también hace zoom
+  viewport.addEventListener("wheel", e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1 : -1;
+    const nuevoValor = Math.min(100, Math.max(0, Number(slider.value) + delta * 4));
+    slider.value = nuevoValor;
+    slider.dispatchEvent(new Event("input"));
+  }, { passive: false });
+
+  // Slider de zoom (0-100) → escala real, manteniendo el centro del marco fijo
+  slider.addEventListener("input", () => {
+    if (!_cropBannerState) return;
+    const s = _cropBannerState;
+    const t = Number(slider.value) / 100; // 0..1
+    const nuevaEscala = s.minScale + t * (s.maxScale - s.minScale);
+
+    const cx = (s.vpW / 2 - s.tx) / s.scale;
+    const cy = (s.vpH / 2 - s.ty) / s.scale;
+
+    s.scale = nuevaEscala;
+    s.tx = s.vpW / 2 - cx * s.scale;
+    s.ty = s.vpH / 2 - cy * s.scale;
+
+    _cropBannerClamp();
+    _cropBannerAplicarTransform();
+  });
+}
+
+function cancelarRecorteBanner() {
+  const backdrop = document.getElementById("cropBannerModalBackdrop");
+  if (backdrop) backdrop.classList.remove("show");
+  if (_cropBannerState) {
+    if (_cropBannerState.imgEl && _cropBannerState.imgEl.src) URL.revokeObjectURL(_cropBannerState.imgEl.src);
+    if (_cropBannerState.inputEl) _cropBannerState.inputEl.value = "";
+  }
+  _cropBannerState = null;
+}
+
+function confirmarRecorteBanner() {
+  if (!_cropBannerState) return;
+  const s = _cropBannerState;
+
+  // Rectángulo recortado, en píxeles del archivo original (no de la pantalla)
+  const sx = (0 - s.tx) / s.scale;
+  const sy = (0 - s.ty) / s.scale;
+  const sW = s.vpW / s.scale;
+  const sH = s.vpH / s.scale;
+
+  const outW = BANNER_LADO_SALIDA_ANCHO_PX;
+  const outH = Math.round(outW / BANNER_RATIO_DESKTOP);
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(s.imgEl, sx, sy, sW, sH, 0, 0, outW, outH);
+
+  const backdrop = document.getElementById("cropBannerModalBackdrop");
+  const urlOriginal = s.imgEl.src;
+  const inputEl = s.inputEl;
+
+  canvas.toBlob(blob => {
+    if (backdrop) backdrop.classList.remove("show");
+    URL.revokeObjectURL(urlOriginal);
+    _cropBannerState = null;
+    if (blob) subirImagenBanner(blob, inputEl);
+  }, "image/jpeg", 0.92);
+}
+
+/**
+ * Comprime la imagen del banner antes de subirla — misma idea que
+ * comprimirImagenProducto(), pero con un lado máximo más grande, porque
+ * el banner ocupa mucho más espacio en pantalla que una foto de producto
+ * (todo el ancho del catálogo) y se ve pixelado si se lo achica de más.
+ */
+async function comprimirImagenBanner(file) {
+  const LADO_MAXIMO_PX   = 1600;
+  const PESO_OBJETIVO_KB = 900;
+  const CALIDADES        = [0.82, 0.7, 0.55, 0.4];
+
+  const imagen = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => reject(new Error("No se pudo leer la imagen seleccionada"));
+    img.src = URL.createObjectURL(file);
+  });
+
+  let { width, height } = imagen;
+  if (width > LADO_MAXIMO_PX) {
+    height = Math.round(height * (LADO_MAXIMO_PX / width));
+    width  = LADO_MAXIMO_PX;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(imagen, 0, 0, width, height);
+  URL.revokeObjectURL(imagen.src);
+
+  let ultimoBase64 = null;
+
+  for (const calidad of CALIDADES) {
+    const base64 = await new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      }, "image/jpeg", calidad);
+    });
+
+    ultimoBase64 = base64;
+    const pesoKB = Math.round((base64.length * 0.75) / 1024);
+    if (pesoKB <= PESO_OBJETIVO_KB) break;
+  }
+
+  return { base64: ultimoBase64, tipoMime: "image/jpeg" };
+}
+
+/** Sube (comprime + manda a Drive) el blob ya recortado del banner */
+async function subirImagenBanner(blob, inputEl) {
+  const statusEl = document.getElementById("cfgBannerImagenStatus");
+
+  // Preview local inmediata (miniatura + las dos vistas escritorio/celular),
+  // mientras se comprime y sube en segundo plano.
+  const localUrl = URL.createObjectURL(blob);
+  const preview = document.getElementById("cfgBannerImagenPreview");
+  if (preview) preview.innerHTML = `<img src="${localUrl}" alt="">`;
+  const mockD = document.getElementById("bannerMockDesktop");
+  const mockM = document.getElementById("bannerMockMobile");
+  if (mockD) mockD.style.backgroundImage = `url("${localUrl}")`;
+  if (mockM) mockM.style.backgroundImage = `url("${localUrl}")`;
+
+  if (statusEl) { statusEl.className = "pm-image-status uploading"; statusEl.textContent = "⏳ Optimizando imagen..."; }
+
+  try {
+    const pesoOriginalKB = Math.round(blob.size / 1024);
+    const { base64, tipoMime } = await comprimirImagenBanner(blob);
+    const pesoFinalKB = Math.round((base64.length * 0.75) / 1024);
+
+    if (statusEl) {
+      statusEl.className = "pm-image-status uploading";
+      statusEl.textContent = pesoFinalKB < pesoOriginalKB
+        ? `⏳ Subiendo a Drive... (${pesoOriginalKB}KB → ${pesoFinalKB}KB)`
+        : "⏳ Subiendo a Drive...";
+    }
+
+    const response = await fetchAPI(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS contra Apps Script
+      body: JSON.stringify({
+        action: "subirImagenProducto",
+        imagenBase64: base64,
+        tipoMime: tipoMime,
+        codigoProducto: "BANNER_CATALOGO" // mismo endpoint que las fotos de producto, con un código fijo para el banner
+      })
+    }, { timeoutMs: 40000 });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "⚠️ " + (data.message || "No se pudo subir la imagen."); }
+      return;
+    }
+
+    document.getElementById("cfgBannerImagen").value = data.url;
+    if (statusEl) { statusEl.className = "pm-image-status success"; statusEl.textContent = `✓ Imagen subida (${pesoFinalKB}KB) — no te olvides de guardar`; }
+    actualizarPreviewBanner();
+
+  } catch (error) {
+    console.error("Error al subir imagen del banner:", error);
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "⚠️ Error de conexión al subir la imagen."; }
+  } finally {
+    URL.revokeObjectURL(localUrl);
+    if (inputEl) inputEl.value = "";
+  }
+}
+
+/**
+ * Actualiza la miniatura y las dos vistas previas (escritorio/celular) del
+ * banner, a partir de la URL cargada en cfgBannerImagen y los textos de
+ * título/subtítulo actuales del formulario. Se llama al escribir, al pegar
+ * una URL a mano, al terminar de subir una imagen, y al abrir "Apariencia".
+ */
+function actualizarPreviewBanner() {
+  const urlInput = document.getElementById("cfgBannerImagen");
+  if (!urlInput) return;
+  const url = urlInput.value.trim();
+
+  const preview = document.getElementById("cfgBannerImagenPreview");
+  if (preview) preview.innerHTML = url ? `<img src="${escapeHtml(url)}" alt="" onerror="this.parentElement.innerHTML='⚠️';">` : "🖼️";
+
+  const bgCss = url ? `url("${url.replace(/"/g, '\\"')}")` : "none";
+  const mockD = document.getElementById("bannerMockDesktop");
+  const mockM = document.getElementById("bannerMockMobile");
+  if (mockD) mockD.style.backgroundImage = bgCss;
+  if (mockM) mockM.style.backgroundImage = bgCss;
+
+  const tituloEl = document.getElementById("cfgBannerTitulo");
+  const subtituloEl = document.getElementById("cfgBannerSubtitulo");
+  const titulo    = (tituloEl && tituloEl.value.trim())    || "Mayorista Jireh";
+  const subtitulo = (subtituloEl && subtituloEl.value.trim()) || "Catálogo Mayorista Online";
+  ["bannerMockTituloD", "bannerMockTituloM"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = titulo; });
+  ["bannerMockSubtituloD", "bannerMockSubtituloM"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = subtitulo; });
 }
 
 /** Fills the category <datalist> with the distinct categories already in use */
@@ -6274,7 +6948,6 @@ function _ejecutarImpresion(ventaId, items, total, formaPago, fecha, descuento) 
     enviarBytesAImpresoraUSB(bytes)
       .catch(error => {
         console.error("Error al imprimir por USB:", error);
-        toast("Error al imprimir por USB — se abre el diálogo normal", "error");
         return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData));
       })
       .finally(liberar);
@@ -6556,7 +7229,6 @@ function imprimirCierreCaja() {
     const bytes = buildThermalCierreESCPOS(resumen);
     enviarBytesAImpresoraUSB(bytes).catch(error => {
       console.error("Error al imprimir cierre por USB:", error);
-      toast("Error al imprimir por USB — se abre el diálogo normal", "error");
       _imprimirConDialogo(buildThermalCierreHTML(resumen));
     });
     return;
@@ -9288,9 +9960,53 @@ async function ejecutarMigracionFormaPago() {
 let ingresosProductosGlobal = [];
 let ipProductoActualEsNuevo = false;
 
+// Carrito de la boleta que se está armando: cada ítem escaneado se
+// acumula acá y recién se manda todo junto al backend al tocar
+// "Guardar boleta" — así todos los productos quedan agrupados en UN
+// solo documento (BOLETA_ID) por proveedor/día/N° de boleta.
+let ipCarritoBoleta = [];
+
+// ID de la boleta que está abierta en el modal de detalle/pago
+let boletaProveedorIdActual = null;
+
+// Datos completos (cabecera + items + pagos) de la boleta actualmente
+// abierta en el modal de detalle — se guardan acá para poder armar el
+// comprobante imprimible sin tener que volver a pedirlos al backend.
+let detalleBoletaDatosActual = null;
+
+// true cuando el modal de detalle de boleta se abrió desde "Ver boletas"
+// de un proveedor (en vez de desde la sección Ingreso de Productos) —
+// controla si hay que volver a mostrar esa ventana al cerrar el detalle.
+let detalleBoletaAbiertoDesdeProveedor = false;
+
 function _hoyISO() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+/** Refleja en pantalla si ya hay una boleta con este proveedor/fecha/N° (se le sumarían los ítems) o si es una boleta nueva */
+function actualizarEstadoBoletaActual() {
+  const estado = document.getElementById("ipbEstadoBoleta");
+  if (!estado) return;
+  const proveedor = document.getElementById("ipbProveedor").value.trim().toLowerCase();
+  const fecha = document.getElementById("ipbFecha").value;
+  const numero = document.getElementById("ipbNumeroBoleta").value.trim();
+
+  if (!proveedor) { estado.textContent = ""; return; }
+
+  const existente = (ingresosProductosGlobal || []).find(i =>
+    String(i.PROVEEDOR || "").trim().toLowerCase() === proveedor &&
+    String(i.FECHA || "") === fecha &&
+    String(i.NUMERO_BOLETA || "").trim() === numero
+  );
+
+  if (existente) {
+    estado.innerHTML = `⚠️ Ya existe una boleta con estos datos (Total actual: $${Number(existente.TOTAL || 0).toLocaleString("es-AR")}) — lo que agregues se va a sumar a esa misma boleta.`;
+    estado.style.color = "var(--amber-600, #b45309)";
+  } else {
+    estado.textContent = "✓ Se va a crear una boleta nueva con estos datos.";
+    estado.style.color = "var(--green-600, green)";
+  }
 }
 
 /** Busca el código escaneado/tipeado en productosAdminGlobal; si no está, abre el formulario en modo "producto nuevo" */
@@ -9312,11 +10028,7 @@ function buscarProductoParaIngreso() {
   document.getElementById("ipFormularioWrap").style.display = "";
   document.getElementById("ipCodigo").value = codigo;
   document.getElementById("ipCodigoMostrado").value = codigo;
-  document.getElementById("ipFecha").value = _hoyISO();
   document.getElementById("ipCantidad").value = "";
-  document.getElementById("ipCantidad").focus();
-  document.getElementById("ipProveedorContacto").value = "";
-  document.getElementById("ipObservaciones").value = "";
 
   if (producto) {
     ipProductoActualEsNuevo = false;
@@ -9326,8 +10038,10 @@ function buscarProductoParaIngreso() {
     document.getElementById("ipNombre").value = producto.PRODUCTO || "";
     document.getElementById("ipNombre").readOnly = true;
     document.getElementById("ipCategoria").value = producto.CATEGORIA || "";
-    document.getElementById("ipPrecio").value = Number(producto.PRECIO || 0);
-    document.getElementById("ipPrecioHint").textContent = "Dejalo así si no cambió, o corregilo si vino con un precio nuevo.";
+    document.getElementById("ipPrecio").value = "";
+    document.getElementById("ipPrecioHint").textContent = "Lo que le pagás al proveedor por esta entrega — con esto se calcula el saldo que se le debe.";
+    document.getElementById("ipPrecioVenta").value = Number(producto.PRECIO || 0);
+    document.getElementById("ipPrecioVentaHint").textContent = "Dejalo así si no cambió, o corregilo si el precio al público cambió.";
     if (estado) { estado.textContent = "✓ Producto encontrado: " + (producto.PRODUCTO || ""); estado.style.color = "var(--green-600, green)"; }
   } else {
     ipProductoActualEsNuevo = true;
@@ -9338,7 +10052,9 @@ function buscarProductoParaIngreso() {
     document.getElementById("ipNombre").readOnly = false;
     document.getElementById("ipCategoria").value = "";
     document.getElementById("ipPrecio").value = "";
-    document.getElementById("ipPrecioHint").textContent = "Precio de venta con el que se va a dar de alta.";
+    document.getElementById("ipPrecioHint").textContent = "Lo que le pagás al proveedor por esta entrega.";
+    document.getElementById("ipPrecioVenta").value = "";
+    document.getElementById("ipPrecioVentaHint").textContent = "Precio de venta al público con el que se va a publicar en el POS y en la página. Si lo dejás vacío, se usa el precio de ingreso.";
     if (estado) { estado.textContent = "No existe todavía — completá los datos para crearlo"; estado.style.color = "var(--amber-600, #b45309)"; }
     document.getElementById("ipNombre").focus();
   }
@@ -9361,6 +10077,8 @@ async function generarCodigoIngresoAutomatico() {
 function cancelarIngresoProducto() {
   document.getElementById("ipFormularioWrap").style.display = "none";
   document.getElementById("ipCodigoScan").value = "";
+  document.getElementById("ipPrecio").value = "";
+  document.getElementById("ipPrecioVenta").value = "";
   document.getElementById("ipEstadoBusqueda").textContent = "";
   document.getElementById("ipCodigoScan").focus();
 }
@@ -9379,32 +10097,113 @@ function poblarDatalistProveedoresIngreso() {
   dl.innerHTML = proveedores.map(p => `<option value="${escapeHtml(p)}">`).join("");
 }
 
-/** Envía el ingreso al backend: crea el producto si es nuevo, o suma stock/actualiza precio si ya existe */
-async function confirmarIngresoProducto() {
+/** Agrega el producto del formulario al carrito de la boleta (todavía no lo manda al backend) */
+function agregarItemABoleta() {
+  const proveedor = document.getElementById("ipbProveedor").value.trim();
+  if (!proveedor) {
+    toast("Completá el proveedor de la boleta (arriba) antes de agregar productos", "error");
+    document.getElementById("ipbProveedor").focus();
+    return;
+  }
+
   const codigo = document.getElementById("ipCodigo").value.trim();
   const nombre = document.getElementById("ipNombre").value.trim();
   const categoria = document.getElementById("ipCategoria").value.trim();
-  const precio = document.getElementById("ipPrecio").value;
-  const cantidad = document.getElementById("ipCantidad").value;
-  const proveedor = document.getElementById("ipProveedor").value.trim();
-  const proveedorContacto = document.getElementById("ipProveedorContacto").value.trim();
-  const observaciones = document.getElementById("ipObservaciones").value.trim();
-  const fecha = document.getElementById("ipFecha").value || _hoyISO();
+  const precio = Number(document.getElementById("ipPrecio").value || 0);
+  const precioVentaInput = document.getElementById("ipPrecioVenta").value;
+  const precioVenta = precioVentaInput !== "" ? Number(precioVentaInput) : null;
+  const cantidad = Number(document.getElementById("ipCantidad").value || 0);
 
   if (ipProductoActualEsNuevo && !nombre) {
     toast("Ingresá el nombre del producto para poder crearlo", "error");
     return;
   }
-  if (!cantidad || Number(cantidad) <= 0) {
+  if (!cantidad || cantidad <= 0) {
     toast("Ingresá una cantidad válida, mayor a 0", "error");
     return;
   }
-  if (!proveedor) {
-    toast("Ingresá el proveedor de esta mercadería", "error");
+  if (!precio || precio <= 0) {
+    toast("Ingresá el precio de ingreso (costo) — se usa para calcular el saldo al proveedor", "error");
     return;
   }
 
-  const btn = document.getElementById("btnConfirmarIngreso");
+  ipCarritoBoleta.push({
+    codigo, producto: nombre || codigo, categoria, precio,
+    precioVenta: precioVenta !== null && !isNaN(precioVenta) ? precioVenta : null,
+    cantidad,
+    esNuevo: ipProductoActualEsNuevo
+  });
+
+  renderCarritoBoleta();
+  toast("Agregado a la boleta", "success");
+  cancelarIngresoProducto();
+}
+
+function renderCarritoBoleta() {
+  const tbody = document.getElementById("ipCarritoBody");
+  const totalEl = document.getElementById("ipCarritoTotal");
+  if (!tbody) return;
+
+  if (ipCarritoBoleta.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-3">Todavía no agregaste productos</td></tr>`;
+    if (totalEl) totalEl.textContent = "$0";
+    return;
+  }
+
+  let total = 0;
+  tbody.innerHTML = ipCarritoBoleta.map((it, idx) => {
+    // El subtotal de la boleta (lo que se le debe al proveedor) se
+    // calcula con el precio de INGRESO (costo), nunca con el de venta.
+    const subtotal = it.precio * it.cantidad;
+    total += subtotal;
+    const precioVentaTexto = (it.precioVenta !== null && it.precioVenta !== undefined)
+      ? "$" + Number(it.precioVenta).toLocaleString("es-AR")
+      : "—";
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(it.codigo || "—")}</td>
+        <td>${escapeHtml(it.producto)} ${it.esNuevo ? '<span class="badge bg-warning text-dark">nuevo</span>' : ""}</td>
+        <td>${escapeHtml(it.categoria || "—")}</td>
+        <td class="money">${Number(it.cantidad).toLocaleString("es-AR")}</td>
+        <td class="money">$${Number(it.precio).toLocaleString("es-AR")}</td>
+        <td class="money">${precioVentaTexto}</td>
+        <td class="money">$${subtotal.toLocaleString("es-AR")}</td>
+        <td><button class="btn btn-outline-danger btn-sm" onclick="quitarItemCarrito(${idx})">✕</button></td>
+      </tr>`;
+  }).join("");
+
+  if (totalEl) totalEl.textContent = "$" + total.toLocaleString("es-AR");
+}
+
+function quitarItemCarrito(idx) {
+  ipCarritoBoleta.splice(idx, 1);
+  renderCarritoBoleta();
+}
+
+function vaciarCarritoBoleta() {
+  if (ipCarritoBoleta.length && !confirm("¿Vaciar todos los productos cargados en esta boleta?")) return;
+  ipCarritoBoleta = [];
+  renderCarritoBoleta();
+}
+
+/** Manda TODA la boleta (cabecera + todos los productos del carrito) al backend en un solo documento */
+async function guardarBoletaCompleta() {
+  const proveedor = document.getElementById("ipbProveedor").value.trim();
+  const proveedorContacto = document.getElementById("ipbProveedorContacto").value.trim();
+  const numeroBoleta = document.getElementById("ipbNumeroBoleta").value.trim();
+  const observaciones = document.getElementById("ipbObservaciones").value.trim();
+  const fecha = document.getElementById("ipbFecha").value || _hoyISO();
+
+  if (!proveedor) {
+    toast("Ingresá el proveedor de esta boleta", "error");
+    return;
+  }
+  if (ipCarritoBoleta.length === 0) {
+    toast("Agregá al menos un producto a la boleta antes de guardar", "error");
+    return;
+  }
+
+  const btn = document.getElementById("btnGuardarBoleta");
   const textoOriginal = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = "Guardando...";
@@ -9415,47 +10214,59 @@ async function confirmarIngresoProducto() {
       body: JSON.stringify({
         action: "registrarIngresoProducto",
         rol: obtenerRolActual(),
-        codigo, producto: nombre, categoria, precio, cantidad,
-        proveedor, proveedorContacto, observaciones, fecha
+        usuario: (sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("vendedor") || "ADMIN"),
+        proveedor, proveedorContacto, numeroBoleta, observaciones, fecha,
+        items: ipCarritoBoleta.map(it => ({
+          codigo: it.codigo, producto: it.producto, categoria: it.categoria,
+          precio: it.precio, precioVenta: it.precioVenta, cantidad: it.cantidad
+        }))
       })
     });
     const data = await res.json();
 
     if (!data.success) {
-      toast(data.message || "No se pudo registrar el ingreso", "error");
+      toast(data.message || "No se pudo guardar la boleta", "error");
       return;
     }
 
-    toast(data.esProductoNuevo
-      ? `Producto creado y stock cargado (${cantidad} u.)`
-      : `Stock actualizado (+${cantidad} u.)`, "success");
+    toast(`Boleta guardada — ${ipCarritoBoleta.length} producto(s), total $${Number(data.totalBoleta || 0).toLocaleString("es-AR")}`, "success");
 
     try { localStorage.removeItem("vpos_cache_productosAdmin"); } catch(e) {}
+    ipCarritoBoleta = [];
+    renderCarritoBoleta();
+    document.getElementById("ipbNumeroBoleta").value = "";
+    document.getElementById("ipbObservaciones").value = "";
     await cargarProductos();
     await cargarHistorialIngresos();
-    cancelarIngresoProducto();
 
   } catch (error) {
-    console.error("Error al registrar ingreso:", error);
-    toast("Error de conexión al registrar el ingreso", "error");
+    console.error("Error al guardar la boleta:", error);
+    toast("Error de conexión al guardar la boleta", "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
   }
 }
 
-/** Carga el historial de ingresos (recepciones) desde el backend */
+/** Carga el listado de boletas de proveedor (una fila = una boleta, con total/pagado/saldo) desde el backend */
 async function cargarHistorialIngresos() {
   const tbody = document.getElementById("tablaIngresosBody");
   try {
-    const res = await fetchAPI(API_URL + "?action=ingresosProductos");
+    const res = await fetchAPI(API_URL + "?action=boletasProveedores");
     const data = await res.json();
-    ingresosProductosGlobal = data.ingresos || [];
+    ingresosProductosGlobal = data.boletas || [];
+    poblarDatalistProveedoresIngreso();
     filtrarHistorialIngresos();
   } catch (error) {
-    console.error("Error al cargar historial de ingresos:", error);
+    console.error("Error al cargar boletas de proveedores:", error);
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Error al cargar el historial</td></tr>`;
   }
+}
+
+function _badgeEstadoBoleta(estado) {
+  if (estado === "PAGADA") return `<span class="badge bg-success">Pagada</span>`;
+  if (estado === "PARCIAL") return `<span class="badge bg-warning text-dark">Pago parcial</span>`;
+  return `<span class="badge bg-danger">Pendiente</span>`;
 }
 
 function filtrarHistorialIngresos() {
@@ -9466,40 +10277,311 @@ function filtrarHistorialIngresos() {
   const proveedor = (document.getElementById("ipFiltroProveedor")?.value || "").trim().toLowerCase();
   const desde = document.getElementById("ipFiltroDesde")?.value || "";
   const hasta = document.getElementById("ipFiltroHasta")?.value || "";
+  const estadoFiltro = document.getElementById("ipFiltroEstado")?.value || "";
 
   let lista = ingresosProductosGlobal || [];
 
   if (texto) {
-    lista = lista.filter(i =>
-      String(i.CODIGO || "").toLowerCase().includes(texto) ||
-      String(i.PRODUCTO || "").toLowerCase().includes(texto));
+    lista = lista.filter(i => String(i.NUMERO_BOLETA || "").toLowerCase().includes(texto));
   }
   if (proveedor) {
     lista = lista.filter(i => String(i.PROVEEDOR || "").toLowerCase().includes(proveedor));
   }
   if (desde) lista = lista.filter(i => String(i.FECHA) >= desde);
   if (hasta) lista = lista.filter(i => String(i.FECHA) <= hasta);
+  if (estadoFiltro) lista = lista.filter(i => i.ESTADO === estadoFiltro);
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Sin ingresos registrados para este filtro</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Sin boletas registradas para este filtro</td></tr>`;
     return;
   }
 
   tbody.innerHTML = lista.map(i => `
     <tr>
       <td>${escapeHtml(i.FECHA || "—")}</td>
-      <td class="mono">${escapeHtml(i.CODIGO || "—")}</td>
-      <td>${escapeHtml(i.PRODUCTO || "—")}</td>
-      <td>${escapeHtml(i.CATEGORIA || "—")}</td>
-      <td class="money">${Number(i.CANTIDAD || 0).toLocaleString("es-AR")}</td>
-      <td class="money">$${Number(i.PRECIO_NUEVO || i.PRECIO_ANTERIOR || 0).toLocaleString("es-AR")}</td>
+      <td class="mono">${escapeHtml(i.NUMERO_BOLETA || "—")}</td>
       <td>${escapeHtml(i.PROVEEDOR || "—")}</td>
       <td>${escapeHtml(i.PROVEEDOR_CONTACTO || "—")}</td>
-      <td>${escapeHtml(i.OBSERVACIONES || "—")}</td>
+      <td class="money">$${Number(i.TOTAL || 0).toLocaleString("es-AR")}</td>
+      <td class="money" style="color:var(--green-600);">$${Number(i.PAGADO || 0).toLocaleString("es-AR")}</td>
+      <td class="money" style="color:var(--red-500);">$${Number(i.SALDO || 0).toLocaleString("es-AR")}</td>
+      <td>${_badgeEstadoBoleta(i.ESTADO)}</td>
+      <td><button class="btn btn-outline-primary btn-sm" onclick="abrirModalDetalleBoleta('${i.BOLETA_ID}')">Ver / Pagar</button></td>
     </tr>`).join("");
 }
 
-/** Exporta el historial de ingresos (según los filtros aplicados) a PDF, con jsPDF + autoTable */
+/** Abre el modal de detalle de una boleta: items, pagos, y el formulario para registrar un pago nuevo */
+async function abrirModalDetalleBoleta(boletaId) {
+  // Si este modal se abrió desde "Ver boletas" de un proveedor, esa
+  // ventana queda abierta atrás — se oculta mientras se ve el detalle
+  // para que no se superpongan dos modales a la vez, y se vuelve a
+  // mostrar al cerrar este (ver cerrarModalDetalleBoleta).
+  const modalProveedor = document.getElementById("boletasProveedorModalBackdrop");
+  detalleBoletaAbiertoDesdeProveedor = !!(modalProveedor && modalProveedor.classList.contains("show"));
+  if (detalleBoletaAbiertoDesdeProveedor) modalProveedor.classList.remove("show");
+
+  document.getElementById("detalleBoletaModalBackdrop").classList.add("show");
+  document.getElementById("detalleBoletaTitulo").textContent = "Cargando...";
+  document.getElementById("pagoProveedorMonto").value = "";
+  document.getElementById("pagoProveedorObservaciones").value = "";
+  document.getElementById("pagoProveedorFormaPago").value = "EFECTIVO";
+  const btnPago = document.getElementById("btnRegistrarPagoProveedor");
+  if (btnPago) { btnPago.disabled = false; btnPago.textContent = "💾 Pagar"; }
+  boletaProveedorIdActual = boletaId;
+
+  try {
+    const res = await fetchAPI(API_URL + "?action=detalleBoletaProveedor&boletaId=" + encodeURIComponent(boletaId));
+    const data = await res.json();
+    if (!data.success) {
+      toast(data.message || "No se pudo cargar la boleta", "error");
+      cerrarModalDetalleBoleta();
+      return;
+    }
+
+    const b = data.boleta;
+    detalleBoletaDatosActual = { boleta: b, items: data.items || [], pagos: data.pagos || [] };
+    document.getElementById("detalleBoletaTitulo").textContent =
+      `${b.PROVEEDOR}${b.NUMERO_BOLETA ? " — Boleta " + b.NUMERO_BOLETA : ""} (${b.FECHA})`;
+    document.getElementById("detalleBoletaTotal").textContent = "$" + Number(b.TOTAL || 0).toLocaleString("es-AR");
+    document.getElementById("detalleBoletaPagado").textContent = "$" + Number(b.PAGADO || 0).toLocaleString("es-AR");
+    document.getElementById("detalleBoletaSaldo").textContent = "$" + Number(b.SALDO || 0).toLocaleString("es-AR");
+
+    const datosWrap = document.getElementById("detalleBoletaDatos");
+    if (datosWrap) {
+      const filasDatos = [
+        ["N° de boleta / remito", b.NUMERO_BOLETA || "—"],
+        ["Proveedor", b.PROVEEDOR || "—"],
+        ["Contacto del proveedor", b.PROVEEDOR_CONTACTO || "—"],
+        ["Fecha de recepción", b.FECHA || "—"],
+        ["Cargada por", b.USUARIO || "—"],
+        ["Observaciones", b.OBSERVACIONES || "—"]
+      ];
+      datosWrap.innerHTML = filasDatos.map(([label, valor]) =>
+        `<div class="d-flex justify-content-between gap-2"><span class="text-muted">${escapeHtml(label)}</span><span class="text-end">${escapeHtml(String(valor))}</span></div>`
+      ).join("");
+    }
+
+    const formWrap = document.getElementById("cardFormularioPagoProveedor");
+    if (formWrap) formWrap.style.display = b.SALDO > 0 ? "" : "none";
+
+    const items = data.items || [];
+    const resumenEl = document.getElementById("detalleBoletaResumenItems");
+    if (resumenEl) {
+      const totalUnidades = items.reduce((acc, it) => acc + (Number(it.CANTIDAD) || 0), 0);
+      const cantidadNuevos = items.filter(it => String(it.ES_PRODUCTO_NUEVO || "").toUpperCase() === "SI").length;
+      resumenEl.textContent = `${items.length} producto${items.length === 1 ? "" : "s"} · ${totalUnidades.toLocaleString("es-AR")} unidad${totalUnidades === 1 ? "" : "es"}${cantidadNuevos > 0 ? ` · ${cantidadNuevos} nuevo${cantidadNuevos === 1 ? "" : "s"}` : ""}`;
+    }
+
+    document.getElementById("detalleBoletaItemsBody").innerHTML = items.map(it => {
+      // El precio que compone el TOTAL de la boleta (lo que se le paga
+      // al proveedor) es siempre PRECIO_INGRESO — nunca el de venta.
+      // Los ingresos guardados antes de esta separación no tienen
+      // PRECIO_INGRESO cargado; en ese caso se usa el precio de venta
+      // como referencia, igual que hacía el sistema antes.
+      const tieneCosto = it.PRECIO_INGRESO !== undefined && it.PRECIO_INGRESO !== "" && it.PRECIO_INGRESO !== null;
+      const precioCosto = tieneCosto ? Number(it.PRECIO_INGRESO) : Number(it.PRECIO_NUEVO || it.PRECIO_ANTERIOR || 0);
+      const precioVenta = Number(it.PRECIO_NUEVO || it.PRECIO_ANTERIOR || 0);
+      const subtotalCosto = Number(it.CANTIDAD || 0) * precioCosto;
+      return `
+      <tr>
+        <td class="mono">${escapeHtml(it.CODIGO || "—")}</td>
+        <td>${escapeHtml(it.PRODUCTO || "—")}</td>
+        <td class="money">${Number(it.CANTIDAD || 0).toLocaleString("es-AR")}</td>
+        <td class="money">$${precioCosto.toLocaleString("es-AR")}${!tieneCosto ? ' <span class="text-muted" style="font-size:10px;" title="Este ingreso es de antes de separar costo/venta — se muestra el precio de venta como referencia">(ref.)</span>' : ""}</td>
+        <td class="money" style="color:var(--slate-500, #64748b);">$${precioVenta.toLocaleString("es-AR")}</td>
+        <td class="money">$${subtotalCosto.toLocaleString("es-AR")}</td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="6" class="text-center text-muted py-2">Sin productos</td></tr>`;
+
+    const pagos = data.pagos || [];
+    document.getElementById("detalleBoletaPagosBody").innerHTML = pagos.length
+      ? pagos.map(p => `
+        <tr>
+          <td>${escapeHtml(p.FECHA || "—")}</td>
+          <td class="money">$${Number(p.MONTO || 0).toLocaleString("es-AR")}</td>
+          <td>${escapeHtml(p.FORMA_PAGO || "—")}</td>
+          <td>${escapeHtml(p.OBSERVACIONES || "—")}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="4" class="text-center text-muted py-2">Todavía no hay pagos registrados</td></tr>`;
+
+  } catch (error) {
+    console.error("Error al cargar el detalle de la boleta:", error);
+    toast("Error de conexión al cargar la boleta", "error");
+    cerrarModalDetalleBoleta();
+  }
+}
+
+/** Arma e imprime (A4) el comprobante de la boleta de proveedor que está abierta en el modal de detalle */
+function imprimirBoletaProveedor() {
+  if (!detalleBoletaDatosActual) { toast("No hay una boleta cargada para imprimir", "error"); return; }
+
+  const { boleta: b, items, pagos } = detalleBoletaDatosActual;
+  const cfg = obtenerConfigNegocio();
+
+  const printArea = document.getElementById("etiquetasPrintArea");
+  const thermalFrame = document.getElementById("thermalPrintFrame");
+  if (thermalFrame) thermalFrame.innerHTML = "";
+
+  const filasItems = items.map(it => {
+    const tieneCosto = it.PRECIO_INGRESO !== undefined && it.PRECIO_INGRESO !== "" && it.PRECIO_INGRESO !== null;
+    const precioCosto = tieneCosto ? Number(it.PRECIO_INGRESO) : Number(it.PRECIO_NUEVO || it.PRECIO_ANTERIOR || 0);
+    const subtotal = Number(it.CANTIDAD || 0) * precioCosto;
+    return `
+      <tr>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0;">${escapeHtml(it.CODIGO || "—")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0;">${escapeHtml(it.PRODUCTO || "—")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0; text-align:right;">${Number(it.CANTIDAD || 0).toLocaleString("es-AR")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0; text-align:right;">$${precioCosto.toLocaleString("es-AR")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0; text-align:right;">$${subtotal.toLocaleString("es-AR")}</td>
+      </tr>`;
+  }).join("") || `<tr><td colspan="5" style="padding:8px; text-align:center; color:#64748b;">Sin productos</td></tr>`;
+
+  const filasPagos = pagos.length
+    ? pagos.map(p => `
+      <tr>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0;">${escapeHtml(p.FECHA || "—")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0; text-align:right;">$${Number(p.MONTO || 0).toLocaleString("es-AR")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0;">${escapeHtml(p.FORMA_PAGO || "—")}</td>
+        <td style="padding:5px 6px; border-bottom:1px solid #e2e8f0;">${escapeHtml(p.OBSERVACIONES || "—")}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" style="padding:8px; text-align:center; color:#64748b;">Sin pagos registrados</td></tr>`;
+
+  const totalUnidades = items.reduce((acc, it) => acc + (Number(it.CANTIDAD) || 0), 0);
+
+  const html = `
+    <div style="font-family:Arial, sans-serif; color:#1e293b; padding:10mm; font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:10px; margin-bottom:14px;">
+        <div>
+          <div style="font-size:18px; font-weight:800;">${escapeHtml(cfg.nombre || "")}</div>
+          <div style="color:#64748b;">Comprobante de ingreso de mercadería</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px; font-weight:700;">Boleta ${escapeHtml(b.NUMERO_BOLETA || "—")}</div>
+          <div style="color:#64748b;">${escapeHtml(b.FECHA || "—")}</div>
+        </div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+        <tr>
+          <td style="padding:3px 0; color:#64748b; width:150px;">Proveedor</td>
+          <td style="padding:3px 0; font-weight:600;">${escapeHtml(b.PROVEEDOR || "—")}</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 0; color:#64748b;">Contacto</td>
+          <td style="padding:3px 0;">${escapeHtml(b.PROVEEDOR_CONTACTO || "—")}</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 0; color:#64748b;">Cargada por</td>
+          <td style="padding:3px 0;">${escapeHtml(b.USUARIO || "—")}</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 0; color:#64748b; vertical-align:top;">Observaciones</td>
+          <td style="padding:3px 0;">${escapeHtml(b.OBSERVACIONES || "—")}</td>
+        </tr>
+      </table>
+
+      <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="padding:6px; text-align:left;">Código</th>
+            <th style="padding:6px; text-align:left;">Producto</th>
+            <th style="padding:6px; text-align:right;">Cant.</th>
+            <th style="padding:6px; text-align:right;">Precio costo</th>
+            <th style="padding:6px; text-align:right;">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>${filasItems}</tbody>
+      </table>
+      <div style="text-align:right; color:#64748b; margin-bottom:16px;">${items.length} producto${items.length === 1 ? "" : "s"} · ${totalUnidades.toLocaleString("es-AR")} unidad${totalUnidades === 1 ? "" : "es"}</div>
+
+      <div style="display:flex; justify-content:flex-end; gap:24px; border-top:2px solid #1e293b; padding-top:10px; margin-bottom:18px;">
+        <div style="text-align:right;"><div style="color:#64748b;">Total</div><div style="font-size:15px; font-weight:800;">$${Number(b.TOTAL || 0).toLocaleString("es-AR")}</div></div>
+        <div style="text-align:right;"><div style="color:#64748b;">Pagado</div><div style="font-size:15px; font-weight:800; color:#16a34a;">$${Number(b.PAGADO || 0).toLocaleString("es-AR")}</div></div>
+        <div style="text-align:right;"><div style="color:#64748b;">Saldo</div><div style="font-size:15px; font-weight:800; color:#dc2626;">$${Number(b.SALDO || 0).toLocaleString("es-AR")}</div></div>
+      </div>
+
+      <div style="font-weight:700; margin-bottom:6px;">Pagos registrados</div>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="padding:6px; text-align:left;">Fecha</th>
+            <th style="padding:6px; text-align:right;">Monto</th>
+            <th style="padding:6px; text-align:left;">Forma de pago</th>
+            <th style="padding:6px; text-align:left;">Observaciones</th>
+          </tr>
+        </thead>
+        <tbody>${filasPagos}</tbody>
+      </table>
+
+      <div style="margin-top:26px; color:#94a3b8; font-size:10.5px;">Impreso el ${new Date().toLocaleString("es-AR")}</div>
+    </div>`;
+
+  printArea.innerHTML = html;
+  _setPrintPageSize("A4");
+  setTimeout(() => {
+    window.print();
+  }, 150);
+}
+
+function cerrarModalDetalleBoleta() {
+  document.getElementById("detalleBoletaModalBackdrop").classList.remove("show");
+  boletaProveedorIdActual = null;
+  detalleBoletaDatosActual = null;
+
+  // Si este modal se había abierto desde "Ver boletas" de un proveedor,
+  // esa ventana se ocultó temporalmente al abrir el detalle — se vuelve
+  // a mostrar ahora, para volver al listado tal como estaba.
+  if (detalleBoletaAbiertoDesdeProveedor) {
+    const modalProveedor = document.getElementById("boletasProveedorModalBackdrop");
+    if (modalProveedor) modalProveedor.classList.add("show");
+    detalleBoletaAbiertoDesdeProveedor = false;
+  }
+}
+
+/** Registra un pago contra la boleta abierta en el modal, y refresca el detalle y el listado */
+async function registrarPagoProveedorForm() {
+  if (!boletaProveedorIdActual) return;
+
+  const monto = Number(document.getElementById("pagoProveedorMonto").value);
+  if (!monto || monto <= 0) { toast("Ingresá un monto válido", "error"); return; }
+
+  const btn = document.getElementById("btnRegistrarPagoProveedor");
+  if (btn) { btn.disabled = true; btn.textContent = "Registrando..."; }
+
+  try {
+    const res = await fetchAPI(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "registrarPagoProveedor",
+        rol: obtenerRolActual(),
+        boletaId: boletaProveedorIdActual,
+        monto,
+        formaPago: document.getElementById("pagoProveedorFormaPago").value,
+        observaciones: document.getElementById("pagoProveedorObservaciones").value.trim(),
+        usuario: (sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("vendedor") || "ADMIN")
+      })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      toast(data.message || "No se pudo registrar el pago", "error");
+      if (btn) { btn.disabled = false; btn.textContent = "💾 Pagar"; }
+      return;
+    }
+
+    toast("Pago registrado", "success");
+    await abrirModalDetalleBoleta(boletaProveedorIdActual);
+    await cargarHistorialIngresos();
+    if (document.getElementById("tablaProveedores")) cargarProveedores();
+
+  } catch (error) {
+    console.error("Error al registrar el pago a proveedor:", error);
+    toast("Error de conexión al registrar el pago", "error");
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Pagar"; }
+  }
+}
+
+/** Exporta el listado de boletas (según los filtros aplicados) a PDF, con jsPDF + autoTable */
 function exportarIngresosPDF() {
   try {
     const tabla = document.getElementById("tablaIngresosProductos");
@@ -9513,7 +10595,7 @@ function exportarIngresosPDF() {
     const hasta = document.getElementById("ipFiltroHasta").value || "—";
 
     doc.setFontSize(14);
-    doc.text(`${nombreLocal} — Ingreso de Productos (Recepción de mercadería)`, 30, 30);
+    doc.text(`${nombreLocal} — Ingreso de Productos y Pagos a Proveedores`, 30, 30);
     doc.setFontSize(10);
     doc.setTextColor(110, 110, 110);
     doc.text(`Período: ${desde} a ${hasta}  ·  Generado: ${new Date().toLocaleString("es-AR")}`, 30, 46);
@@ -9526,12 +10608,135 @@ function exportarIngresosPDF() {
       headStyles: { fillColor: [18, 32, 71], textColor: [255, 255, 255] }
     });
 
-    doc.save(`Ingreso_Productos_${desde}_a_${hasta}.pdf`);
+    doc.save(`Boletas_Proveedores_${desde}_a_${hasta}.pdf`);
 
   } catch (error) {
-    console.error("Error al exportar ingresos a PDF:", error);
+    console.error("Error al exportar boletas a PDF:", error);
     toast("No se pudo generar el PDF", "error");
   }
+}
+
+/* ===================================================================
+   PROVEEDORES — resumen de boletas y saldos pendientes por proveedor
+   (mismo espíritu que "Clientes a crédito", pero de este lado del
+   mostrador: cuánto se le compró a cada proveedor, cuánto se le pagó
+   y cuánto se le debe todavía).
+=================================================================== */
+
+let proveedoresGlobal = [];
+
+async function cargarProveedores() {
+  const cont = document.getElementById("tablaProveedores");
+  try {
+    const res = await fetchAPI(API_URL + "?action=proveedoresConSaldo");
+    const data = await res.json();
+    proveedoresGlobal = data.proveedores || [];
+    filtrarProveedores();
+  } catch (error) {
+    console.error("Error al cargar proveedores:", error);
+    if (cont) cont.innerHTML = `<div class="text-center text-muted py-5" style="font-size:14px;">Error al cargar los proveedores</div>`;
+  }
+}
+
+function renderTablaProveedores(lista) {
+  const cont = document.getElementById("tablaProveedores");
+  if (!cont) return;
+
+  if (!lista || lista.length === 0) {
+    cont.innerHTML = `<div class="text-center text-muted py-5" style="font-size:14px;">No se encontraron proveedores</div>`;
+    return;
+  }
+
+  cont.innerHTML = lista.map(p => {
+    const saldo = Number(p.SALDO || 0);
+    const tieneSaldo = saldo > 0.01;
+    const bordeClase = tieneSaldo ? "cliente-card-deuda" : "cliente-card-credito";
+
+    return `
+    <div class="pedido-card ${bordeClase}">
+      <div class="pedido-card-top">
+        <div style="flex:1; min-width:0;">
+          <div class="pedido-card-cliente">${escapeHtml(p.PROVEEDOR)}</div>
+          <div class="pedido-card-dir" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:10px;">
+            ${p.PROVEEDOR_CONTACTO ? `<span>📞 ${escapeHtml(p.PROVEEDOR_CONTACTO)}</span>` : ""}
+            ${p.ULTIMA_FECHA ? `<span>🗓️ Última boleta: ${escapeHtml(p.ULTIMA_FECHA)}</span>` : ""}
+          </div>
+        </div>
+        <div class="text-end" style="flex-shrink:0;">
+          <div class="pedido-card-total" style="font-size:15px;">$${Number(p.TOTAL || 0).toLocaleString("es-AR")}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:1px;">${p.BOLETAS || 0} boleta${p.BOLETAS !== 1 ? "s" : ""}${p.BOLETAS_PENDIENTES ? ` · ${p.BOLETAS_PENDIENTES} pendiente${p.BOLETAS_PENDIENTES !== 1 ? "s" : ""}` : ""}</div>
+          <div class="mt-1" style="font-size:12px;">
+            <span class="cliente-dato-label">Saldo</span>
+            ${tieneSaldo
+              ? `<span style="color:var(--red-500);font-weight:700;">$${saldo.toLocaleString("es-AR")}</span>`
+              : `<span class="text-muted" style="font-size:12px;">Sin deuda</span>`}
+          </div>
+        </div>
+      </div>
+      <div class="pedido-card-controls">
+        <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalBoletasProveedor('${escapeHtml(p.PROVEEDOR).replace(/'/g, "\\'")}')">Ver boletas</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function filtrarProveedores() {
+  const input = document.getElementById("buscarProveedor");
+  const soloConSaldo = document.getElementById("filtroSoloConSaldoProveedor");
+  const termino = (input ? input.value : "").toLowerCase().trim();
+
+  let filtrados = proveedoresGlobal;
+
+  if (termino) {
+    filtrados = filtrados.filter(p => String(p.PROVEEDOR || "").toLowerCase().includes(termino));
+  }
+  if (soloConSaldo && soloConSaldo.checked) {
+    filtrados = filtrados.filter(p => Number(p.SALDO || 0) > 0.01);
+  }
+
+  renderTablaProveedores(filtrados);
+}
+
+/** Abre el modal con todas las boletas de un proveedor puntual (con acceso directo a "Ver / Pagar" de cada una) */
+async function abrirModalBoletasProveedor(proveedor) {
+  document.getElementById("boletasProveedorModalBackdrop").classList.add("show");
+  document.getElementById("boletasProveedorTitulo").textContent = proveedor;
+  document.getElementById("boletasProveedorBody").innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">Cargando...</td></tr>`;
+
+  try {
+    const res = await fetchAPI(API_URL + "?action=boletasProveedores&proveedorExacto=" + encodeURIComponent(proveedor));
+    const data = await res.json();
+    const boletas = data.boletas || [];
+
+    const total = boletas.reduce((acc, b) => acc + Number(b.TOTAL || 0), 0);
+    const pagado = boletas.reduce((acc, b) => acc + Number(b.PAGADO || 0), 0);
+    const saldo = boletas.reduce((acc, b) => acc + Number(b.SALDO || 0), 0);
+
+    document.getElementById("boletasProveedorTotal").textContent = "$" + total.toLocaleString("es-AR");
+    document.getElementById("boletasProveedorPagado").textContent = "$" + pagado.toLocaleString("es-AR");
+    document.getElementById("boletasProveedorSaldo").textContent = "$" + saldo.toLocaleString("es-AR");
+
+    document.getElementById("boletasProveedorBody").innerHTML = boletas.length
+      ? boletas.map(b => `
+        <tr>
+          <td>${escapeHtml(b.FECHA || "—")}</td>
+          <td class="mono">${escapeHtml(b.NUMERO_BOLETA || "—")}</td>
+          <td class="money">$${Number(b.TOTAL || 0).toLocaleString("es-AR")}</td>
+          <td class="money" style="color:var(--green-600);">$${Number(b.PAGADO || 0).toLocaleString("es-AR")}</td>
+          <td class="money" style="color:var(--red-500);">$${Number(b.SALDO || 0).toLocaleString("es-AR")}</td>
+          <td>${_badgeEstadoBoleta(b.ESTADO)}</td>
+          <td><button class="btn btn-outline-primary btn-sm" onclick="abrirModalDetalleBoleta('${b.BOLETA_ID}')">Ver / Pagar</button></td>
+        </tr>`).join("")
+      : `<tr><td colspan="7" class="text-center text-muted py-3">Este proveedor no tiene boletas cargadas</td></tr>`;
+
+  } catch (error) {
+    console.error("Error al cargar las boletas del proveedor:", error);
+    toast("Error de conexión al cargar las boletas", "error");
+  }
+}
+
+function cerrarModalBoletasProveedor() {
+  document.getElementById("boletasProveedorModalBackdrop").classList.remove("show");
 }
 
 /* ===================================================================
@@ -9546,7 +10751,7 @@ function exportarIngresosPDF() {
 const PERMISOS_POR_ROL = {
   admin: null, // null = acceso a todas las secciones
   vendedor: ["dashboard", "pos", "ventasPOS", "cierreCaja", "movimientosCaja", "pedidos", "clientes"],
-  deposito: ["dashboard", "productos", "ingresoProductos", "reportesCompras"]
+  deposito: ["dashboard", "productos", "ingresoProductos", "proveedores", "reportesCompras"]
 };
 
 function obtenerRolActual() {

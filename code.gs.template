@@ -1,4 +1,4 @@
-const SPREADSHEET_ID = "1ktiOosfaCo0-2tnBPTcJQ_KHNrC88T27cazWsW0-wgY";
+const SPREADSHEET_ID = "1A2VGs6-he1g2AvK3A4u8zhamxETBPxT3NpLnaRyqsUA";
 const SHEET_NAME = "PRODUCTOS";
 
 // --- OPTIMIZACION: cache del Spreadsheet dentro de una misma ejecucion. ---
@@ -174,6 +174,24 @@ case "sumarStockProducto":
 case "eliminarProducto":
   return eliminarProductoPorCodigo(e);
 
+case "ingresosProductos":
+  return getIngresosProductos(e);
+
+case "boletasProveedores":
+  return getBoletasProveedores(e);
+
+case "detalleBoletaProveedor":
+  return getDetalleBoletaProveedor(e);
+
+case "proveedoresConSaldo":
+  return getProveedoresConSaldo();
+
+case "generarCodigoProducto":
+  return jsonResponse({ success:true, codigo: generarCodigoProductoNuevo() });
+
+case "usuarios":
+  return getUsuarios();
+
 case "configuracionNegocio":
   return getConfiguracionNegocio();
 
@@ -225,6 +243,12 @@ case "reporteClientes":
 
     case "imagenProxy":
       return getImagenProxy(e);
+
+    case "catalogoPDFInfo":
+      return getCatalogoPDFInfo();
+
+    case "generarCatalogoPDFAhora":
+      return generarCatalogoPDFAhoraPorLotes();
 
     default:
       return jsonResponse({
@@ -298,6 +322,34 @@ if (data.action === "crearDeudaExtra") {
   return crearDeudaExtra(data);
 }
 
+if (data.action === "eliminarPedidosCancelados") {
+  return eliminarPedidosCancelados(data);
+}
+
+if (data.action === "registrarIngresoProducto") {
+  return registrarIngresoProducto(data);
+}
+
+if (data.action === "registrarPagoProveedor") {
+  return registrarPagoProveedor(data);
+}
+
+if (data.action === "crearUsuario") {
+  return crearUsuario(data);
+}
+
+if (data.action === "editarUsuario") {
+  return editarUsuario(data);
+}
+
+if (data.action === "eliminarUsuario") {
+  return eliminarUsuario(data);
+}
+
+if (data.action === "reordenarProductos") {
+  return reordenarProductos(data);
+}
+
 return jsonResponse({
   success: false,
   message: "Acción POST no válida"
@@ -356,7 +408,7 @@ function inicializarHojasNuevoNegocio(){
   asegurarHojaConEncabezados("PRODUCTOS", [
     "CODIGO", "PRODUCTO", "CATEGORIA", "PRECIO", "STOCK",
     "PUBLICADO", "DESTACADO", "OFERTA", "DESCRIPCION", "IMAGEN",
-    "CODIGO_CAJA", "UNIDADES_POR_CAJA", "PRECIO_CAJA"
+    "CODIGO_CAJA", "UNIDADES_POR_CAJA", "PRECIO_CAJA", "ORDEN"
   ]);
 
   asegurarHojaConEncabezados("PEDIDOS", [
@@ -383,6 +435,12 @@ function inicializarHojasNuevoNegocio(){
     "FECHA_REGISTRO", "FORMA_PAGO"
   ]);
 
+  asegurarHojaConEncabezados("INGRESOS_PRODUCTOS", [
+    "INGRESO_ID", "FECHA", "CODIGO", "PRODUCTO", "CATEGORIA",
+    "CANTIDAD", "PRECIO_ANTERIOR", "PRECIO_NUEVO", "PROVEEDOR",
+    "PROVEEDOR_CONTACTO", "OBSERVACIONES", "ES_PRODUCTO_NUEVO", "USUARIO"
+  ]);
+
   // Estas ya se auto-crean solas al primer uso (getOrCrearHoja*), pero
   // se fuerza acá también para que el instalador las deje todas listas
   // de una — no depende de qué pantalla se abra primero en el panel.
@@ -391,6 +449,8 @@ function inicializarHojasNuevoNegocio(){
   getOrCrearHojaClientes();
   getOrCrearHojaPagosCredito();
   getOrCrearHojaDeudasExtra();
+  getOrCrearHojaIngresosProductos();
+  getOrCrearHojaUsuarios();
 
   return jsonResponse({
     success: true,
@@ -421,15 +481,18 @@ function rowsToObjects(data) {
 
 function getProductos() {
 
-  const data = getSheet()
+  const sheet = getSheet();
+  asegurarColumnaOrden(sheet);
+
+  const data = sheet
     .getDataRange()
     .getValues();
 
   const productos = rowsToObjects(data);
 
-  const publicados = productos.filter(
-    p => String(p.PUBLICADO).toUpperCase() === "SI"
-  );
+  const publicados = productos
+    .filter(p => String(p.PUBLICADO).toUpperCase() === "SI")
+    .sort(ordenarPorColumnaOrden);
 
   return jsonResponse({
     success: true,
@@ -439,13 +502,131 @@ function getProductos() {
 }
 
 /**
+ * Comparador para Array.sort: ordena por la columna ORDEN (numérica,
+ * ascendente). Los productos sin ORDEN cargado (o con un valor no
+ * numérico) van al final, en vez de mezclarse al principio con un 0.
+ */
+function ordenarPorColumnaOrden(a, b){
+  const ordenA = a.ORDEN === "" || a.ORDEN === undefined || isNaN(Number(a.ORDEN)) ? Infinity : Number(a.ORDEN);
+  const ordenB = b.ORDEN === "" || b.ORDEN === undefined || isNaN(Number(b.ORDEN)) ? Infinity : Number(b.ORDEN);
+  return ordenA - ordenB;
+}
+
+/**
+ * Si la hoja PRODUCTOS todavía no tiene la columna ORDEN (usada para
+ * elegir en qué posición aparece cada producto en el catálogo/POS), la
+ * agrega al final — y a los productos que ya existían les asigna un
+ * ORDEN según la fila en la que ya estaban, así agregar la columna no
+ * les cambia el orden que ya tenían de entrada.
+ */
+function asegurarColumnaOrden(sheet){
+  if(!sheet) return;
+
+  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if(headerRow.indexOf("ORDEN") !== -1) return;
+
+  const colNueva = sheet.getLastColumn() + 1;
+  sheet.getRange(1, colNueva).setValue("ORDEN");
+
+  const totalFilas = sheet.getLastRow() - 1;
+  if(totalFilas > 0){
+    const ordenInicial = [];
+    for(let i = 1; i <= totalFilas; i++) ordenInicial.push([i]);
+    sheet.getRange(2, colNueva, totalFilas, 1).setValues(ordenInicial);
+  }
+}
+
+/** Devuelve el próximo número de ORDEN libre (el mayor ORDEN cargado + 1), para que un producto nuevo se agregue al final del catálogo en vez de al principio. */
+function obtenerSiguienteOrden(sheet, headerRow){
+  const colOrden = headerRow.indexOf("ORDEN");
+  if(colOrden === -1) return 1;
+
+  const totalFilas = sheet.getLastRow() - 1;
+  if(totalFilas <= 0) return 1;
+
+  const valores = sheet.getRange(2, colOrden + 1, totalFilas, 1).getValues();
+  const maxOrden = valores.reduce((max, fila) => {
+    const n = Number(fila[0]);
+    return isNaN(n) ? max : Math.max(max, n);
+  }, 0);
+
+  return maxOrden + 1;
+}
+
+/**
+ * Guarda un nuevo orden de productos para el catálogo, a partir de una
+ * lista de códigos en el orden deseado (mandada por el panel admin
+ * después de arrastrar y soltar filas en la tabla de productos).
+ *
+ * Los productos que NO vienen en la lista (por ejemplo, si el admin
+ * tenía un filtro/búsqueda aplicado al reordenar) conservan su
+ * posición relativa, pero se corren al final — detrás de todos los
+ * que sí se reordenaron — para que no queden mezclados.
+ */
+function reordenarProductos(data){
+  const codigos = data.codigos;
+
+  if(!Array.isArray(codigos) || codigos.length === 0){
+    return jsonResponse({
+      success: false,
+      message: "No se recibió la lista de productos a ordenar."
+    });
+  }
+
+  const sheet = getSheet();
+  if(!sheet){
+    return jsonResponse({
+      success: false,
+      message: "No se encontró la hoja 'PRODUCTOS'."
+    });
+  }
+
+  asegurarColumnaOrden(sheet);
+
+  const valores = sheet.getDataRange().getValues();
+  const headerRow = valores[0];
+  const colOrden = headerRow.indexOf("ORDEN");
+  const colCodigo = headerRow.indexOf("CODIGO");
+  const totalFilas = valores.length - 1;
+
+  if(totalFilas <= 0){
+    return jsonResponse({ success: true });
+  }
+
+  const posicionDeseada = {};
+  codigos.forEach((codigo, idx) => {
+    posicionDeseada[String(codigo).trim()] = idx + 1;
+  });
+
+  let siguienteParaElResto = codigos.length;
+  const nuevoOrdenPorFila = [];
+
+  for(let i = 1; i < valores.length; i++){
+    const codigo = String(valores[i][colCodigo]).trim();
+    if(posicionDeseada.hasOwnProperty(codigo)){
+      nuevoOrdenPorFila.push([posicionDeseada[codigo]]);
+    } else {
+      siguienteParaElResto++;
+      nuevoOrdenPorFila.push([siguienteParaElResto]);
+    }
+  }
+
+  sheet.getRange(2, colOrden + 1, totalFilas, 1).setValues(nuevoOrdenPorFila);
+
+  return jsonResponse({ success: true });
+}
+
+/**
  * Devuelve TODOS los productos (publicados o no), para la tabla de
  * administración en el panel — ahí el admin necesita ver y editar
  * también los productos que no están publicados en el catálogo/POS.
  */
 function getProductosAdmin() {
 
-  const data = getSheet()
+  const sheet = getSheet();
+  asegurarColumnaOrden(sheet);
+
+  const data = sheet
     .getDataRange()
     .getValues();
 
@@ -455,7 +636,8 @@ function getProductosAdmin() {
     // se descartan las filas sin código, porque no son productos
     // reales y rompían el guardado de la caché local del panel
     // (CODIGO es clave única ahí, y dos filas vacías chocan entre sí).
-    .filter(p => String(p.CODIGO || "").trim() !== "");
+    .filter(p => String(p.CODIGO || "").trim() !== "")
+    .sort(ordenarPorColumnaOrden);
 
   return jsonResponse({
     success: true,
@@ -564,6 +746,15 @@ function asegurarColumnasProductoCaja(sheet){
 
 function guardarProducto(e){
 
+  const params = (e && e.parameter) || {};
+
+  if(String(params.rol || "").trim().toLowerCase() === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para crear o modificar productos."
+    });
+  }
+
   const sheet = getSheet();
 
   if(!sheet){
@@ -573,9 +764,8 @@ function guardarProducto(e){
     });
   }
 
-  const params = (e && e.parameter) || {};
-
   asegurarColumnasProductoCaja(sheet);
+  asegurarColumnaOrden(sheet);
 
   const headerRow =
     sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -625,7 +815,10 @@ function guardarProducto(e){
     // (normalmente más conveniente que N veces el precio unitario).
     CODIGO_CAJA:       (params.CODIGO_CAJA || "").toString().trim(),
     UNIDADES_POR_CAJA: Number(params.UNIDADES_POR_CAJA || 0),
-    PRECIO_CAJA:       Number(params.PRECIO_CAJA || 0)
+    PRECIO_CAJA:       Number(params.PRECIO_CAJA || 0),
+    // Producto nuevo -> va al final del orden actual del catálogo,
+    // no a un ORDEN vacío/0 que lo mandaría al principio.
+    ORDEN: obtenerSiguienteOrden(sheet, headerRow)
   };
 
   // Armar la fila en el MISMO ORDEN que los encabezados reales de la hoja.
@@ -651,6 +844,15 @@ function guardarProducto(e){
  */
 function actualizarProducto(e){
 
+  const params = (e && e.parameter) || {};
+
+  if(String(params.rol || "").trim().toLowerCase() === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para modificar precio o stock de productos."
+    });
+  }
+
   const sheet = getSheet();
 
   if(!sheet){
@@ -660,9 +862,8 @@ function actualizarProducto(e){
     });
   }
 
-  const params = (e && e.parameter) || {};
-
   asegurarColumnasProductoCaja(sheet);
+  asegurarColumnaOrden(sheet);
 
   const codigoOriginal = (params.codigoOriginal || "").toString().trim();
 
@@ -761,6 +962,13 @@ function actualizarProducto(e){
 function sumarStockProducto(e){
 
   const params = (e && e.parameter) || {};
+
+  if(String(params.rol || "").trim().toLowerCase() === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para modificar el stock de productos."
+    });
+  }
 
   const codigo = (params.codigo || "").toString().trim();
   if(!codigo){
@@ -872,6 +1080,755 @@ function eliminarProductoPorCodigo(e){
 }
 
 /* =====================================================================
+   INGRESO DE PRODUCTOS (recepción de mercadería con proveedor)
+   Sección nueva del panel: permite escanear/tipear un código de barras.
+   - Si el producto YA existe en PRODUCTOS: recupera nombre/categoría/
+     precio actual, suma la cantidad recibida al stock y, si se indicó
+     un precio nuevo, lo actualiza.
+   - Si el producto NO existe: lo crea (con el código escaneado, o uno
+     generado automáticamente si no se escaneó nada) usando el nombre,
+     categoría, precio y stock inicial que se completen en el formulario.
+   En ambos casos deja un registro en la hoja INGRESOS_PRODUCTOS con
+   fecha, código, precio y proveedor, para poder armar el informe/PDF.
+===================================================================== */
+
+function getOrCrearHojaIngresosProductos(){
+  const ss = getSS();
+  let sheet = getHoja("INGRESOS_PRODUCTOS");
+  if(!sheet){
+    sheet = ss.insertSheet("INGRESOS_PRODUCTOS");
+    sheet.appendRow([
+      "INGRESO_ID", "BOLETA_ID", "FECHA", "CODIGO", "PRODUCTO", "CATEGORIA",
+      "CANTIDAD", "PRECIO_INGRESO", "PRECIO_ANTERIOR", "PRECIO_NUEVO", "PROVEEDOR",
+      "PROVEEDOR_CONTACTO", "OBSERVACIONES", "ES_PRODUCTO_NUEVO", "USUARIO"
+    ]);
+    sheet.setFrozenRows(1);
+    _hojaCache["INGRESOS_PRODUCTOS"] = sheet;
+    return sheet;
+  }
+  // Migración: instalaciones que ya tenían esta hoja de antes de que
+  // existieran las boletas agrupadas no tienen la columna BOLETA_ID.
+  // Se agrega sin tocar las filas viejas — quedan con BOLETA_ID vacío
+  // (siguen existiendo como ingresos sueltos, simplemente no forman
+  // parte de ninguna boleta con pagos).
+  const headerActual = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  if(String(headerActual[1] || "") !== "BOLETA_ID"){
+    sheet.insertColumnAfter(1);
+    sheet.getRange(1, 2).setValue("BOLETA_ID");
+  }
+  // Migración: instalaciones anteriores a la separación entre precio de
+  // ingreso (costo, lo que se le paga al proveedor) y precio de venta
+  // (PRECIO_ANTERIOR/PRECIO_NUEVO) no tienen la columna PRECIO_INGRESO
+  // — se agrega antes de PRECIO_ANTERIOR. Las filas viejas quedan con
+  // PRECIO_INGRESO vacío (no hay forma de reconstruir retroactivamente
+  // qué costo se pagó en esos ingresos ya guardados).
+  const headerActualizado = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  const idxPrecioAnterior = headerActualizado.indexOf("PRECIO_ANTERIOR");
+  if(idxPrecioAnterior !== -1 && headerActualizado.indexOf("PRECIO_INGRESO") === -1){
+    sheet.insertColumnBefore(idxPrecioAnterior + 1);
+    sheet.getRange(1, idxPrecioAnterior + 1).setValue("PRECIO_INGRESO");
+  }
+  return sheet;
+}
+
+/** Returns the BOLETAS_PROVEEDOR sheet (cabecera de cada recepción de mercadería), creating it the first time it's needed */
+function getOrCrearHojaBoletasProveedor(){
+  const ss = getSS();
+  let sheet = getHoja("BOLETAS_PROVEEDOR");
+  if(!sheet){
+    sheet = ss.insertSheet("BOLETAS_PROVEEDOR");
+    sheet.appendRow([
+      "BOLETA_ID", "FECHA", "PROVEEDOR", "PROVEEDOR_CONTACTO",
+      "NUMERO_BOLETA", "OBSERVACIONES", "TOTAL", "USUARIO", "FECHA_CREACION"
+    ]);
+    sheet.setFrozenRows(1);
+    _hojaCache["BOLETAS_PROVEEDOR"] = sheet;
+  }
+  return sheet;
+}
+
+/** Returns the PAGOS_PROVEEDOR sheet, creating it the first time it's needed */
+function getOrCrearHojaPagosProveedor(){
+  const ss = getSS();
+  let sheet = getHoja("PAGOS_PROVEEDOR");
+  if(!sheet){
+    sheet = ss.insertSheet("PAGOS_PROVEEDOR");
+    sheet.appendRow([
+      "PAGO_ID", "FECHA", "BOLETA_ID", "PROVEEDOR",
+      "MONTO", "FORMA_PAGO", "OBSERVACIONES", "USUARIO"
+    ]);
+    sheet.setFrozenRows(1);
+    _hojaCache["PAGOS_PROVEEDOR"] = sheet;
+  }
+  return sheet;
+}
+
+/** Normaliza fechas que Sheets puede devolver como objeto Date a texto "yyyy-MM-dd" */
+function _fechaComoTexto(valor){
+  const tz = Session.getScriptTimeZone() || "GMT-3";
+  if(valor instanceof Date) return Utilities.formatDate(valor, tz, "yyyy-MM-dd");
+  return valor ? String(valor).substring(0, 10) : "";
+}
+
+/**
+ * Genera un código de producto nuevo, corto y sin repetir contra los
+ * códigos ya usados en PRODUCTOS. Se usa cuando en "Ingreso de
+ * Productos" el producto no existe y no se escaneó/tipeó ningún
+ * código de barras propio.
+ */
+function generarCodigoProductoNuevo(){
+  const sheet = getSheet();
+  const data = sheet ? sheet.getDataRange().getValues() : [];
+  data.shift();
+  const existentes = new Set(data.map(row => String(row[0]).trim()));
+  let codigo;
+  do {
+    codigo = "PRD-" + Date.now() + "-" + Math.floor(Math.random() * 900 + 100);
+  } while (existentes.has(codigo));
+  return codigo;
+}
+
+/**
+ * Da de alta o actualiza UN producto dentro de una recepción de
+ * mercadería (crea el producto si no existe, o suma stock/actualiza
+ * precio si ya existe). Es el mismo criterio que tenía antes
+ * registrarIngresoProducto, ahora aplicado a un solo ítem de la
+ * boleta — se llama una vez por cada línea de productos que llegó.
+ * "filas" es la matriz de PRODUCTOS ya leída (se le va agregando la
+ * fila nueva en memoria si corresponde, para que dos ítems nuevos con
+ * el mismo código en la misma boleta no se pisen entre sí).
+ */
+function _aplicarItemIngresoProducto(sheet, filas, headerRow, item){
+
+  const idxCodigo = headerRow.indexOf("CODIGO");
+  const idxProducto = headerRow.indexOf("PRODUCTO");
+  const idxCategoria = headerRow.indexOf("CATEGORIA");
+  const idxPrecio = headerRow.indexOf("PRECIO");
+  const idxStock = headerRow.indexOf("STOCK");
+
+  const nombre = (item.producto || "").toString().trim();
+  const cantidad = Number(item.cantidad || 0);
+
+  // Precio de INGRESO (costo pagado al proveedor) — es lo que determina
+  // cuánto se le debe al proveedor por esta boleta (ver totalBoleta en
+  // registrarIngresoProducto). NUNCA se usa para el catálogo/POS.
+  const precioIngresoNuevo = item.precio !== undefined && item.precio !== ""
+    ? Number(item.precio) : null;
+
+  // Precio de VENTA (al público) — el que ve el cliente en el POS y en
+  // la página del catálogo (columna PRECIO de PRODUCTOS). Es un dato
+  // aparte del precio de ingreso: lo que se le paga al proveedor no
+  // tiene por qué ser lo mismo que lo que se le cobra al cliente.
+  const precioVentaNuevo = item.precioVenta !== undefined && item.precioVenta !== ""
+    ? Number(item.precioVenta) : null;
+
+  if(!cantidad || cantidad <= 0){
+    return { error: "Ingresá una cantidad válida (mayor a 0) para \"" + (nombre || item.codigo || "un producto") + "\"." };
+  }
+
+  let codigo = (item.codigo || "").toString().trim();
+
+  let filaIndex = -1;
+  if(codigo){
+    for(let i = 1; i < filas.length; i++){
+      if(String(filas[i][idxCodigo]).trim() === codigo){
+        filaIndex = i;
+        break;
+      }
+    }
+  }
+
+  let esProductoNuevo = false;
+  let precioVentaAnterior = "";
+  let productoFinal = nombre;
+  let categoriaFinal = (item.categoria || "").toString().trim();
+
+  if(filaIndex !== -1){
+    // ---- Producto existente: sumar stock y, si corresponde, precio de VENTA ----
+    precioVentaAnterior = Number(filas[filaIndex][idxPrecio] || 0);
+    const stockActual = Number(filas[filaIndex][idxStock] || 0);
+    const stockNuevo = stockActual + cantidad;
+    sheet.getRange(filaIndex + 1, idxStock + 1).setValue(stockNuevo);
+    filas[filaIndex][idxStock] = stockNuevo;
+
+    if(precioVentaNuevo !== null && !isNaN(precioVentaNuevo) && precioVentaNuevo !== precioVentaAnterior){
+      sheet.getRange(filaIndex + 1, idxPrecio + 1).setValue(precioVentaNuevo);
+      filas[filaIndex][idxPrecio] = precioVentaNuevo;
+    }
+
+    productoFinal = filas[filaIndex][idxProducto];
+    categoriaFinal = filas[filaIndex][idxCategoria];
+
+  } else {
+    // ---- Producto nuevo: se crea ----
+    if(!nombre){
+      return { error: "El producto \"" + codigo + "\" no existe todavía — indicá el nombre para crearlo." };
+    }
+    if(!codigo){
+      codigo = generarCodigoProductoNuevo();
+    } else {
+      const yaExiste = filas.slice(1).some(row => String(row[idxCodigo]).trim() === codigo);
+      if(yaExiste){
+        return { error: "Ya existe un producto con el código '" + codigo + "'." };
+      }
+    }
+
+    esProductoNuevo = true;
+    precioVentaAnterior = "";
+
+    // Si no se cargó un precio de venta propio para el producto nuevo,
+    // se usa el precio de ingreso como respaldo — mejor eso que dejar
+    // el producto publicado a $0 en el catálogo.
+    const precioVentaInicial = (precioVentaNuevo !== null && !isNaN(precioVentaNuevo))
+      ? precioVentaNuevo
+      : (precioIngresoNuevo !== null && !isNaN(precioIngresoNuevo) ? precioIngresoNuevo : 0);
+
+    const valoresPorColumna = {
+      CODIGO: codigo,
+      PRODUCTO: nombre,
+      CATEGORIA: categoriaFinal,
+      PRECIO: precioVentaInicial,
+      STOCK: cantidad,
+      PUBLICADO: "SI",
+      DESTACADO: "NO",
+      OFERTA: "NO",
+      DESCRIPCION: "",
+      IMAGEN: ""
+    };
+
+    const fila = headerRow.map(header => {
+      const key = String(header || "").trim();
+      return valoresPorColumna.hasOwnProperty(key) ? valoresPorColumna[key] : "";
+    });
+
+    sheet.appendRow(fila);
+    filas.push(fila); // para que otro ítem de la misma boleta lo vea si se repite el código
+    productoFinal = nombre;
+  }
+
+  // El precio USADO para calcular cuánto se le debe al proveedor en esta
+  // boleta es siempre el precio de INGRESO (costo) — nunca el de venta.
+  // Si por algún motivo no se cargó un precio de ingreso puntual, se usa
+  // el de venta como respaldo (mejor eso que sumar $0 a la boleta).
+  const precioUsado = (precioIngresoNuevo !== null && !isNaN(precioIngresoNuevo))
+    ? precioIngresoNuevo
+    : (precioVentaNuevo !== null && !isNaN(precioVentaNuevo) ? precioVentaNuevo : 0);
+
+  return {
+    codigo, productoFinal, categoriaFinal, cantidad,
+    precioAnterior: precioVentaAnterior,
+    precioNuevo: precioVentaNuevo,
+    precioIngreso: precioIngresoNuevo,
+    precioUsado, esProductoNuevo
+  };
+}
+
+/**
+ * Registra la recepción de mercadería de UNA boleta/remito de un
+ * proveedor (POST). Recibe la cabecera —proveedor, proveedorContacto,
+ * numeroBoleta, observaciones, fecha, usuario— y "items": un array con
+ * cada producto que llegó ({codigo, producto, categoria, precio,
+ * cantidad}).
+ *
+ * Todos los ítems quedan agrupados bajo UN solo BOLETA_ID: si ya
+ * existía una boleta con el mismo proveedor + fecha + N° de boleta
+ * (por ejemplo, se está completando la carga en varias tandas), se le
+ * suman los ítems nuevos en vez de crear una boleta duplicada. Cada
+ * ítem, además, actualiza stock/precio del producto correspondiente
+ * en PRODUCTOS, igual que antes.
+ */
+function registrarIngresoProducto(data){
+
+  if(String((data && data.rol) || "").trim().toLowerCase() === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para registrar ingresos de productos."
+    });
+  }
+
+  const proveedor = ((data && data.proveedor) || "").toString().trim();
+  if(!proveedor){
+    return jsonResponse({ success:false, message:"Ingresá el proveedor de esta mercadería." });
+  }
+
+  const items = Array.isArray(data && data.items) ? data.items : [];
+  if(items.length === 0){
+    return jsonResponse({ success:false, message:"Agregá al menos un producto a la boleta antes de guardar." });
+  }
+
+  const lock = LockService.getScriptLock();
+  const obtuvoLock = lock.tryLock(10000);
+  if(!obtuvoLock){
+    return jsonResponse({
+      success:false,
+      message:"El sistema está ocupado en este momento. Probá de nuevo en unos segundos."
+    });
+  }
+
+  try{
+
+    const sheet = getSheet();
+    if(!sheet){
+      return jsonResponse({ success:false, message:"No se encontró la hoja 'PRODUCTOS'." });
+    }
+
+    const filas = sheet.getDataRange().getValues();
+    const headerRow = filas[0];
+
+    const resultados = [];
+    let totalBoleta = 0;
+
+    for(let idx = 0; idx < items.length; idx++){
+      const resultado = _aplicarItemIngresoProducto(sheet, filas, headerRow, items[idx]);
+      if(resultado.error){
+        return jsonResponse({ success:false, message: resultado.error });
+      }
+      resultados.push(resultado);
+      totalBoleta += resultado.cantidad * resultado.precioUsado;
+    }
+
+    // ---- Cabecera de la boleta: reusar si ya existe (mismo proveedor + fecha + N° de boleta), o crear una nueva ----
+    const proveedorContacto = ((data && data.proveedorContacto) || "").toString().trim();
+    const numeroBoleta = ((data && data.numeroBoleta) || "").toString().trim();
+    const observaciones = ((data && data.observaciones) || "").toString().trim();
+    const usuario = ((data && data.usuario) || "").toString().trim();
+    const fecha = data.fecha ? data.fecha : Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-3", "yyyy-MM-dd");
+
+    const hojaBoletas = getOrCrearHojaBoletasProveedor();
+    const filasBoletas = hojaBoletas.getDataRange().getValues();
+    const bHeader = filasBoletas[0];
+    const bIdxId = bHeader.indexOf("BOLETA_ID");
+    const bIdxFecha = bHeader.indexOf("FECHA");
+    const bIdxProveedor = bHeader.indexOf("PROVEEDOR");
+    const bIdxNumero = bHeader.indexOf("NUMERO_BOLETA");
+    const bIdxTotal = bHeader.indexOf("TOTAL");
+
+    let filaBoletaIndex = -1;
+    for(let i = 1; i < filasBoletas.length; i++){
+      const mismaFecha = _fechaComoTexto(filasBoletas[i][bIdxFecha]) === fecha;
+      const mismoProveedor = String(filasBoletas[i][bIdxProveedor] || "").trim().toLowerCase() === proveedor.toLowerCase();
+      const mismoNumero = String(filasBoletas[i][bIdxNumero] || "").trim() === numeroBoleta;
+      if(mismaFecha && mismoProveedor && mismoNumero){
+        filaBoletaIndex = i;
+        break;
+      }
+    }
+
+    let boletaId;
+    if(filaBoletaIndex !== -1){
+      boletaId = filasBoletas[filaBoletaIndex][bIdxId];
+      const totalActual = Number(filasBoletas[filaBoletaIndex][bIdxTotal] || 0);
+      hojaBoletas.getRange(filaBoletaIndex + 1, bIdxTotal + 1).setValue(totalActual + totalBoleta);
+    } else {
+      boletaId = "BOL-" + Date.now();
+      hojaBoletas.appendRow([
+        boletaId, fecha, proveedor, proveedorContacto,
+        numeroBoleta, observaciones, totalBoleta, usuario,
+        Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-3", "yyyy-MM-dd HH:mm:ss")
+      ]);
+    }
+
+    // ---- Una línea por ítem en INGRESOS_PRODUCTOS, todas con el mismo BOLETA_ID ----
+    const hojaIngresos = getOrCrearHojaIngresosProductos();
+    resultados.forEach(r => {
+      const ingresoId = "ING-" + Date.now() + "-" + Math.floor(Math.random() * 900 + 100);
+      hojaIngresos.appendRow([
+        ingresoId,
+        boletaId,
+        fecha,
+        r.codigo,
+        r.productoFinal,
+        r.categoriaFinal,
+        r.cantidad,
+        r.precioUsado, // PRECIO_INGRESO — el costo pagado al proveedor, lo que compone el total de la boleta
+        r.precioAnterior,
+        (r.precioNuevo !== null && !isNaN(r.precioNuevo)) ? r.precioNuevo : r.precioAnterior,
+        proveedor,
+        proveedorContacto,
+        observaciones,
+        r.esProductoNuevo ? "SI" : "NO",
+        usuario
+      ]);
+      r.ingresoId = ingresoId;
+    });
+
+    return jsonResponse({
+      success: true,
+      boletaId: boletaId,
+      totalBoleta: totalBoleta,
+      items: resultados.map(r => ({
+        codigo: r.codigo, producto: r.productoFinal,
+        cantidad: r.cantidad, esProductoNuevo: r.esProductoNuevo
+      }))
+    });
+
+  } catch(error){
+    return jsonResponse({ success:false, error: error.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Devuelve el listado de boletas de proveedor (una fila = una
+ * recepción de mercadería completa), con su total, lo pagado (suma de
+ * PAGOS_PROVEEDOR para esa boleta) y el saldo pendiente. Filtros
+ * opcionales por querystring: desde, hasta (yyyy-MM-dd), proveedor
+ * (contiene) y estado ("PENDIENTE" | "PARCIAL" | "PAGADA").
+ */
+function getBoletasProveedores(e){
+
+  const hojaBoletas = getOrCrearHojaBoletasProveedor();
+  const boletas = rowsToObjects(hojaBoletas.getDataRange().getValues());
+
+  const hojaPagos = getOrCrearHojaPagosProveedor();
+  const pagos = rowsToObjects(hojaPagos.getDataRange().getValues());
+
+  const pagadoPorBoleta = {};
+  pagos.forEach(p => {
+    const id = String(p.BOLETA_ID || "");
+    pagadoPorBoleta[id] = (pagadoPorBoleta[id] || 0) + Number(p.MONTO || 0);
+  });
+
+  let resultado = boletas.map(b => {
+    const total = Number(b.TOTAL || 0);
+    const pagado = pagadoPorBoleta[String(b.BOLETA_ID)] || 0;
+    const saldo = Math.round((total - pagado) * 100) / 100;
+    let estado = "PENDIENTE";
+    if(saldo <= 0) estado = "PAGADA";
+    else if(pagado > 0) estado = "PARCIAL";
+    return {
+      BOLETA_ID: b.BOLETA_ID,
+      FECHA: _fechaComoTexto(b.FECHA),
+      PROVEEDOR: b.PROVEEDOR,
+      PROVEEDOR_CONTACTO: b.PROVEEDOR_CONTACTO,
+      NUMERO_BOLETA: b.NUMERO_BOLETA,
+      OBSERVACIONES: b.OBSERVACIONES,
+      TOTAL: total,
+      PAGADO: Math.round(pagado * 100) / 100,
+      SALDO: saldo,
+      ESTADO: estado,
+      USUARIO: b.USUARIO
+    };
+  });
+
+  const params = (e && e.parameter) || {};
+  const desde = (params.desde || "").toString().trim();
+  const hasta = (params.hasta || "").toString().trim();
+  const proveedor = (params.proveedor || "").toString().trim().toLowerCase();
+  const estado = (params.estado || "").toString().trim().toUpperCase();
+
+  if(desde) resultado = resultado.filter(b => String(b.FECHA) >= desde);
+  if(hasta) resultado = resultado.filter(b => String(b.FECHA) <= hasta);
+  if(proveedor) resultado = resultado.filter(b => String(b.PROVEEDOR || "").toLowerCase().indexOf(proveedor) !== -1);
+  const proveedorExacto = (params.proveedorExacto || "").toString().trim().toLowerCase();
+  if(proveedorExacto) resultado = resultado.filter(b => String(b.PROVEEDOR || "").trim().toLowerCase() === proveedorExacto);
+  if(estado) resultado = resultado.filter(b => b.ESTADO === estado);
+
+  resultado.sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)) || String(b.BOLETA_ID).localeCompare(String(a.BOLETA_ID)));
+
+  return jsonResponse({ success:true, total: resultado.length, boletas: resultado });
+}
+
+/**
+ * Devuelve un resumen por proveedor (una fila = un proveedor), estilo
+ * "Clientes a crédito" pero para lo que se les debe a los
+ * proveedores: cuántas boletas tiene, cuánto se le compró en total,
+ * cuánto se le pagó y el saldo pendiente — sumando todas sus boletas
+ * (BOLETAS_PROVEEDOR) y todos los pagos hechos contra ellas
+ * (PAGOS_PROVEEDOR). Se agrupa por nombre de proveedor sin importar
+ * mayúsculas/espacios, para que "Coca Cola" y "coca cola " cuenten
+ * como el mismo proveedor.
+ */
+function getProveedoresConSaldo(){
+
+  const hojaBoletas = getOrCrearHojaBoletasProveedor();
+  const boletas = rowsToObjects(hojaBoletas.getDataRange().getValues());
+
+  const hojaPagos = getOrCrearHojaPagosProveedor();
+  const pagos = rowsToObjects(hojaPagos.getDataRange().getValues());
+
+  const pagadoPorBoleta = {};
+  pagos.forEach(p => {
+    const id = String(p.BOLETA_ID || "");
+    pagadoPorBoleta[id] = (pagadoPorBoleta[id] || 0) + Number(p.MONTO || 0);
+  });
+
+  const porProveedor = {};
+
+  boletas.forEach(b => {
+    const nombre = String(b.PROVEEDOR || "").trim();
+    if(!nombre) return;
+    const key = nombre.toLowerCase();
+
+    if(!porProveedor[key]){
+      porProveedor[key] = {
+        PROVEEDOR: nombre,
+        PROVEEDOR_CONTACTO: "",
+        BOLETAS: 0,
+        BOLETAS_PENDIENTES: 0,
+        TOTAL: 0,
+        PAGADO: 0,
+        ULTIMA_FECHA: ""
+      };
+    }
+
+    const entrada = porProveedor[key];
+    const total = Number(b.TOTAL || 0);
+    const pagado = pagadoPorBoleta[String(b.BOLETA_ID)] || 0;
+    const saldo = Math.round((total - pagado) * 100) / 100;
+    const fecha = _fechaComoTexto(b.FECHA);
+
+    entrada.BOLETAS += 1;
+    entrada.TOTAL += total;
+    entrada.PAGADO += pagado;
+    if(saldo > 0) entrada.BOLETAS_PENDIENTES += 1;
+
+    // Se queda con el contacto y la fecha de la boleta más reciente de este proveedor
+    if(!entrada.ULTIMA_FECHA || fecha > entrada.ULTIMA_FECHA){
+      entrada.ULTIMA_FECHA = fecha;
+      if(b.PROVEEDOR_CONTACTO) entrada.PROVEEDOR_CONTACTO = b.PROVEEDOR_CONTACTO;
+    } else if(!entrada.PROVEEDOR_CONTACTO && b.PROVEEDOR_CONTACTO){
+      entrada.PROVEEDOR_CONTACTO = b.PROVEEDOR_CONTACTO;
+    }
+  });
+
+  const proveedores = Object.values(porProveedor).map(p => {
+    const total = Math.round(p.TOTAL * 100) / 100;
+    const pagado = Math.round(p.PAGADO * 100) / 100;
+    const saldo = Math.round((total - pagado) * 100) / 100;
+    return {
+      PROVEEDOR: p.PROVEEDOR,
+      PROVEEDOR_CONTACTO: p.PROVEEDOR_CONTACTO,
+      BOLETAS: p.BOLETAS,
+      BOLETAS_PENDIENTES: p.BOLETAS_PENDIENTES,
+      TOTAL: total,
+      PAGADO: pagado,
+      SALDO: saldo,
+      ULTIMA_FECHA: p.ULTIMA_FECHA
+    };
+  });
+
+  // Los que tienen más deuda primero; entre los que no deben nada, orden alfabético
+  proveedores.sort((a, b) => {
+    if(b.SALDO !== a.SALDO) return b.SALDO - a.SALDO;
+    return String(a.PROVEEDOR).localeCompare(String(b.PROVEEDOR));
+  });
+
+  return jsonResponse({ success:true, total: proveedores.length, proveedores: proveedores });
+}
+
+/**
+ * Devuelve el detalle completo de UNA boleta de proveedor: su
+ * cabecera (con total/pagado/saldo), la lista de productos recibidos
+ * en ella (de INGRESOS_PRODUCTOS) y el historial de pagos hechos
+ * contra ella (de PAGOS_PROVEEDOR).
+ */
+function getDetalleBoletaProveedor(e){
+
+  const boletaId = ((e && e.parameter && e.parameter.boletaId) || "").toString().trim();
+  if(!boletaId){
+    return jsonResponse({ success:false, message:"Falta el ID de la boleta." });
+  }
+
+  const hojaBoletas = getOrCrearHojaBoletasProveedor();
+  const boletas = rowsToObjects(hojaBoletas.getDataRange().getValues());
+  const boleta = boletas.find(b => String(b.BOLETA_ID) === boletaId);
+  if(!boleta){
+    return jsonResponse({ success:false, message:"No se encontró la boleta." });
+  }
+
+  const hojaIngresos = getOrCrearHojaIngresosProductos();
+  const items = rowsToObjects(hojaIngresos.getDataRange().getValues())
+    .filter(i => String(i.BOLETA_ID) === boletaId)
+    .map(i => Object.assign({}, i, { FECHA: _fechaComoTexto(i.FECHA) }));
+
+  const hojaPagos = getOrCrearHojaPagosProveedor();
+  const pagos = rowsToObjects(hojaPagos.getDataRange().getValues())
+    .filter(p => String(p.BOLETA_ID) === boletaId)
+    .map(p => Object.assign({}, p, { FECHA: _fechaComoTexto(p.FECHA) }))
+    .sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)) || String(b.PAGO_ID).localeCompare(String(a.PAGO_ID)));
+
+  const total = Number(boleta.TOTAL || 0);
+  const pagado = pagos.reduce((acc, p) => acc + Number(p.MONTO || 0), 0);
+  const saldo = Math.round((total - pagado) * 100) / 100;
+
+  return jsonResponse({
+    success: true,
+    boleta: {
+      BOLETA_ID: boleta.BOLETA_ID,
+      FECHA: _fechaComoTexto(boleta.FECHA),
+      PROVEEDOR: boleta.PROVEEDOR,
+      PROVEEDOR_CONTACTO: boleta.PROVEEDOR_CONTACTO,
+      NUMERO_BOLETA: boleta.NUMERO_BOLETA,
+      OBSERVACIONES: boleta.OBSERVACIONES,
+      USUARIO: boleta.USUARIO,
+      FECHA_CREACION: boleta.FECHA_CREACION,
+      TOTAL: total,
+      PAGADO: Math.round(pagado * 100) / 100,
+      SALDO: saldo,
+      ESTADO: saldo <= 0 ? "PAGADA" : (pagado > 0 ? "PARCIAL" : "PENDIENTE")
+    },
+    items: items,
+    pagos: pagos
+  });
+}
+
+/**
+ * Registra un pago a un proveedor (POST), aplicado contra UNA boleta
+ * puntual. Recibe: boletaId, monto, formaPago, observaciones, usuario.
+ * No deja registrar un pago que supere el saldo pendiente de la
+ * boleta (evita saldos negativos por error de tipeo).
+ */
+function registrarPagoProveedor(data){
+
+  if(String((data && data.rol) || "").trim().toLowerCase() === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para registrar pagos a proveedores."
+    });
+  }
+
+  const boletaId = ((data && data.boletaId) || "").toString().trim();
+  const monto = Number((data && data.monto) || 0);
+
+  if(!boletaId){
+    return jsonResponse({ success:false, message:"Falta el ID de la boleta." });
+  }
+  if(!monto || monto <= 0){
+    return jsonResponse({ success:false, message:"Ingresá un monto de pago válido, mayor a 0." });
+  }
+
+  const lock = LockService.getScriptLock();
+  const obtuvoLock = lock.tryLock(10000);
+  if(!obtuvoLock){
+    return jsonResponse({
+      success:false,
+      message:"El sistema está ocupado en este momento. Probá de nuevo en unos segundos."
+    });
+  }
+
+  try{
+
+    const hojaBoletas = getOrCrearHojaBoletasProveedor();
+    const filasBoletas = hojaBoletas.getDataRange().getValues();
+    const bHeader = filasBoletas[0];
+    const bIdxId = bHeader.indexOf("BOLETA_ID");
+    const bIdxProveedor = bHeader.indexOf("PROVEEDOR");
+    const bIdxTotal = bHeader.indexOf("TOTAL");
+
+    let filaBoleta = null;
+    for(let i = 1; i < filasBoletas.length; i++){
+      if(String(filasBoletas[i][bIdxId]) === boletaId){
+        filaBoleta = filasBoletas[i];
+        break;
+      }
+    }
+    if(!filaBoleta){
+      return jsonResponse({ success:false, message:"No se encontró la boleta." });
+    }
+
+    const proveedor = String(filaBoleta[bIdxProveedor] || "");
+    const total = Number(filaBoleta[bIdxTotal] || 0);
+
+    const hojaPagos = getOrCrearHojaPagosProveedor();
+    const pagosPrevios = rowsToObjects(hojaPagos.getDataRange().getValues())
+      .filter(p => String(p.BOLETA_ID) === boletaId)
+      .reduce((acc, p) => acc + Number(p.MONTO || 0), 0);
+
+    const saldoActual = Math.round((total - pagosPrevios) * 100) / 100;
+
+    if(monto - saldoActual > 0.01){
+      return jsonResponse({
+        success:false,
+        message:"El monto ($" + monto.toLocaleString("es-AR") + ") supera el saldo pendiente de la boleta ($" + saldoActual.toLocaleString("es-AR") + ")."
+      });
+    }
+
+    const fecha = data.fecha ? data.fecha : Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-3", "yyyy-MM-dd");
+    const pagoId = "PAG-" + Date.now();
+
+    hojaPagos.appendRow([
+      pagoId,
+      fecha,
+      boletaId,
+      proveedor,
+      monto,
+      (data.formaPago || "EFECTIVO").toString().trim(),
+      (data.observaciones || "").toString().trim(),
+      (data.usuario || "").toString().trim()
+    ]);
+
+    const nuevoSaldo = Math.round((saldoActual - monto) * 100) / 100;
+
+    return jsonResponse({
+      success: true,
+      pagoId: pagoId,
+      nuevoSaldo: nuevoSaldo,
+      estado: nuevoSaldo <= 0 ? "PAGADA" : "PARCIAL"
+    });
+
+  } catch(error){
+    return jsonResponse({ success:false, error: error.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Devuelve el historial de ingresos de mercadería, más nuevos primero.
+ * Filtros opcionales por querystring: desde, hasta (yyyy-MM-dd),
+ * proveedor (contiene, sin importar mayúsculas) y codigo (exacto).
+ */
+function getIngresosProductos(e){
+
+  const hoja = getOrCrearHojaIngresosProductos();
+  const data = hoja.getDataRange().getValues();
+  let ingresos = rowsToObjects(data);
+
+  const params = (e && e.parameter) || {};
+  const desde = (params.desde || "").toString().trim();
+  const hasta = (params.hasta || "").toString().trim();
+  const proveedor = (params.proveedor || "").toString().trim().toLowerCase();
+  const codigo = (params.codigo || "").toString().trim();
+
+  if(desde){
+    ingresos = ingresos.filter(i => String(i.FECHA) >= desde);
+  }
+  if(hasta){
+    ingresos = ingresos.filter(i => String(i.FECHA) <= hasta);
+  }
+  if(proveedor){
+    ingresos = ingresos.filter(i => String(i.PROVEEDOR || "").toLowerCase().indexOf(proveedor) !== -1);
+  }
+  if(codigo){
+    ingresos = ingresos.filter(i => String(i.CODIGO || "").trim() === codigo);
+  }
+
+  ingresos.sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)) || String(b.INGRESO_ID).localeCompare(String(a.INGRESO_ID)));
+
+  // Google Sheets guarda "2026-08-10" como un valor de fecha real (no
+  // texto) — al leerlo, Apps Script lo devuelve como objeto Date, y
+  // JSON.stringify lo serializa con hora y zona incluida (ej:
+  // "2026-08-10T03:00:00.000Z"). Para que en el panel se muestre solo
+  // la fecha, cada FECHA se normaliza a "yyyy-MM-dd" antes de responder.
+  const tz = Session.getScriptTimeZone() || "GMT-3";
+  ingresos.forEach(i => {
+    if(i.FECHA instanceof Date){
+      i.FECHA = Utilities.formatDate(i.FECHA, tz, "yyyy-MM-dd");
+    } else if(i.FECHA){
+      i.FECHA = String(i.FECHA).substring(0, 10);
+    }
+  });
+
+  return jsonResponse({
+    success: true,
+    total: ingresos.length,
+    ingresos: ingresos
+  });
+}
+
+/* =====================================================================
    CONFIGURACIÓN DEL NEGOCIO (encabezado del ticket térmico)
    Se guarda en una hoja "CONFIGURACION" con formato clave/valor:
    CLAVE | VALOR
@@ -888,10 +1845,12 @@ const CONFIG_NEGOCIO_DEFAULTS = {
   PIE:        "¡Gracias por su compra!",
 
   // ---- Popup promocional del catálogo web ----
-  // POPUP_IMAGEN: URL de la imagen (Drive o externa). Vacío = sin popup.
+  // POPUP_IMAGEN: URL de la imagen o video (Drive o externa). Vacío = sin popup.
   // POPUP_ACTIVO: "SI" para mostrar, "NO" para ocultar sin borrar la imagen.
+  // POPUP_TIPO: "imagen" o "video" — indica cómo interpretar POPUP_IMAGEN.
   POPUP_IMAGEN:  "",
   POPUP_ACTIVO:  "NO",
+  POPUP_TIPO:    "imagen",
   PEDIDO_MINIMO: 100000,
 
   // ---- Banner y tema del catálogo web (sección "Apariencia") ----
@@ -963,7 +1922,31 @@ const CONFIG_NEGOCIO_DEFAULTS = {
   // ---- URL pública del catálogo online (sin / al final). Se usa para
   // armar el link de los QR de "consultar precio" desde las etiquetas
   // del panel admin (apunta a precio.html en esa misma carpeta) ----
-  URL_CATALOGO: "https://horus254-svg.github.io/Jireh-Mayorista"
+  URL_CATALOGO: "https://horus254-svg.github.io/Jireh-Mayorista",
+
+  // ---- Nombre corto del negocio, usado en la pantalla de acceso del
+  // panel de Reportes (login.html) — separado de SIDEBAR_TEXTO por si
+  // el negocio quiere un nombre distinto ahí ----
+  NOMBRE_CORTO: "JIREH",
+
+  // ---- Íconos usados en el catálogo web y al compartir el link
+  // (redes sociales, WhatsApp, buscadores) ----
+  ICONO_URL:          "icon-512.png",
+  WHATSAPP_ICONO_URL: "https://cdn-icons-png.flaticon.com/512/733/733585.png",
+
+  // ---- SEO del catálogo web (título de pestaña, meta description,
+  // palabras clave, y lo que se muestra al compartir el link en
+  // WhatsApp/Facebook/X) ----
+  SEO_TITULO:       "Jireh Mayorista — Juguetes y Artículos Mayoristas | Envíos a todo el país",
+  SEO_DESCRIPCION:  "Catálogo mayorista de juguetes y artículos al por mayor. Comprá online con envíos a todo el país. Precios mayoristas, grandes cantidades y variedad de productos.",
+  SEO_KEYWORDS:     "juguetes mayoristas, mayorista juguetes, juguetes al por mayor, compra mayorista, artículos mayoristas, juguetes baratos, mayorista argentina, envíos todo el país",
+
+  // ---- Footer del catálogo web (pie de página con 3 columnas + copyright) ----
+  FOOTER_TITULO_1:   "Jireh Mayorista",
+  FOOTER_TEXTO_1:    "Venta mayorista de juguetes y artículos al por mayor. Somos distribuidores con envíos a todo el país. Precios mayoristas, grandes cantidades y amplia variedad de productos para revendedores y comercios.",
+  FOOTER_TEXTO_2:    "Juguetes mayoristas · Artículos infantiles · Muñecos y peluches · Juegos de mesa · Juguetes educativos · Artículos de temporada · Productos para reventa",
+  FOOTER_TEXTO_3:    "Realizamos envíos a todo el país. Los pedidos se hacen directamente desde este catálogo online. Consultas y atención por WhatsApp. Pagos en efectivo, transferencia y tarjeta.",
+  FOOTER_COPYRIGHT:  "© 2026 Jireh Mayorista — Venta mayorista de juguetes · Argentina"
 };
 
 // Temas de color válidos para el catálogo web. Si en la hoja se guarda
@@ -1167,6 +2150,868 @@ function getImagenProxy(e){
   }
 }
 
+/* =========================================================
+   CATÁLOGO PDF DIARIO
+   -----------------------------------------------------------
+   Antes, el botón "Descargar Catálogo PDF" armaba el PDF en el
+   navegador del cliente en el momento (jsPDF + proxy de imágenes),
+   lo cual era lento porque tenía que descargar todas las fotos una
+   por una a través del backend antes de poder dibujarlas.
+
+   Ahora el PDF se genera UNA VEZ POR DÍA, del lado del servidor
+   (generarCatalogoPDFDiario, pensada para correr con un trigger de
+   tiempo a las 3 AM — ver instalarTriggerCatalogoDiario más abajo),
+   con los productos que tengan stock a esa hora. El archivo se guarda
+   en Drive y su link de descarga directa se guarda en CONFIGURACION.
+
+   El botón del cliente (descargarCatalogoPDF en app.js) solo pide ese
+   link ya generado (?action=catalogoPDFInfo) y lo abre — no genera
+   nada en el momento, por eso es instantáneo.
+
+   Cada corrida borra el PDF del día anterior antes de crear el nuevo
+   (mismo nombre de archivo lógico, un solo archivo vivo a la vez), así
+   no se va acumulando uno por día en la carpeta de Drive.
+========================================================= */
+
+/** Carpeta de Drive donde vive el catálogo PDF. Configurable desde CONFIGURACION (clave DRIVE_CARPETA_CATALOGO_ID); si nunca se configuró, usa la misma carpeta que ya existe para los PDF de pedidos. */
+function getCarpetaCatalogoId(){
+  return extraerIdCarpetaDrive(
+    leerClaveConfiguracion("DRIVE_CARPETA_CATALOGO_ID", "1T4k00L3LIIyq0jId0A5mf6YOAWYngWmo")
+  );
+}
+
+/**
+ * Devuelve los productos que entran al catálogo público: publicados
+ * y con stock disponible en este momento. Se usa tanto para la
+ * generación diaria automática como para una regeneración manual.
+ */
+function obtenerProductosParaCatalogoPDF(){
+
+  const data = getSheet().getDataRange().getValues();
+  const productos = rowsToObjects(data);
+
+  return productos.filter(p =>
+    String(p.PUBLICADO).toUpperCase() === "SI" &&
+    Number(p.STOCK || 0) > 0
+  );
+}
+
+/**
+ * Punto de entrada que corre solo, todos los días a las 3 AM, via
+ * trigger instalado con instalarTriggerCatalogoDiario(). Genera el PDF
+ * del catálogo con el stock de ese momento y actualiza el link
+ * guardado en CONFIGURACION. No devuelve nada (no hay quien lo lea:
+ * la ejecuta el trigger, no una request), pero deja registro en Logs.
+ */
+function generarCatalogoPDFDiario(){
+
+  try{
+
+    const productos = obtenerProductosParaCatalogoPDF();
+
+    if(productos.length === 0){
+      Logger.log("Catálogo PDF: no hay productos publicados con stock, no se generó nada.");
+      return;
+    }
+
+    const carpeta = DriveApp.getFolderById(getCarpetaCatalogoId());
+
+    // Borra el/los PDF anteriores ANTES de crear el nuevo, para que la
+    // carpeta de Drive nunca acumule más de un catálogo a la vez.
+    borrarCatalogoPDFAnterior(carpeta);
+
+    // Descarga TODAS las fotos primero, en lotes paralelos (ver
+    // precargarImagenesProductosCatalogo) — esto es lo que antes hacía
+    // que el script se quedara sin tiempo: bajaba una foto por
+    // producto, una por una y en serie, dentro del mismo loop que
+    // arma el documento. Con catálogos grandes (80-100+ productos) eso
+    // solo, sumado, ya se comía los 6 minutos de límite de ejecución.
+    const imagenesPrecargadas = precargarImagenesProductosCatalogo(productos);
+
+    // Método principal: arma un HTML completo en memoria (sin ninguna
+    // llamada a servicios de Google) y lo convierte a PDF en UNA sola
+    // llamada a la API de Drive. Si por lo que sea falla (por ejemplo,
+    // el servicio avanzado "Drive API" todavía no está habilitado en
+    // el proyecto — ver instrucciones más abajo), cae al método viejo
+    // con DocumentApp como respaldo, más lento pero funciona sin
+    // configuración extra.
+    let pdfBlob;
+    try{
+      pdfBlob = construirPDFCatalogoHTML(productos, imagenesPrecargadas);
+    }catch(errorHtml){
+      Logger.log("Conversión HTML→PDF falló, usando método de respaldo (más lento): " + errorHtml.toString());
+      pdfBlob = construirPDFCatalogo(productos, imagenesPrecargadas);
+    }
+
+    pdfBlob.setName("catalogo.pdf");
+
+    const archivo = carpeta.createFile(pdfBlob);
+    archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const urlDescarga = "https://drive.google.com/uc?export=download&id=" + archivo.getId();
+
+    fijarClaveConfiguracion("CATALOGO_PDF_URL", urlDescarga);
+    fijarClaveConfiguracion("CATALOGO_PDF_FILE_ID", archivo.getId());
+    fijarClaveConfiguracion("CATALOGO_PDF_FECHA", new Date().toISOString());
+    fijarClaveConfiguracion("CATALOGO_PDF_TOTAL_PRODUCTOS", String(productos.length));
+
+    Logger.log("Catálogo PDF generado con " + productos.length + " productos: " + urlDescarga);
+
+  }catch(error){
+    Logger.log("Error generando el catálogo PDF diario: " + error.toString());
+  }
+}
+
+/**
+ * Descarga las fotos de todos los productos ANTES de armar el
+ * documento, en lotes de a TAMANO_LOTE con UrlFetchApp.fetchAll —
+ * una sola llamada que dispara todo el lote junto, en vez de una
+ * llamada (y una espera de red) por cada foto en serie. Con esto,
+ * bajar 100 fotos deja de ser "100 esperas de red seguidas" y pasa a
+ * ser "2 o 3 lotes", que es lo que realmente arregla el timeout.
+ *
+ * Devuelve un array del mismo largo y orden que `productos`, con el
+ * blob de la imagen ya descargada en cada posición, o null si ese
+ * producto no tenía foto o la descarga falló (el catálogo se arma
+ * igual, esa tarjeta queda sin imagen).
+ */
+function precargarImagenesProductosCatalogo(productos){
+
+  const TAMANO_LOTE = 40;
+  const resultados = new Array(productos.length).fill(null);
+
+  for(let i = 0; i < productos.length; i += TAMANO_LOTE){
+
+    const finLote = Math.min(i + TAMANO_LOTE, productos.length);
+
+    // Arma las requests del lote, guardando a qué posición del array
+    // final corresponde cada una (los productos sin IMAGEN se saltean,
+    // no tiene sentido pedirle a fetchAll una URL vacía).
+    const posicionesConImagen = [];
+    const requests = [];
+
+    for(let idx = i; idx < finLote; idx++){
+      const url = String(productos[idx].IMAGEN || "").trim();
+      if(url){
+        posicionesConImagen.push(idx);
+        requests.push({ url: url, muteHttpExceptions: true });
+      }
+    }
+
+    if(requests.length === 0) continue;
+
+    try{
+
+      const respuestas = UrlFetchApp.fetchAll(requests);
+
+      respuestas.forEach((respuesta, j) => {
+        try{
+          if(respuesta.getResponseCode() === 200){
+            resultados[posicionesConImagen[j]] = respuesta.getBlob();
+          }
+        }catch(e){
+          // Esa respuesta puntual vino rota — esa tarjeta queda sin imagen, sigue el resto.
+        }
+      });
+
+    }catch(error){
+      // Si el lote entero falla (ej. una sola URL inválida puede tirar
+      // abajo todo el fetchAll), esos productos quedan sin imagen —
+      // no se interrumpe la generación del catálogo por eso.
+      Logger.log("Lote de imágenes falló (" + i + "-" + finLote + "): " + error.toString());
+    }
+  }
+
+  return resultados;
+}
+
+/**
+ * Borra el PDF del catálogo generado en la corrida anterior: primero
+ * por el ID guardado en CONFIGURACION (rápido, un solo archivo), y de
+ * paso revisa la carpeta por si quedó algún "catalogo.pdf" suelto
+ * (por ejemplo, generado a mano antes de que existiera esta lógica).
+ * Intenta un borrado definitivo (no ocupa la papelera); si el
+ * servicio avanzado de Drive no está habilitado en el proyecto, lo
+ * manda a la papelera como respaldo — igual deja de estar en la
+ * carpeta y no se sigue acumulando ahí.
+ */
+function borrarCatalogoPDFAnterior(carpeta){
+
+  const idAnterior = leerClaveConfiguracion("CATALOGO_PDF_FILE_ID", "");
+
+  if(idAnterior){
+    try{
+      eliminarArchivoDriveDefinitivo(DriveApp.getFileById(idAnterior));
+    }catch(e){
+      // El archivo ya no existe o el ID guardado quedó viejo — no pasa nada, se sigue.
+    }
+  }
+
+  const iter = carpeta.getFilesByName("catalogo.pdf");
+  while(iter.hasNext()){
+    const archivo = iter.next();
+    if(archivo.getId() !== idAnterior){
+      eliminarArchivoDriveDefinitivo(archivo);
+    }
+  }
+}
+
+/**
+ * Borra un archivo de Drive de forma definitiva (sin pasar por la
+ * papelera) usando el servicio avanzado de Drive, si está habilitado
+ * en el proyecto (Servicios → Drive API). Si no está habilitado, cae
+ * de vuelta a mandarlo a la papelera — funciona igual para el
+ * propósito de "no acumular archivos", solo que libera el espacio
+ * unos días después en vez de al instante.
+ */
+function eliminarArchivoDriveDefinitivo(archivo){
+  try{
+    // v3 del servicio avanzado de Drive usa "delete"; v2 usa "remove".
+    // Se prueba el que exista en el proyecto; si ninguno está
+    // disponible (el servicio no está habilitado), va a la papelera.
+    if(typeof Drive.Files.delete === "function"){
+      Drive.Files.delete(archivo.getId());
+    } else if(typeof Drive.Files.remove === "function"){
+      Drive.Files.remove(archivo.getId());
+    } else {
+      archivo.setTrashed(true);
+    }
+  }catch(e){
+    archivo.setTrashed(true);
+  }
+}
+
+/**
+ * MÉTODO PRINCIPAL — mucho más rápido que DocumentApp para catálogos
+ * grandes. Arma el catálogo entero como un string HTML en memoria (sin
+ * hacer ninguna llamada a Google mientras se arma: las fotos van
+ * embebidas en base64, tomadas de `imagenesPrecargadas`, no se piden
+ * de nuevo) y recién al final hace UNA sola llamada a la API de Drive
+ * para convertir ese HTML en un Google Doc, del que se exporta el PDF.
+ *
+ * Antes (con DocumentApp) armar el documento eran cientos de llamadas
+ * al servidor (una por cada celda, párrafo, imagen insertada...); acá
+ * es una sola, así que el tiempo ya no depende de cuántos productos
+ * tenga el catálogo.
+ *
+ * IMPORTANTE: esto necesita el servicio avanzado "Drive API" habilitado
+ * en el proyecto de Apps Script (Editor → Servicios (+) → buscar
+ * "Drive API" → Añadir). Si no está habilitado, esta función tira
+ * error y generarCatalogoPDFDiario cae solo al método de respaldo con
+ * DocumentApp (más lento, pero no requiere esa configuración extra).
+ */
+function construirPDFCatalogoHTML(productos, imagenesPrecargadas){
+
+  const nombreNegocio = leerClaveConfiguracion("NOMBRE", "JIREH MAYORISTA");
+
+  const fechaTexto = "Catálogo actualizado el " +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy 'a las' HH:mm");
+
+  let filasHtml = "";
+  for(let i = 0; i < productos.length; i += 2){
+    filasHtml += "<tr>";
+    filasHtml += celdaProductoHTMLCatalogo(productos[i], imagenesPrecargadas[i]);
+    filasHtml += productos[i + 1]
+      ? celdaProductoHTMLCatalogo(productos[i + 1], imagenesPrecargadas[i + 1])
+      : "<td style='width:50%;'></td>";
+    filasHtml += "</tr>";
+  }
+
+  const html =
+    "<!DOCTYPE html><html><head><meta charset='utf-8'></head>" +
+    "<body style='font-family:Arial,Helvetica,sans-serif;margin:20px;'>" +
+    "<h1 style='text-align:center;font-size:22px;margin-bottom:4px;'>" + escaparHtmlCatalogo(nombreNegocio) + "</h1>" +
+    "<p style='text-align:center;font-size:11px;color:#666;margin-top:0;'>" + escaparHtmlCatalogo(fechaTexto) + "</p>" +
+    "<hr/>" +
+    "<table style='width:100%;border-collapse:collapse;'>" + filasHtml + "</table>" +
+    "</body></html>";
+
+  const htmlBlob = Utilities.newBlob(html, "text/html", "catalogo_tmp.html");
+
+  // El servicio avanzado de Drive puede estar en v3 (método "create",
+  // campo "name") o en v2 (método "insert", campo "title") según cómo
+  // haya quedado habilitado en el proyecto — se detecta cuál hay y se
+  // usa ese, en vez de asumir uno solo.
+  const esV3 = typeof Drive.Files.create === "function";
+
+  const recurso = esV3
+    ? { name: "catalogo_tmp_" + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS }
+    : { title: "catalogo_tmp_" + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
+
+  // Una sola llamada: sube el HTML y lo convierte a Google Doc del
+  // lado del servidor (el "convert: true" es lo que dispara la
+  // conversión, en vez de subirlo tal cual como un archivo .html).
+  const archivoDoc = esV3
+    ? Drive.Files.create(recurso, htmlBlob, { convert: true })
+    : Drive.Files.insert(recurso, htmlBlob, { convert: true });
+
+  const pdfBlob = DriveApp.getFileById(archivoDoc.id).getAs(MimeType.PDF);
+
+  DriveApp.getFileById(archivoDoc.id).setTrashed(true);
+
+  return pdfBlob;
+}
+
+/** Arma el HTML de una celda de producto (foto en base64 + categoría + nombre + precio) para construirPDFCatalogoHTML */
+function celdaProductoHTMLCatalogo(producto, blobImagen){
+
+  let imgTag = "";
+  if(blobImagen){
+    try{
+      const base64 = Utilities.base64Encode(blobImagen.getBytes());
+      const tipoMime = blobImagen.getContentType() || "image/jpeg";
+      imgTag = "<img src='data:" + tipoMime + ";base64," + base64 + "' width='150' height='150' style='object-fit:cover;'/>";
+    }catch(e){
+      // Blob roto — la celda sigue solo con el texto.
+    }
+  }
+
+  const categoria = String(producto.CATEGORIA || "").trim();
+  const nombre = String(producto.PRODUCTO || "").trim();
+  const precio = "$" + Number(producto.PRECIO || 0).toLocaleString("es-AR");
+
+  return (
+    "<td style='width:50%;padding:10px;vertical-align:top;'>" +
+    imgTag +
+    (categoria ? "<div style='font-size:8px;color:#8c91a0;margin-top:6px;'>" + escaparHtmlCatalogo(categoria.toUpperCase()) + "</div>" : "") +
+    "<div style='font-weight:bold;font-size:11px;margin-top:2px;'>" + escaparHtmlCatalogo(nombre) + "</div>" +
+    "<div style='font-weight:bold;font-size:13px;color:#148A5A;margin-top:2px;'>" + escaparHtmlCatalogo(precio) + "</div>" +
+    "</td>"
+  );
+}
+
+/** Escapa texto para insertarlo seguro dentro del HTML del catálogo */
+function escaparHtmlCatalogo(texto){
+  return String(texto)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * MÉTODO DE RESPALDO — el original, con DocumentApp. Más lento (cada
+ * celda/imagen es una llamada al servidor), pero no necesita el
+ * servicio avanzado de Drive habilitado. Se usa solo si
+ * construirPDFCatalogoHTML falla.
+ */
+function construirPDFCatalogo(productos, imagenesPrecargadas){
+
+  const nombreNegocio = leerClaveConfiguracion("NOMBRE", "JIREH MAYORISTA");
+
+  const docTemporal = DocumentApp.create("catalogo_tmp_" + new Date().getTime());
+  const body = docTemporal.getBody();
+
+  body.setMarginTop(28).setMarginBottom(28).setMarginLeft(28).setMarginRight(28);
+
+  body.appendParagraph(nombreNegocio)
+      .setHeading(DocumentApp.ParagraphHeading.HEADING1)
+      .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  body.appendParagraph(
+    "Catálogo actualizado el " +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy 'a las' HH:mm")
+  ).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  body.appendHorizontalRule();
+
+  // Tabla de 2 columnas, una fila por par de productos.
+  const filas = Math.ceil(productos.length / 2);
+  const datosVacios = [];
+  for(let r = 0; r < filas; r++) datosVacios.push(["", ""]);
+
+  const tabla = body.appendTable(datosVacios);
+  tabla.setBorderWidth(0);
+
+  productos.forEach((producto, idx) => {
+    const fila = Math.floor(idx / 2);
+    const col = idx % 2;
+    const celda = tabla.getRow(fila).getCell(col);
+    celda.setWidth(250);
+    llenarCeldaProductoCatalogoPDF(celda, producto, imagenesPrecargadas[idx]);
+  });
+
+  docTemporal.saveAndClose();
+
+  const pdfBlob = DriveApp.getFileById(docTemporal.getId()).getAs(MimeType.PDF);
+
+  DriveApp.getFileById(docTemporal.getId()).setTrashed(true);
+
+  return pdfBlob;
+}
+
+/** Llena una celda de la tabla del catálogo con la foto (ya descargada de antes), categoría, nombre y precio de un producto */
+function llenarCeldaProductoCatalogoPDF(celda, producto, blobImagen){
+
+  if(blobImagen){
+    try{
+      const imagen = celda.appendImage(blobImagen);
+      // Tamaño fijo (150x150), SIN preguntarle a la imagen su ancho/alto
+      // original: cada consulta de tamaño es otra ida y vuelta al
+      // servicio de Documentos, y con cientos de productos eso también
+      // suma bastante tiempo. Se pierde el respetar la proporción
+      // exacta de cada foto, pero se gana velocidad — que era el
+      // problema real acá.
+      imagen.setWidth(150);
+      imagen.setHeight(150);
+    }catch(e){
+      // Blob roto o formato no soportado — la celda sigue solo con el texto.
+    }
+  }
+
+  const categoria = String(producto.CATEGORIA || "").trim();
+  if(categoria){
+    celda.appendParagraph(categoria.toUpperCase())
+         .editAsText().setFontSize(8).setForegroundColor("#8c91a0");
+  }
+
+  celda.appendParagraph(String(producto.PRODUCTO || ""))
+       .editAsText().setBold(true).setFontSize(11);
+
+  celda.appendParagraph("$" + Number(producto.PRECIO || 0).toLocaleString("es-AR"))
+       .editAsText().setBold(true).setFontSize(13).setForegroundColor("#148A5A");
+}
+
+/**
+ * Instala (una sola vez, corriéndola a mano desde el editor de Apps
+ * Script) el trigger de tiempo que dispara generarCatalogoPDFDiario()
+ * todos los días entre las 3:00 y las 4:00 AM (hora del proyecto). Se
+ * puede volver a correr sin miedo a duplicar el trigger: borra
+ * cualquier trigger anterior de esta misma función antes de crear el
+ * nuevo.
+ */
+function instalarTriggerCatalogoDiario(){
+
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if(t.getHandlerFunction() === "generarCatalogoPDFDiario") ScriptApp.deleteTrigger(t);
+  });
+
+  ScriptApp.newTrigger("generarCatalogoPDFDiario")
+    .timeBased()
+    .atHour(3)
+    .everyDays(1)
+    .create();
+
+  Logger.log("Trigger instalado: generarCatalogoPDFDiario correrá todos los días entre las 3 y las 4 AM.");
+}
+
+/**
+ * Devuelve el link de descarga del catálogo PDF ya generado (lectura
+ * rápida de CONFIGURACION, no genera nada) — esto es lo que llama el
+ * botón "Descargar Catálogo PDF" del sitio público.
+ */
+function getCatalogoPDFInfo(){
+
+  const url = leerClaveConfiguracion("CATALOGO_PDF_URL", "");
+  const fecha = leerClaveConfiguracion("CATALOGO_PDF_FECHA", "");
+  const totalProductos = leerClaveConfiguracion("CATALOGO_PDF_TOTAL_PRODUCTOS", "");
+
+  if(!url){
+    return jsonResponse({
+      success: false,
+      message: "El catálogo en PDF todavía no se generó. Se genera automáticamente todos los días a las 3 AM."
+    });
+  }
+
+  return jsonResponse({
+    success: true,
+    url: url,
+    fecha: fecha,
+    totalProductos: totalProductos
+  });
+}
+
+/**
+ * Generación manual, a demanda (?action=generarCatalogoPDFAhora) — útil
+ * para el primer uso (todavía no pasaron las 3 AM ninguna vez) o si el
+ * admin quiere forzar una actualización sin esperar al trigger diario.
+ * Tarda unos segundos (descarga y arma el PDF en el momento); por eso
+ * el botón del cliente NUNCA llama esta acción, solo catalogoPDFInfo.
+ */
+function generarCatalogoPDFAhora(){
+  generarCatalogoPDFDiario();
+  return getCatalogoPDFInfo();
+}
+
+/* =====================================================================
+   CATÁLOGO PDF POR LOTES (evita el timeout de 6 min de Apps Script)
+   -----------------------------------------------------------------
+   generarCatalogoPDFDiario() (arriba) arma el catálogo entero en una
+   sola ejecución — con muchos productos eso supera el límite de
+   tiempo de Apps Script, aunque el método HTML→PDF falle y caiga al
+   método de respaldo con DocumentApp (una llamada al servidor por
+   cada imagen insertada, en serie).
+
+   Esto lo parte en lotes: cada ejecución procesa TAMANO_LOTE_CATALOGO
+   productos y, si quedan más, programa un trigger de una sola vez
+   para seguir en ~1 minuto. Así, sin importar cuántos productos haya
+   en total, ninguna ejecución individual se acerca al límite de tiempo.
+
+   PUNTOS DE ENTRADA:
+     - generarCatalogoPDFPorLotes()       -> arranca el proceso desde cero
+     - continuarCatalogoPDFPorLotes()     -> la llama el trigger, retoma
+     - generarCatalogoPDFAhoraPorLotes()  -> versión para el botón
+                                              "Generar ahora" del panel
+                                              (?action=generarCatalogoPDFAhora)
+     - instalarTriggerCatalogoDiarioPorLotes() -> instalar UNA VEZ a mano,
+                                              reemplaza el trigger diario
+                                              de las 3 AM
+===================================================================== */
+
+const TAMANO_LOTE_CATALOGO = 30; // productos por ejecución — bajar a 15-20 si igual da timeout
+const CLAVE_PROGRESO_CATALOGO = "CATALOGO_PDF_PROGRESO"; // clave en PropertiesService
+
+/**
+ * Punto de entrada — arranca el catálogo por lotes desde cero. Si ya
+ * había un proceso a medio hacer (por ejemplo, quedó colgado de una
+ * corrida anterior que falló a mitad de camino), lo descarta primero.
+ */
+function generarCatalogoPDFPorLotes(){
+
+  try{
+
+    limpiarProcesoCatalogoAnterior();
+
+    const productos = obtenerProductosParaCatalogoPDF();
+
+    if(productos.length === 0){
+      Logger.log("Catálogo PDF: no hay productos publicados con stock, no se generó nada.");
+      return;
+    }
+
+    const nombreNegocio = leerClaveConfiguracion("NOMBRE", "JIREH MAYORISTA");
+
+    // Crea el Doc que se va a ir llenando a lo largo de los lotes
+    const docTemporal = DocumentApp.create("catalogo_tmp_" + new Date().getTime());
+    const body = docTemporal.getBody();
+
+    body.setMarginTop(28).setMarginBottom(28).setMarginLeft(28).setMarginRight(28);
+
+    body.appendParagraph(nombreNegocio)
+        .setHeading(DocumentApp.ParagraphHeading.HEADING1)
+        .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+    body.appendParagraph(
+      "Catálogo actualizado el " +
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy 'a las' HH:mm")
+    ).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+    body.appendHorizontalRule();
+
+    // Tabla de 2 columnas, ya con todas las filas vacías reservadas de
+    // una — una sola llamada al servidor, más rápido que ir agregando
+    // filas sueltas en cada lote.
+    const filas = Math.ceil(productos.length / 2);
+    const datosVacios = [];
+    for(let r = 0; r < filas; r++) datosVacios.push(["", ""]);
+
+    const tabla = body.appendTable(datosVacios);
+    tabla.setBorderWidth(0);
+
+    docTemporal.saveAndClose();
+
+    // Guarda el progreso: doc en construcción, próximo índice a
+    // procesar (0), y la LISTA de códigos de producto en el orden en
+    // que se van a ir agregando (no se guarda el array completo de
+    // productos en Properties, que tiene límite de tamaño por valor —
+    // cada lote vuelve a leer la hoja PRODUCTOS y filtra por códigos).
+    const progreso = {
+      docId: docTemporal.getId(),
+      codigos: productos.map(p => p.CODIGO),
+      siguienteIndice: 0,
+      totalProductos: productos.length
+    };
+
+    PropertiesService.getScriptProperties()
+      .setProperty(CLAVE_PROGRESO_CATALOGO, JSON.stringify(progreso));
+
+    Logger.log("Catálogo PDF por lotes: iniciado con " + productos.length + " productos, Doc " + docTemporal.getId());
+
+    // Procesa el primer lote ya mismo (no hace falta esperar al
+    // trigger para el primero) y programa la continuación si hace falta.
+    procesarLoteCatalogoPDF();
+
+  }catch(error){
+    Logger.log("Error iniciando el catálogo PDF por lotes: " + error.toString());
+    limpiarProcesoCatalogoAnterior();
+  }
+}
+
+/**
+ * Llamada por el trigger de continuación — retoma el proceso guardado
+ * en Properties y sigue procesando lotes.
+ */
+function continuarCatalogoPDFPorLotes(){
+  try{
+    procesarLoteCatalogoPDF();
+  }catch(error){
+    Logger.log("Error continuando el catálogo PDF por lotes: " + error.toString());
+    limpiarProcesoCatalogoAnterior();
+  }
+}
+
+/**
+ * Procesa UN lote de productos (TAMANO_LOTE_CATALOGO productos): los
+ * descarga en paralelo (fetchAll), los inserta en la tabla del Doc en
+ * construcción, actualiza el progreso guardado, y:
+ *   - si quedan más productos: programa un trigger de una sola vez
+ *     para seguir en ~1 minuto.
+ *   - si no quedan más: exporta el Doc a PDF, lo publica, limpia todo.
+ */
+function procesarLoteCatalogoPDF(){
+
+  const propiedades = PropertiesService.getScriptProperties();
+  const progresoRaw = propiedades.getProperty(CLAVE_PROGRESO_CATALOGO);
+
+  if(!progresoRaw){
+    Logger.log("procesarLoteCatalogoPDF: no hay ningún proceso de catálogo en curso.");
+    return;
+  }
+
+  const progreso = JSON.parse(progresoRaw);
+  const docId = progreso.docId;
+  const codigos = progreso.codigos;
+  const siguienteIndice = progreso.siguienteIndice;
+  const totalProductos = progreso.totalProductos;
+
+  const desde = siguienteIndice;
+  const hasta = Math.min(desde + TAMANO_LOTE_CATALOGO, codigos.length);
+  const codigosDeEsteLote = codigos.slice(desde, hasta);
+
+  Logger.log("Catálogo PDF por lotes: procesando productos " + (desde + 1) + " a " + hasta + " de " + totalProductos);
+
+  // Traer los datos completos SOLO de los productos de este lote
+  // (más liviano que traer todo el catálogo de nuevo en cada lote).
+  const todosLosProductos = rowsToObjects(getSheet().getDataRange().getValues());
+  const mapaPorCodigo = {};
+  todosLosProductos.forEach(p => { mapaPorCodigo[p.CODIGO] = p; });
+
+  const productosDeEsteLote = codigosDeEsteLote
+    .map(codigo => mapaPorCodigo[codigo])
+    .filter(Boolean); // por si algún producto se borró entre que arrancó el proceso y ahora
+
+  const imagenesDeEsteLote = precargarImagenesProductosCatalogo(productosDeEsteLote);
+
+  // Insertar este lote en la tabla del Doc, en las filas que le
+  // corresponden (fila = índice global / 2, columna = índice global % 2).
+  const docTemporal = DocumentApp.openById(docId);
+  const tabla = docTemporal.getBody().getTables()[0];
+
+  productosDeEsteLote.forEach(function(producto, i){
+    const indiceGlobal = desde + i;
+    const fila = Math.floor(indiceGlobal / 2);
+    const col = indiceGlobal % 2;
+    const celda = tabla.getRow(fila).getCell(col);
+    celda.setWidth(250);
+    llenarCeldaProductoCatalogoPDF(celda, producto, imagenesDeEsteLote[i]);
+  });
+
+  docTemporal.saveAndClose();
+
+  const quedanMas = hasta < codigos.length;
+
+  if(quedanMas){
+
+    // Actualizar progreso y programar el siguiente lote
+    progreso.siguienteIndice = hasta;
+    propiedades.setProperty(CLAVE_PROGRESO_CATALOGO, JSON.stringify(progreso));
+
+    // Trigger de una sola vez, dispara en ~1 minuto. Se borra
+    // cualquier trigger de continuación anterior primero, para no
+    // acumular triggers duplicados si por algo se llama dos veces.
+    ScriptApp.getProjectTriggers().forEach(function(t){
+      if(t.getHandlerFunction() === "continuarCatalogoPDFPorLotes") ScriptApp.deleteTrigger(t);
+    });
+
+    ScriptApp.newTrigger("continuarCatalogoPDFPorLotes")
+      .timeBased()
+      .after(60 * 1000) // 1 minuto
+      .create();
+
+    Logger.log("Catálogo PDF por lotes: lote guardado, quedan " + (codigos.length - hasta) + " productos. Próximo lote en ~1 min.");
+
+  } else {
+
+    // Era el último lote — exportar a PDF y publicar.
+    // Cada paso queda con su propio try/catch y su propio Logger.log
+    // ANTES de ejecutarse — así, si algo vuelve a fallar, el registro
+    // de ejecución va a mostrar exactamente hasta dónde llegó, en vez
+    // de un solo "Access denied: DriveApp" genérico sin poder saber
+    // en qué línea pasó.
+    Logger.log("Catálogo PDF por lotes: último lote insertado, exportando a PDF...");
+
+    let carpeta;
+    try{
+      Logger.log("Paso 1/6: abriendo carpeta de destino...");
+      carpeta = DriveApp.getFolderById(getCarpetaCatalogoId());
+      Logger.log("Paso 1/6 OK — carpeta: " + carpeta.getName());
+    }catch(errPaso1){
+      Logger.log("Paso 1/6 FALLÓ (abrir carpeta): " + errPaso1.toString());
+      throw errPaso1;
+    }
+
+    try{
+      Logger.log("Paso 2/6: borrando catálogo PDF anterior (por nombre, no por ID guardado)...");
+      // OJO: a propósito NO se usa borrarCatalogoPDFAnterior() acá, que
+      // intenta primero DriveApp.getFileById(CATALOGO_PDF_FILE_ID) — si
+      // ese ID quedó guardado de una corrida vieja que usó el método
+      // HTML→PDF (servicio AVANZADO de Drive, Drive.Files.create), tocar
+      // ese mismo archivo con DriveApp es justo el error "Access denied:
+      // DriveApp" que ya está documentado más arriba en este código,
+      // para construirPDFCatalogoHTML. Acá se borra directo por NOMBRE
+      // dentro de la carpeta, usando solo DriveApp de punta a punta.
+      const iterAnterior = carpeta.getFilesByName("catalogo.pdf");
+      let borrados = 0;
+      while(iterAnterior.hasNext()){
+        const archivoViejo = iterAnterior.next();
+        archivoViejo.setTrashed(true);
+        borrados++;
+      }
+      Logger.log("Paso 2/6 OK — " + borrados + " archivo(s) 'catalogo.pdf' anterior(es) enviado(s) a la papelera.");
+    }catch(errPaso2){
+      // No es crítico: si falla el borrado del anterior, seguimos —
+      // peor caso, queda un catalogo.pdf viejo de sobra en la carpeta.
+      Logger.log("Paso 2/6 falló (no crítico, se sigue igual): " + errPaso2.toString());
+    }
+
+    let pdfBlob;
+    try{
+      Logger.log("Paso 3/6: exportando el Doc " + docId + " a PDF...");
+      pdfBlob = DriveApp.getFileById(docId).getAs(MimeType.PDF);
+      pdfBlob.setName("catalogo.pdf");
+      Logger.log("Paso 3/6 OK — PDF exportado en memoria.");
+    }catch(errPaso3){
+      Logger.log("Paso 3/6 FALLÓ (exportar Doc a PDF): " + errPaso3.toString());
+      throw errPaso3;
+    }
+
+    let archivo;
+    try{
+      Logger.log("Paso 4a/6: creando el archivo PDF en la carpeta...");
+      archivo = carpeta.createFile(pdfBlob);
+      Logger.log("Paso 4a/6 OK — archivo creado: " + archivo.getId());
+    }catch(errPaso4a){
+      Logger.log("Paso 4a/6 FALLÓ (crear el archivo PDF en la carpeta): " + errPaso4a.toString());
+      throw errPaso4a;
+    }
+
+    try{
+      Logger.log("Paso 4b/6: haciendo el archivo público por link...");
+      archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      Logger.log("Paso 4b/6 OK.");
+    }catch(errPaso4b){
+      // NO se corta acá: el archivo YA se creó (paso 4a OK). Si esto
+      // falla, es casi seguro una política del dominio de Google
+      // Workspace que restringe compartir por link a "cualquiera con
+      // el link" — el archivo existe igual, pero puede no ser
+      // descargable públicamente hasta que se ajuste esa política
+      // (Admin Console → Drive y Documentos → Uso compartido) o se
+      // comparta manualmente. Se sigue con el resto del proceso.
+      Logger.log("Paso 4b/6 FALLÓ (no crítico — el archivo ya está creado, pero puede no ser público): " + errPaso4b.toString());
+    }
+
+    const urlDescarga = "https://drive.google.com/uc?export=download&id=" + archivo.getId();
+
+    try{
+      Logger.log("Paso 5/6: guardando el link en CONFIGURACION...");
+      fijarClaveConfiguracion("CATALOGO_PDF_URL", urlDescarga);
+      fijarClaveConfiguracion("CATALOGO_PDF_FILE_ID", archivo.getId());
+      fijarClaveConfiguracion("CATALOGO_PDF_FECHA", new Date().toISOString());
+      fijarClaveConfiguracion("CATALOGO_PDF_TOTAL_PRODUCTOS", String(totalProductos));
+      Logger.log("Paso 5/6 OK.");
+    }catch(errPaso5){
+      Logger.log("Paso 5/6 FALLÓ (guardar en CONFIGURACION): " + errPaso5.toString());
+      throw errPaso5;
+    }
+
+    try{
+      Logger.log("Paso 6/6: limpiando Doc temporal, progreso y trigger...");
+      DriveApp.getFileById(docId).setTrashed(true);
+      propiedades.deleteProperty(CLAVE_PROGRESO_CATALOGO);
+      ScriptApp.getProjectTriggers().forEach(function(t){
+        if(t.getHandlerFunction() === "continuarCatalogoPDFPorLotes") ScriptApp.deleteTrigger(t);
+      });
+      Logger.log("Paso 6/6 OK.");
+    }catch(errPaso6){
+      // No crítico: el PDF ya quedó publicado (pasos 1-5 OK). Peor
+      // caso, queda el Doc temporal sin borrar o el progreso sin
+      // limpiar — no afecta al catálogo ya generado.
+      Logger.log("Paso 6/6 falló (no crítico, el PDF ya está publicado igual): " + errPaso6.toString());
+    }
+
+    Logger.log("Catálogo PDF generado con " + totalProductos + " productos: " + urlDescarga);
+  }
+}
+
+/**
+ * Descarta cualquier proceso de catálogo por lotes que haya quedado a
+ * medio hacer (por ejemplo, si una corrida anterior falló a mitad de
+ * camino): borra el Doc temporal, el progreso guardado y el trigger
+ * de continuación. Se llama automáticamente al arrancar un proceso
+ * nuevo, para no acumular basura en Drive ni triggers duplicados.
+ */
+function limpiarProcesoCatalogoAnterior(){
+
+  const propiedades = PropertiesService.getScriptProperties();
+  const progresoRaw = propiedades.getProperty(CLAVE_PROGRESO_CATALOGO);
+
+  if(progresoRaw){
+    try{
+      const progreso = JSON.parse(progresoRaw);
+      if(progreso.docId){
+        DriveApp.getFileById(progreso.docId).setTrashed(true);
+      }
+    }catch(e){
+      // El Doc ya no existía o el progreso estaba corrupto — no importa, se sigue limpiando igual.
+    }
+    propiedades.deleteProperty(CLAVE_PROGRESO_CATALOGO);
+  }
+
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === "continuarCatalogoPDFPorLotes") ScriptApp.deleteTrigger(t);
+  });
+}
+
+/**
+ * Reemplaza a instalarTriggerCatalogoDiario() — instala el trigger de
+ * las 3 AM apuntando a generarCatalogoPDFPorLotes en vez de a
+ * generarCatalogoPDFDiario. Correr UNA VEZ a mano desde el editor.
+ */
+function instalarTriggerCatalogoDiarioPorLotes(){
+
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    const fn = t.getHandlerFunction();
+    if(fn === "generarCatalogoPDFDiario" || fn === "generarCatalogoPDFPorLotes"){
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger("generarCatalogoPDFPorLotes")
+    .timeBased()
+    .atHour(3)
+    .everyDays(1)
+    .create();
+
+  Logger.log("Trigger instalado: generarCatalogoPDFPorLotes correrá todos los días entre las 3 y las 4 AM.");
+}
+
+/**
+ * Reemplaza a generarCatalogoPDFAhora() como acción del panel
+ * (?action=generarCatalogoPDFAhora, ver doGet más arriba). Arranca el
+ * proceso por lotes y devuelve enseguida un mensaje de "en progreso"
+ * — el proceso real sigue corriendo en segundo plano vía triggers, y
+ * puede tardar varios minutos si hay muchos productos. El botón del
+ * cliente sigue consultando catalogoPDFInfo para ver cuándo está listo.
+ */
+function generarCatalogoPDFAhoraPorLotes(){
+  generarCatalogoPDFPorLotes();
+  return jsonResponse({
+    success: true,
+    enProgreso: true,
+    message: "La generación del catálogo empezó — con muchos productos puede tardar varios minutos (se procesa en lotes). Volvé a consultar en un rato."
+  });
+}
+
 /**
  * Devuelve la configuración del negocio (nombre, subtítulo, dirección,
  * teléfonos, pie de página) leída de la hoja CONFIGURACION. Cualquier
@@ -1217,6 +3062,7 @@ function getConfiguracionNegocio(){
 
       popupImagen:     config.POPUP_IMAGEN,
       popupActivo:     String(config.POPUP_ACTIVO || "NO").toUpperCase() === "SI",
+      popupTipo:       String(config.POPUP_TIPO || "imagen").toLowerCase() === "video" ? "video" : "imagen",
       pedidoMinimo:    Number(config.PEDIDO_MINIMO) || 100000,
 
       beneficioWhatsappNumero: config.BENEFICIO_WHATSAPP_NUMERO,
@@ -1242,7 +3088,21 @@ function getConfiguracionNegocio(){
       pedidoPdfSubtitulo: config.PEDIDO_PDF_SUBTITULO,
       pedidoPdfPie:       config.PEDIDO_PDF_PIE,
 
-      urlCatalogo: config.URL_CATALOGO
+      urlCatalogo: config.URL_CATALOGO,
+      nombreCorto: config.NOMBRE_CORTO,
+
+      iconoUrl: config.ICONO_URL,
+      whatsappIconoUrl: config.WHATSAPP_ICONO_URL,
+
+      seoTitulo: config.SEO_TITULO,
+      seoDescripcion: config.SEO_DESCRIPCION,
+      seoKeywords: config.SEO_KEYWORDS,
+
+      footerTitulo1: config.FOOTER_TITULO_1,
+      footerTexto1: config.FOOTER_TEXTO_1,
+      footerTexto2: config.FOOTER_TEXTO_2,
+      footerTexto3: config.FOOTER_TEXTO_3,
+      footerCopyright: config.FOOTER_COPYRIGHT
     }
   });
 
@@ -1344,9 +3204,27 @@ function guardarConfiguracionNegocio(e){
     PEDIDO_PDF_PIE:       valorOPreservado("pedidoPdfPie", "PEDIDO_PDF_PIE", "Gracias por su compra."),
 
     URL_CATALOGO: valorOPreservado("urlCatalogo", "URL_CATALOGO", "https://horus254-svg.github.io/Jireh-Mayorista"),
+    NOMBRE_CORTO: valorOPreservado("nombreCorto", "NOMBRE_CORTO", "JIREH"),
+
+    ICONO_URL:          valorOPreservado("iconoUrl", "ICONO_URL", "icon-512.png"),
+    WHATSAPP_ICONO_URL: valorOPreservado("whatsappIconoUrl", "WHATSAPP_ICONO_URL", "https://cdn-icons-png.flaticon.com/512/733/733585.png"),
+
+    SEO_TITULO:      valorOPreservado("seoTitulo", "SEO_TITULO"),
+    SEO_DESCRIPCION: valorOPreservado("seoDescripcion", "SEO_DESCRIPCION"),
+    SEO_KEYWORDS:    valorOPreservado("seoKeywords", "SEO_KEYWORDS"),
+
+    FOOTER_TITULO_1:  valorOPreservado("footerTitulo1", "FOOTER_TITULO_1"),
+    FOOTER_TEXTO_1:   valorOPreservado("footerTexto1", "FOOTER_TEXTO_1"),
+    FOOTER_TEXTO_2:   valorOPreservado("footerTexto2", "FOOTER_TEXTO_2"),
+    FOOTER_TEXTO_3:   valorOPreservado("footerTexto3", "FOOTER_TEXTO_3"),
+    FOOTER_COPYRIGHT: valorOPreservado("footerCopyright", "FOOTER_COPYRIGHT"),
 
     POPUP_IMAGEN: valorOPreservado("popupImagen", "POPUP_IMAGEN", ""),
     POPUP_ACTIVO: valorOPreservado("popupActivo", "POPUP_ACTIVO", "NO"),
+    POPUP_TIPO:   (function(){
+      const v = valorOPreservado("popupTipo", "POPUP_TIPO", "imagen").toLowerCase();
+      return v === "video" ? "video" : "imagen";
+    })(),
     PEDIDO_MINIMO: valorOPreservado("pedidoMinimo", "PEDIDO_MINIMO", "100000")
   };
 
@@ -2163,17 +4041,29 @@ function login(e){
 
   const creds = leerCredencialesAdmin();
 
-  const ok =
-    usuario === creds.USUARIO &&
-    password === creds.PASSWORD;
+  // 1) Usuario/contraseña del admin "clásico" (compatibilidad con
+  //    instalaciones existentes) — siempre tiene rol admin, acceso total.
+  if(usuario === creds.USUARIO && password === creds.PASSWORD){
+    return jsonResponse({
+      success: true,
+      rol: "admin",
+      nombre: "Administrador",
+      usuario: creds.USUARIO
+    });
+  }
 
-  return ContentService
-    .createTextOutput(
-      JSON.stringify({
-        success: ok
-      })
-    )
-    .setMimeType(ContentService.MimeType.JSON);
+  // 2) Usuarios cargados en la hoja USUARIOS, cada uno con su rol.
+  const usuarioEncontrado = buscarUsuarioPorCredenciales(usuario, password);
+  if(usuarioEncontrado){
+    return jsonResponse({
+      success: true,
+      rol: usuarioEncontrado.ROL,
+      nombre: usuarioEncontrado.NOMBRE,
+      usuario: usuarioEncontrado.USERNAME
+    });
+  }
+
+  return jsonResponse({ success:false });
 
 }
 
@@ -2247,6 +4137,157 @@ function guardarPasswordStock(e){
   }
 
   return jsonResponse({ success:true });
+}
+
+/* =====================================================================
+   USUARIOS Y ROLES
+   Hoja "USUARIOS": permite crear varios accesos al panel, cada uno con
+   un rol que determina qué secciones puede ver/usar. El usuario/
+   contraseña "clásico" (ADMIN_CREDENCIALES) sigue funcionando igual,
+   siempre con rol "admin" — esto es un agregado, no un reemplazo.
+
+   Roles disponibles:
+   - admin:     acceso total (incluye esta pantalla de Usuarios).
+   - vendedor:  Punto de Venta, Ventas POS, Cierre de Caja, Pedidos,
+                Clientes. Sin Configuración ni Usuarios.
+   - deposito:  Productos, Ingreso de Productos, Reportes de Compras.
+                Sin ventas, clientes ni configuración.
+===================================================================== */
+
+const ROLES_VALIDOS = ["admin", "vendedor", "deposito"];
+
+function getOrCrearHojaUsuarios(){
+  const ss = getSS();
+  let sheet = getHoja("USUARIOS");
+  if(!sheet){
+    sheet = ss.insertSheet("USUARIOS");
+    sheet.appendRow(["USUARIO_ID", "NOMBRE", "USERNAME", "PASSWORD", "ROL", "ACTIVO"]);
+    sheet.setFrozenRows(1);
+    _hojaCache["USUARIOS"] = sheet;
+  }
+  return sheet;
+}
+
+function buscarUsuarioPorCredenciales(username, password){
+  if(!username || !password) return null;
+  const sheet = getOrCrearHojaUsuarios();
+  const data = rowsToObjects(sheet.getDataRange().getValues());
+  const encontrado = data.find(u =>
+    String(u.USERNAME || "").trim().toLowerCase() === String(username).trim().toLowerCase() &&
+    String(u.PASSWORD || "") === String(password) &&
+    String(u.ACTIVO || "SI").toUpperCase() !== "NO"
+  );
+  return encontrado || null;
+}
+
+/** Lista de usuarios para la pantalla de administración (sin exponer la contraseña) */
+function getUsuarios(){
+  const sheet = getOrCrearHojaUsuarios();
+  const data = rowsToObjects(sheet.getDataRange().getValues());
+  const usuarios = data
+    .filter(u => String(u.USUARIO_ID || "").trim() !== "")
+    .map(u => ({
+      USUARIO_ID: u.USUARIO_ID,
+      NOMBRE: u.NOMBRE,
+      USERNAME: u.USERNAME,
+      ROL: u.ROL,
+      ACTIVO: u.ACTIVO
+    }));
+  return jsonResponse({ success:true, usuarios });
+}
+
+function crearUsuario(data){
+  const nombre = (data.nombre || "").toString().trim();
+  const username = (data.username || "").toString().trim();
+  const password = (data.password || "").toString();
+  const rol = (data.rol || "").toString().trim();
+
+  if(!nombre || !username || !password){
+    return jsonResponse({ success:false, message:"Nombre, usuario y contraseña son obligatorios." });
+  }
+  if(password.length < 4){
+    return jsonResponse({ success:false, message:"La contraseña debe tener al menos 4 caracteres." });
+  }
+  if(ROLES_VALIDOS.indexOf(rol) === -1){
+    return jsonResponse({ success:false, message:"Rol no válido." });
+  }
+
+  const sheet = getOrCrearHojaUsuarios();
+  const existentes = rowsToObjects(sheet.getDataRange().getValues());
+
+  const yaExiste = existentes.some(u => String(u.USERNAME || "").trim().toLowerCase() === username.toLowerCase());
+  if(yaExiste){
+    return jsonResponse({ success:false, message:"Ya existe un usuario con ese nombre de usuario." });
+  }
+
+  const usuarioId = "USR-" + Date.now();
+  sheet.appendRow([usuarioId, nombre, username, password, rol, "SI"]);
+
+  return jsonResponse({ success:true, usuarioId });
+}
+
+function editarUsuario(data){
+  const usuarioId = (data.usuarioId || "").toString().trim();
+  if(!usuarioId){
+    return jsonResponse({ success:false, message:"Falta el ID del usuario a editar." });
+  }
+
+  const sheet = getOrCrearHojaUsuarios();
+  const filas = sheet.getDataRange().getValues();
+  const headerRow = filas[0];
+  const idxId = headerRow.indexOf("USUARIO_ID");
+  const idxNombre = headerRow.indexOf("NOMBRE");
+  const idxUsername = headerRow.indexOf("USERNAME");
+  const idxPassword = headerRow.indexOf("PASSWORD");
+  const idxRol = headerRow.indexOf("ROL");
+  const idxActivo = headerRow.indexOf("ACTIVO");
+
+  let filaIndex = -1;
+  for(let i = 1; i < filas.length; i++){
+    if(String(filas[i][idxId]).trim() === usuarioId){ filaIndex = i; break; }
+  }
+  if(filaIndex === -1){
+    return jsonResponse({ success:false, message:"No se encontró ese usuario." });
+  }
+
+  if(data.nombre) sheet.getRange(filaIndex + 1, idxNombre + 1).setValue(String(data.nombre).trim());
+  if(data.username) sheet.getRange(filaIndex + 1, idxUsername + 1).setValue(String(data.username).trim());
+  if(data.password) {
+    if(String(data.password).length < 4){
+      return jsonResponse({ success:false, message:"La contraseña debe tener al menos 4 caracteres." });
+    }
+    sheet.getRange(filaIndex + 1, idxPassword + 1).setValue(String(data.password));
+  }
+  if(data.rol){
+    if(ROLES_VALIDOS.indexOf(data.rol) === -1){
+      return jsonResponse({ success:false, message:"Rol no válido." });
+    }
+    sheet.getRange(filaIndex + 1, idxRol + 1).setValue(String(data.rol));
+  }
+  if(data.activo !== undefined){
+    sheet.getRange(filaIndex + 1, idxActivo + 1).setValue(data.activo ? "SI" : "NO");
+  }
+
+  return jsonResponse({ success:true });
+}
+
+function eliminarUsuario(data){
+  const usuarioId = (data.usuarioId || "").toString().trim();
+  if(!usuarioId){
+    return jsonResponse({ success:false, message:"Falta el ID del usuario a eliminar." });
+  }
+
+  const sheet = getOrCrearHojaUsuarios();
+  const filas = sheet.getDataRange().getValues();
+
+  for(let i = 1; i < filas.length; i++){
+    if(String(filas[i][0]).trim() === usuarioId){
+      sheet.deleteRow(i + 1);
+      return jsonResponse({ success:true });
+    }
+  }
+
+  return jsonResponse({ success:false, message:"No se encontró ese usuario." });
 }
 
 /**
@@ -2404,7 +4445,14 @@ if(String(data[i][0]) === String(pedidoId)){
   // llegó a salir de verdad — se devuelve al stock, y se desmarca
   // STOCK_DESCONTADO para que si en algún momento se reabre el pedido
   // y vuelve a PREPARANDO, se pueda descontar de nuevo correctamente.
-  if(String(estado).toUpperCase() === "CANCELADO" && yaDescontado){
+  //
+  // El mismo criterio aplica si el pedido vuelve a NUEVO (por ejemplo,
+  // para poder editarle los ítems — editarItemsPedido solo permite
+  // editar en estado NUEVO): si no se devolviera el stock acá, quedaría
+  // descontado según los ítems VIEJOS para siempre, porque al volver a
+  // PREPARANDO la columna STOCK_DESCONTADO ya diría "SI" y el bloque de
+  // arriba no lo descontaría de nuevo con los ítems editados.
+  if((String(estado).toUpperCase() === "CANCELADO" || String(estado).toUpperCase() === "NUEVO") && yaDescontado){
     devolverStockPorPedido(pedidoId);
     sheet.getRange(i + 1, 14).setValue("NO");
   }
@@ -2892,69 +4940,22 @@ function obtenerMetricas() {
       : [];
 
   let pedidosNuevos      = 0;
-  let ventasPedidosHoy   = 0;
-  let ventasPedidosMes   = 0;
   let totalPedidos       = 0;
 
   const clientes = new Set();
-
-  // Las columnas COBRADO y FECHA_COBRO se agregan dinámicamente al
-  // final de PEDIDOS (ver marcarPedidoCobrado) la primera vez que se
-  // marca un pedido como cobrado en caja — por eso se busca su
-  // posición por nombre de encabezado en vez de asumir un índice fijo.
-  const headerPedidos = pedidos.length > 0 ? pedidos[0] : [];
-  const headerIndexCobrado = headerPedidos.indexOf("COBRADO");
-  const headerIndexFechaCobro = headerPedidos.indexOf("FECHA_COBRO");
 
   for(let i = 1; i < pedidos.length; i++){
 
     const cliente =
       pedidos[i][2];
 
-    const total =
-      Number(pedidos[i][7]) || 0;
-
     const estado =
       String(pedidos[i][8] || "")
       .toLowerCase();
 
-    // "Ventas Pedidos" mide plata REAL que entró por pedidos del
-    // catálogo web — eso solo pasa cuando el pedido se marca como
-    // cobrado en caja (ver marcarPedidoCobrado). Un pedido sin cobrar
-    // todavía es solo una promesa de venta, no entra en esta métrica.
-    // Se usa la fecha real del cobro (FECHA_COBRO), no la fecha en
-    // que se hizo el pedido, para que coincida con el día real en que
-    // entró el dinero — igual criterio que los reportes.
-    const yaCobrado =
-      String(pedidos[i][headerIndexCobrado] || "").toUpperCase() === "SI";
-
     totalPedidos++;
 
     clientes.add(cliente);
-
-    if(yaCobrado){
-
-      const fechaCobro =
-        headerIndexFechaCobro !== -1 && pedidos[i][headerIndexFechaCobro]
-          ? new Date(pedidos[i][headerIndexFechaCobro])
-          : new Date(pedidos[i][1]); // respaldo: fecha del pedido, por si faltara FECHA_COBRO
-
-      if(
-        fechaCobro.getDate() === hoy.getDate() &&
-        fechaCobro.getMonth() === hoy.getMonth() &&
-        fechaCobro.getFullYear() === hoy.getFullYear()
-      ){
-        ventasPedidosHoy += total;
-      }
-
-      if(
-        fechaCobro.getMonth() === hoy.getMonth() &&
-        fechaCobro.getFullYear() === hoy.getFullYear()
-      ){
-        ventasPedidosMes += total;
-      }
-
-    }
 
     if(estado === "nuevo"){
       pedidosNuevos++;
@@ -2963,7 +4964,13 @@ function obtenerMetricas() {
   }
 
   /* =========================================================
-     VENTAS POS (mostrador — hoja "VENTAS_LOCAL")
+     VENTAS POS (mostrador) y VENTAS — PEDIDOS, ambas desde la
+     hoja "VENTAS_LOCAL". Un pedido cobrado entero al retirarlo
+     (ver marcarPedidoCobrado) o pagado en cuotas por un cliente a
+     crédito (ver registrarPagoCredito) generan ahí una fila con
+     VENDEDOR="PEDIDO WEB"; todo lo demás es venta real de
+     mostrador. Mismo criterio que usa el reporte de Ventas por
+     Período, para que dashboard y reportes siempre coincidan.
   ========================================================= */
 
   const hojaVentasPOS =
@@ -2978,18 +4985,20 @@ function obtenerMetricas() {
   let ventasPOSMes    = 0;
   let totalVentasPOS  = 0;
 
+  let ventasPedidosHoy = 0;
+  let ventasPedidosMes = 0;
+
   const idxAnuladaPOS = ventasLocal.length > 0 ? ventasLocal[0].indexOf("ANULADA") : -1;
 
   for(let i = 1; i < ventasLocal.length; i++){
 
-    const esPedidoCobrado =
-      String(ventasLocal[i][4] || "").toUpperCase() === "PEDIDO WEB";
-    if(esPedidoCobrado) continue;
-
-    // Excluir ventas anuladas del dashboard
+    // Excluir ventas anuladas, tanto de mostrador como de pedidos.
     const esAnulada = idxAnuladaPOS !== -1 &&
       String(ventasLocal[i][idxAnuladaPOS] || "").toUpperCase() === "SI";
     if(esAnulada) continue;
+
+    const esPedidoCobrado =
+      String(ventasLocal[i][4] || "").toUpperCase() === "PEDIDO WEB";
 
     const fecha =
       new Date(ventasLocal[i][1]);
@@ -2997,21 +5006,22 @@ function obtenerMetricas() {
     const total =
       Number(ventasLocal[i][2]) || 0;
 
-    totalVentasPOS++;
-
-    if(
+    const esHoy =
       fecha.getDate() === hoy.getDate() &&
       fecha.getMonth() === hoy.getMonth() &&
-      fecha.getFullYear() === hoy.getFullYear()
-    ){
-      ventasPOSHoy += total;
-    }
+      fecha.getFullYear() === hoy.getFullYear();
 
-    if(
+    const esEsteMes =
       fecha.getMonth() === hoy.getMonth() &&
-      fecha.getFullYear() === hoy.getFullYear()
-    ){
-      ventasPOSMes += total;
+      fecha.getFullYear() === hoy.getFullYear();
+
+    if(esPedidoCobrado){
+      if(esHoy) ventasPedidosHoy += total;
+      if(esEsteMes) ventasPedidosMes += total;
+    } else {
+      totalVentasPOS++;
+      if(esHoy) ventasPOSHoy += total;
+      if(esEsteMes) ventasPOSMes += total;
     }
 
   }
@@ -3397,15 +5407,65 @@ function editarCliente(data){
 }
 
 /**
- * Elimina un cliente de la hoja CLIENTES. NO borra sus pedidos
- * (siguen en PEDIDOS, vinculados solo por DNI, no por CLIENTE_ID) ni
- * sus pagos (quedan en PAGOS_CREDITO) — esto es a propósito, para no
- * perder el historial real de ventas/cobros del negocio solo porque
- * se borra la ficha. Si el cliente tenía saldo pendiente, se pide
- * confirmación extra antes de borrar (ver el frontend).
+ * Elimina permanentemente TODOS los pedidos en estado CANCELADO: borra
+ * sus filas de PEDIDOS y todas las filas relacionadas (por PEDIDO_ID)
+ * en DETALLE_PEDIDOS. Es una limpieza manual — nada llama a esto
+ * automáticamente, el usuario la dispara a mano desde el botón
+ * "Eliminar cancelados" en la sección Pedidos del panel.
  *
- * Parámetro esperado: clienteId
+ * No toca el stock: un pedido CANCELADO ya devolvió su stock al
+ * cancelarse (ver actualizarEstado / devolverStockPorPedido), así que
+ * borrarlo de la planilla ahora no debe volver a tocar el inventario.
+ *
+ * Devuelve cuántos pedidos se borraron, para poder avisarle al usuario.
  */
+function eliminarPedidosCancelados(data){
+
+  const rol = ((data && data.rol) || "").toString().trim().toLowerCase();
+  if(rol === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para eliminar pedidos."
+    });
+  }
+
+  const pedidosSheet = getHoja("PEDIDOS");
+  if(!pedidosSheet){
+    return jsonResponse({ success:false, message:"No se encontró la hoja 'PEDIDOS'." });
+  }
+
+  const dataPedidos = pedidosSheet.getDataRange().getValues();
+  const idsACancelar = new Set();
+
+  // Recorrer de abajo hacia arriba para poder borrar filas sin que se
+  // corran los índices de las filas que todavía faltan revisar.
+  for(let i = dataPedidos.length - 1; i >= 1; i--){
+    const estado = String(dataPedidos[i][8] || "").toUpperCase(); // columna 9 = ESTADO
+    if(estado === "CANCELADO"){
+      idsACancelar.add(String(dataPedidos[i][0]));
+      pedidosSheet.deleteRow(i + 1);
+    }
+  }
+
+  if(idsACancelar.size === 0){
+    return jsonResponse({ success:true, eliminados:0, message:"No hay pedidos cancelados para eliminar." });
+  }
+
+  // Borrar en DETALLE_PEDIDOS todas las filas de esos pedidos — puede
+  // haber varias filas (una por ítem) por cada PEDIDO_ID.
+  const detalleSheet = getHoja("DETALLE_PEDIDOS");
+  if(detalleSheet){
+    const dataDetalle = detalleSheet.getDataRange().getValues();
+    for(let i = dataDetalle.length - 1; i >= 1; i--){
+      if(idsACancelar.has(String(dataDetalle[i][0]))){
+        detalleSheet.deleteRow(i + 1);
+      }
+    }
+  }
+
+  return jsonResponse({ success:true, eliminados: idsACancelar.size });
+}
+
 function eliminarCliente(data){
 
   const clienteId = String(data.clienteId || "").trim();
@@ -3725,6 +5785,34 @@ function registrarPagoCredito(data){
       }
     } catch(e) {
       Logger.log("Error registrando movimiento de caja por pago de crédito: " + e.message);
+    }
+  }
+
+  // Además del movimiento de caja, este pago tiene que sumar a las
+  // estadísticas de "Ventas — Pedidos" (dashboard y reportes), igual
+  // que cuando un pedido se cobra entero en el momento (ver
+  // marcarPedidoCobrado). Por eso se agrega una fila en VENTAS_LOCAL
+  // con VENDEDOR="PEDIDO WEB" — es el mismo criterio que ya usan el
+  // dashboard (obtenerMetricas) y el reporte de ventas por período
+  // para identificar plata real que entró por pedidos/cuenta corriente,
+  // sin importar si se cobró todo junto o en cuotas.
+  if (montoEnCajaArs > 0) {
+    try {
+      const ventasSheet = getHoja("VENTAS_LOCAL");
+      if (ventasSheet) {
+        const nombreCliente = String(cliente.NOMBRE || cliente.RAZON_SOCIAL || clienteId);
+        const nuevoVentaId = generarIdCorto("VEN", ventasSheet);
+        ventasSheet.appendRow([
+          nuevoVentaId,
+          new Date(),
+          montoEnCajaArs,
+          String(data.formaPago || "EFECTIVO").toUpperCase(),
+          "PEDIDO WEB",
+          "Pago de crédito — " + nombreCliente + (data.observaciones ? " (" + data.observaciones + ")" : "")
+        ]);
+      }
+    } catch(e) {
+      Logger.log("Error registrando venta por pago de crédito: " + e.message);
     }
   }
 
@@ -4146,67 +6234,103 @@ function guardarVenta(e){
   const clienteVentaId =
   String(params.clienteVentaId || "").trim();
 
-  if(clienteVentaId){
-    const yaExistente = buscarVentaPorClienteVentaId(ventasSheet, clienteVentaId);
-    if(yaExistente){
+  // --- CORRECCIÓN: chequeo + inserción atómicos ---
+  // Antes, "buscar si ya existe" y "agregar la fila" eran dos pasos
+  // separados sin ningún lock entre medio. Si el mismo clienteVentaId
+  // llegaba dos veces casi al mismo tiempo (por ej. el navegador dio
+  // timeout a los 15s y lo reintentó solo desde la cola local, pero la
+  // primera ejecución en el servidor todavía no había terminado),
+  // ambas ejecuciones podían pasar el chequeo ANTES de que cualquiera
+  // de las dos llegara a insertar la fila — y las dos terminaban
+  // agregando la venta, duplicándola. Ahora se toma un lock exclusivo
+  // que cubre el chequeo Y la inserción como una sola operación
+  // indivisible: la segunda ejecución tiene que esperar a que la
+  // primera termine de insertar antes de poder buscar, así que
+  // siempre la va a encontrar y nunca va a duplicar.
+  let lock = null;
+  if (clienteVentaId) {
+    lock = LockService.getScriptLock();
+    const obtuvoLock = lock.tryLock(20000); // hasta 20s esperando a que termine otra venta con el mismo ID
+    if (!obtuvoLock) {
       return jsonResponse({
-        success:true,
-        ventaId: yaExistente,
-        idempotente: true // ya estaba guardada; no se tocó stock ni se creó nada nuevo
+        success:false,
+        message:"El servidor está ocupado procesando esta misma venta, reintentá en unos segundos."
       });
     }
   }
 
-  const ventaId =
-  generarIdCorto("VEN", ventasSheet);
+  try {
 
-  const fecha =
-  new Date();
+    if(clienteVentaId){
+      const yaExistente = buscarVentaPorClienteVentaId(ventasSheet, clienteVentaId);
+      if(yaExistente){
+        return jsonResponse({
+          success:true,
+          ventaId: yaExistente,
+          idempotente: true // ya estaba guardada; no se tocó stock ni se creó nada nuevo
+        });
+      }
+    }
 
-  const total =
-  Number(params.total || 0);
+    const ventaId =
+    generarIdCorto("VEN", ventasSheet);
 
-  const formaPago =
-  params.formaPago || "EFECTIVO";
+    const fecha =
+    new Date();
 
-  const vendedor =
-  params.vendedor || "ADMIN";
+    const total =
+    Number(params.total || 0);
 
-  const observaciones =
-  params.observaciones || "";
+    const formaPago =
+    params.formaPago || "EFECTIVO";
 
-  const carrito =
-  Array.isArray(params.carrito) ? params.carrito : JSON.parse(params.carrito || "[]");
+    const vendedor =
+    params.vendedor || "ADMIN";
 
-  ventasSheet.appendRow([
-    ventaId,
-    fecha,
-    total,
-    formaPago,
-    vendedor,
-    observaciones,
-    clienteVentaId // columna nueva — vacía para ventas que no la mandan (compatibilidad hacia atrás)
-  ]);
+    const observaciones =
+    params.observaciones || "";
 
-  carrito.forEach(item => {
+    const carrito =
+    Array.isArray(params.carrito) ? params.carrito : JSON.parse(params.carrito || "[]");
 
-    detalleSheet.appendRow([
+    ventasSheet.appendRow([
       ventaId,
-      item.CODIGO,
-      item.PRODUCTO,
-      item.cantidad,
-      item.PRECIO,
-      item.PRECIO * item.cantidad
+      fecha,
+      total,
+      formaPago,
+      vendedor,
+      observaciones,
+      clienteVentaId // columna nueva — vacía para ventas que no la mandan (compatibilidad hacia atrás)
     ]);
 
-  });
+    carrito.forEach(item => {
 
-  descontarStockPorVenta(carrito);
+      detalleSheet.appendRow([
+        ventaId,
+        item.CODIGO,
+        item.PRODUCTO,
+        item.cantidad,
+        item.PRECIO,
+        item.PRECIO * item.cantidad
+      ]);
 
-  return jsonResponse({
-    success:true,
-    ventaId:ventaId
-  });
+    });
+
+    // Se libera el lock ANTES de descontar stock: descontarStockPorVenta
+    // toma su propio lock (protege una operación distinta, la resta de
+    // stock en PRODUCTOS) y no necesita mantener este otro tomado.
+    if (lock) { lock.releaseLock(); lock = null; }
+
+    descontarStockPorVenta(carrito);
+
+    return jsonResponse({
+      success:true,
+      ventaId:ventaId
+    });
+
+  } finally {
+    if (lock) lock.releaseLock();
+  }
 
 }
 
@@ -4593,6 +6717,23 @@ function getCierreCajaResumen(e){
     // Las ventas anuladas no cuentan para el cierre de caja
     const anulada = idxAnulada !== -1 && String(row[idxAnulada] || "").toUpperCase() === "SI";
     if(anulada) return;
+
+    // registrarPagoCredito() crea, en VENTAS_LOCAL, una fila
+    // VENDEDOR="PEDIDO WEB" con descripción "Pago de crédito — <cliente>"
+    // por cada pago que un cliente hace en la sección Clientes — es lo
+    // que permite que el dashboard y el reporte de ventas por período
+    // (que leen VENTAS_LOCAL) cuenten esa plata como "Ventas — Pedidos".
+    // Pero esa misma plata YA se suma más abajo vía "pagosClientes"
+    // (leído directo de PAGOS_CREDITO, en getPagosCreditoDelDia). Si
+    // también se cuenta acá, en el "esperado" del cierre de caja se
+    // sumaría dos veces — una como venta, otra como pago de cliente.
+    // Por eso se excluye de este total (sigue contando igual en el
+    // dashboard y en los reportes de ventas, que no la suman por
+    // separado como "pagosClientes").
+    const esPagoCreditoDesdeClientes =
+      String(row[4] || "").toUpperCase() === "PEDIDO WEB" &&
+      /^Pago de cr[eé]dito\s*—/.test(String(row[5] || "").trim());
+    if(esPagoCreditoDesdeClientes) return;
 
     const fechaVenta = new Date(row[1]);
 
@@ -5058,9 +7199,15 @@ function getReporteProductosVendidos(e){
   const idsPOSEnRango = new Set();
   const hojaPOS = getHoja("VENTAS_LOCAL");
   if(hojaPOS){
-    const dataPOS = hojaPOS.getDataRange().getValues();
-    dataPOS.shift();
-    dataPOS.forEach(row => {
+    const dataPOSRaw = hojaPOS.getDataRange().getValues();
+    const headerPOS = dataPOSRaw.shift();
+    const idxAnuladaPOS = headerPOS.indexOf("ANULADA");
+    dataPOSRaw.forEach(row => {
+      // Ventas anuladas: nunca deben contar en ninguna estadística de
+      // ventas, igual que un pedido cancelado.
+      const estaAnulada = idxAnuladaPOS !== -1 && String(row[idxAnuladaPOS] || "").toUpperCase() === "SI";
+      if(estaAnulada) return;
+
       // Las filas creadas por un pedido cobrado (VENDEDOR="PEDIDO WEB")
       // no tienen detalle en DETALLE_VENTAS — su detalle real está en
       // DETALLE_PEDIDOS, así que se excluyen de este set para no
@@ -5075,15 +7222,27 @@ function getReporteProductosVendidos(e){
   }
   acumular(idsPOSEnRango, "DETALLE_VENTAS");
 
-  // ---- Pedidos cobrados: PEDIDOS (filtrados por COBRADO=SI, con la
-  // fecha real de cobro) + su detalle real en DETALLE_PEDIDOS.
+  // ---- Pedidos: PEDIDOS + su detalle real en DETALLE_PEDIDOS.
+  // Cuenta un pedido como "vendido" si:
+  //   a) ya se cobró (COBRADO=SI) — se usa la fecha real de cobro, o
+  //   b) todavía no se cobró pero la mercadería YA SE ENTREGÓ
+  //      (STOCK_DESCONTADO=SI, es decir pasó por PREPARANDO) — este es
+  //      el caso de una venta a crédito: el producto salió del depósito
+  //      aunque el cliente todavía deba esa plata, así que cuenta como
+  //      vendido igual. Se usa la fecha del pedido como referencia.
+  // Los pedidos CANCELADOS se excluyen siempre, sin importar lo anterior
+  // — nunca deben figurar en ninguna estadística de ventas.
   const idsPedidosCobradosEnRango = new Set();
   const hojaPedidos = getHoja("PEDIDOS");
   if(hojaPedidos){
     const dataPedidos = rowsToObjects(hojaPedidos.getDataRange().getValues());
     dataPedidos.forEach(p => {
+      const estado = String(p.ESTADO || "").toUpperCase();
+      if(estado === "CANCELADO") return;
+
       const yaCobrado = String(p.COBRADO || "").toUpperCase() === "SI";
-      if(!yaCobrado) return;
+      const yaEntregado = String(p.STOCK_DESCONTADO || "").toUpperCase() === "SI";
+      if(!yaCobrado && !yaEntregado) return; // ni cobrado ni entregado todavía: no cuenta
 
       const fecha = new Date(p.FECHA_COBRO || p.FECHA);
       const fechaStr = Utilities.formatDate(fecha, zona, "yyyy-MM-dd");
@@ -5658,8 +7817,18 @@ function autoMigrarMovimientosCaja() {
   }
 }
 
-/** GET ?action=eliminarMovimientoCaja&movimientoId=... */
+/** GET ?action=eliminarMovimientoCaja&movimientoId=...&rol=... */
 function eliminarMovimientoCaja(e){
+
+  const params = (e && e.parameter) || {};
+  const rol = (params.rol || "").toString().trim().toLowerCase();
+
+  if(rol === "vendedor"){
+    return jsonResponse({
+      success:false,
+      message:"Tu usuario (Vendedor) no tiene permiso para eliminar movimientos de caja."
+    });
+  }
 
   const ss = getSS();
   const sheet = getHoja("MOVIMIENTOS_CAJA");
@@ -5671,7 +7840,7 @@ function eliminarMovimientoCaja(e){
     });
   }
 
-  const movimientoId = (e && e.parameter && e.parameter.movimientoId || "").toString().trim();
+  const movimientoId = (params.movimientoId || "").toString().trim();
   if(!movimientoId){
     return jsonResponse({ success:false, message:"Falta el ID del movimiento a eliminar." });
   }

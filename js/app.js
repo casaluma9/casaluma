@@ -26,11 +26,10 @@ function normalizarTextoTransporte(texto){
 
 // API_URL viene de config.js (window.CONFIG_NEGOCIO.API_URL), que ya se
 // carga con <script src="config.js"> antes que este archivo en el HTML.
-// Es el único valor que sigue siendo fijo por instalación — todo lo
-// demás (nombre, WhatsApp, apariencia) se edita desde el panel admin.
-// Si por algún motivo config.js no llegó a cargar, se usa esta URL de
-// respaldo para que el catálogo nunca quede totalmente roto.
-let API_URL = "https://script.google.com/macros/s/AKfycbw1eY_mXImG503rU0Cqddx1WBuGIOhxaW_SXGoIMsug_CjsSC-HLsb2XzYwrovaGBU/exec";
+// Sin valor de respaldo a propósito: si config.js no define API_URL,
+// este catálogo no tiene forma de saber a qué backend pertenece, así
+// que no debe intentar hablar con el de otra instalación.
+let API_URL = "";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -73,13 +72,20 @@ async function fetchAPI(url, opciones = {}, config = {}) {
   throw ultimoError;
 }
 
-function cargarConfigCliente() {
+async function cargarConfigCliente() {
+  if (typeof cargarConfigNegocio === "function") {
+    await cargarConfigNegocio(); // de config.js — resuelve config.json y trae el resto de Sheets
+  }
   if (typeof CONFIG_NEGOCIO !== "undefined" && CONFIG_NEGOCIO.API_URL) {
     API_URL = CONFIG_NEGOCIO.API_URL;
   } else {
-    console.warn("config.js no está cargado o no define API_URL — usando la URL de respaldo.");
+    console.error("No se pudo obtener la API URL (falta config.js o config.json) — este catálogo no puede conectarse a ningún backend.");
   }
 }
+
+// Cantidad de productos (los últimos agregados en la hoja de Sheets)
+// que se consideran "recién agregados" y se destacan en el catálogo.
+const CANTIDAD_PRODUCTOS_NUEVOS = 8;
 
 const PLACEHOLDER_IMG = "data:image/svg+xml;base64," + btoa(
     "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>" +
@@ -205,15 +211,33 @@ async function cargarProductos(){
         const res = await fetchAPI(API_URL + "?action=productos");
         const data = await res.json();
 
-        estado.productos = (data.productos || [])
-        .filter(p => Number(String(p.STOCK).trim()) > 0)
+        const productosConStock = (data.productos || [])
+            .filter(p => Number(String(p.STOCK).trim()) > 0);
+
+        // Los productos nuevos se agregan siempre al final de la hoja
+        // de Sheets, así que los últimos N (en el orden original,
+        // antes de reordenar por destacados) son los "recién agregados".
+        const codigosNuevos = new Set(
+            productosConStock
+                .slice(-CANTIDAD_PRODUCTOS_NUEVOS)
+                .map(p => String(p.CODIGO))
+        );
+
+        estado.productos = productosConStock
+        .map(p => ({ ...p, _esNuevo: codigosNuevos.has(String(p.CODIGO)) }))
         .sort((a,b)=>{
 
             const esDestacadaA = String(a.DESTACADO || "").trim().toUpperCase() === "SI";
             const esDestacadaB = String(b.DESTACADO || "").trim().toUpperCase() === "SI";
 
-            if(esDestacadaA === esDestacadaB) return 0;
-            return esDestacadaA ? -1 : 1;
+            if(esDestacadaA !== esDestacadaB) return esDestacadaA ? -1 : 1;
+
+            // Entre no-destacados, los recién agregados van primero
+            // (Array.sort es estable, así que dentro de cada grupo se
+            // conserva el orden original de la hoja).
+            if(a._esNuevo !== b._esNuevo) return a._esNuevo ? -1 : 1;
+
+            return 0;
         });
 
         renderChips();
@@ -472,7 +496,9 @@ function mostrarProductos(lista){
 
             <div class="card-product h-100" data-code="${codigo}" data-action="quickview">
 
-                ${String(p.DESTACADO || "").trim().toUpperCase() === "SI" ? `<div class="ribbon-destacado">⭐ DESTACADO</div>` : ""}
+                ${String(p.DESTACADO || "").trim().toUpperCase() === "SI"
+                    ? `<div class="ribbon-destacado">⭐ DESTACADO</div>`
+                    : (p._esNuevo ? `<div class="ribbon-nuevo">🆕 NUEVO</div>` : "")}
 
                 ${String(p.OFERTA || "").trim().toUpperCase() === "SI" ? `<div class="ribbon-oferta">🔥 OFERTA</div>` : ""}
 
@@ -618,9 +644,11 @@ function cambiarQtyInput(id, delta){
     el.value = Math.max(1, stockDisponible > 0 ? Math.min(stockDisponible, nuevo) : nuevo);
 }
 
-function abrirQuickView(producto){
+function abrirQuickView(producto, actualizarUrl){
 
     if(!producto) return;
+
+    if(actualizarUrl === undefined) actualizarUrl = true;
 
     qvProductoActual = producto;
 
@@ -654,6 +682,8 @@ function abrirQuickView(producto){
 
     renderRelacionados(producto);
 
+    if(actualizarUrl) actualizarURLProducto(producto);
+
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById("quickViewModal"));
     modal.show();
 }
@@ -663,6 +693,10 @@ function abrirQuickView(producto){
  * Quick View, para incentivar que el cliente agregue más de un
  * producto al pedido antes de cerrar el modal. Si la categoría no
  * tiene más productos, la sección se oculta directamente.
+ *
+ * Para que sea realmente útil (y no siempre los mismos 8 primeros
+ * de la categoría), se prioriza la misma subcategoría cuando existe
+ * y, dentro de cada grupo, el orden se mezcla en cada apertura.
  */
 function renderRelacionados(producto){
 
@@ -671,16 +705,37 @@ function renderRelacionados(producto){
     if(!wrap || !cont) return;
 
     const categoria = String(producto.CATEGORIA || "").trim();
+    const subcategoria = String(producto.SUBCATEGORIA || "").trim();
 
-    const relacionados = categoria
-        ? estado.productos
-            .filter(p =>
-                String(p.CATEGORIA || "").trim() === categoria &&
-                String(p.CODIGO) !== String(producto.CODIGO) &&
-                (Number(String(p.STOCK ?? "").trim()) || 0) > 0
-            )
-            .slice(0, 8)
+    const codigosEnCarrito = new Set(estado.carrito.map(p => String(p.CODIGO)));
+
+    const candidatos = categoria
+        ? estado.productos.filter(p =>
+            String(p.CATEGORIA || "").trim() === categoria &&
+            String(p.CODIGO) !== String(producto.CODIGO) &&
+            !codigosEnCarrito.has(String(p.CODIGO)) &&
+            (Number(String(p.STOCK ?? "").trim()) || 0) > 0
+          )
         : [];
+
+    // Mezcla aleatoria (Fisher-Yates) para no repetir siempre el mismo orden.
+    const mezclar = (arr) => {
+        const copia = arr.slice();
+        for(let i = copia.length - 1; i > 0; i--){
+            const j = Math.floor(Math.random() * (i + 1));
+            [copia[i], copia[j]] = [copia[j], copia[i]];
+        }
+        return copia;
+    };
+
+    let relacionados;
+    if(subcategoria){
+        const mismaSub = mezclar(candidatos.filter(p => String(p.SUBCATEGORIA || "").trim() === subcategoria));
+        const otraSub = mezclar(candidatos.filter(p => String(p.SUBCATEGORIA || "").trim() !== subcategoria));
+        relacionados = [...mismaSub, ...otraSub].slice(0, 8);
+    }else{
+        relacionados = mezclar(candidatos).slice(0, 8);
+    }
 
     if(relacionados.length === 0){
         wrap.classList.add("d-none");
@@ -719,6 +774,216 @@ document.getElementById("qv-relacionados").addEventListener("click", function(e)
     const producto = estado.productos.find(p => String(p.CODIGO) === String(codigo));
     if(producto) abrirQuickView(producto);
 });
+
+/* =========================================================
+   URL POR PRODUCTO (para que Google pueda indexar cada uno)
+
+   Cada vez que se abre el Quick View de un producto, se agrega
+   ?producto=CODIGO-slug a la URL con history.pushState (sin recargar
+   la página), y se actualizan <title>, <meta name="description"> y
+   <link rel="canonical">. Al cerrar el modal, se vuelve a la URL base.
+
+   Esto también habilita "deep links": si alguien entra directo a
+   tuweb.com/?producto=123-nombre, el Quick View de ese producto se
+   abre solo al cargar — así Googlebot (que sí ejecuta JS) puede
+   rastrear y renderizar el contenido de esa URL puntual.
+
+   OJO: esto por sí solo no hace que Google "descubra" las URLs de
+   producto. Para que las indexe hace falta que existan enlaces
+   rastreables hacia ellas (o un sitemap.xml con esas URLs). Si querés,
+   te ayudo a generar ese sitemap aparte.
+========================================================= */
+
+let urlBase = null;
+let metaOriginal = null;
+
+function generarSlug(texto){
+    return String(texto || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+function actualizarURLProducto(producto){
+
+    if(!producto) return;
+
+    if(!urlBase){
+        urlBase = window.location.href.split("?")[0].split("#")[0];
+    }
+
+    if(!metaOriginal){
+        const metaDescActual = document.querySelector('meta[name="description"]');
+        metaOriginal = {
+            title: document.title,
+            description: metaDescActual ? metaDescActual.getAttribute("content") : ""
+        };
+    }
+
+    const slug = generarSlug(producto.PRODUCTO);
+    const codigo = encodeURIComponent(producto.CODIGO);
+    const nuevaUrl = urlBase + "?producto=" + codigo + (slug ? "-" + slug : "");
+    // El canonical NO apunta a nuevaUrl (la URL con ?producto=... que
+    // ve el usuario en la SPA), sino a la página estática generada por
+    // scripts/generar-seo.js en /producto/CODIGO-slug/ — esa es la que
+    // se lista en sitemap.xml y la que conviene que Google indexe como
+    // "la" URL de este producto, para no generar contenido duplicado
+    // entre las dos versiones.
+    const urlCanonicaEstatica = urlBase + "producto/" + codigo + (slug ? "-" + slug : "") + "/";
+    const tituloProducto = producto.PRODUCTO + (nombreNegocio ? " | " + nombreNegocio : "");
+    const descripcionCorta = String(producto.DESCRIPCION || producto.PRODUCTO || "").slice(0, 160);
+    const imagenProducto = producto.IMAGEN || "";
+
+    document.title = tituloProducto;
+
+    setMetaTag('meta[name="description"]', "name", "description", descripcionCorta);
+    setMetaTag('link[rel="canonical"]', "rel", "canonical", urlCanonicaEstatica, "href");
+
+    // Open Graph — WhatsApp/Facebook no ejecutan JS, así que esto solo
+    // sirve para cuando Googlebot renderiza la página o para debug
+    // tools (Rich Results Test, Facebook Debugger forzando refetch).
+    // Los links compartidos reales dependen de las páginas estáticas
+    // generadas en /producto/ (ver scripts/generar-seo.js).
+    setMetaTag('meta[property="og:url"]', "property", "og:url", urlCanonicaEstatica);
+    setMetaTag('meta[property="og:title"]', "property", "og:title", producto.PRODUCTO);
+    setMetaTag('meta[property="og:description"]', "property", "og:description", descripcionCorta);
+    if(imagenProducto) setMetaTag('meta[property="og:image"]', "property", "og:image", imagenProducto);
+
+    setMetaTag('meta[name="twitter:title"]', "name", "twitter:title", producto.PRODUCTO);
+    setMetaTag('meta[name="twitter:description"]', "name", "twitter:description", descripcionCorta);
+    if(imagenProducto) setMetaTag('meta[name="twitter:image"]', "name", "twitter:image", imagenProducto);
+
+    actualizarSchemaProducto(producto, urlCanonicaEstatica, descripcionCorta, imagenProducto);
+
+    // No usar la misma URL dos veces seguidas en el historial
+    // (por ej. al pasar de un producto a un relacionado)
+    if(window.location.href !== nuevaUrl){
+        history.pushState({ producto: producto.CODIGO }, "", nuevaUrl);
+    }
+}
+
+/**
+ * Crea (si no existe) o actualiza un meta/link tag del <head>.
+ * attrSelector/attrNombre identifican el tag (ej. name="description"),
+ * attrValor es lo que se busca setear (por defecto "content", pero
+ * <link> usa "href").
+ */
+function setMetaTag(selector, attrNombre, attrValorId, contenido, attrContenido){
+    attrContenido = attrContenido || "content";
+    let tag = document.querySelector(selector);
+    if(!tag){
+        tag = document.createElement(selector.startsWith("link") ? "link" : "meta");
+        tag.setAttribute(attrNombre, attrValorId);
+        document.head.appendChild(tag);
+    }
+    tag.setAttribute(attrContenido, contenido);
+}
+
+/**
+ * Reemplaza el JSON-LD de tipo Store (#schema-negocio) por uno de
+ * tipo Product mientras el Quick View de un producto está abierto,
+ * y lo restaura al cerrar (ver restaurarURLBase).
+ */
+let schemaOriginalTexto = null;
+
+function actualizarSchemaProducto(producto, url, descripcion, imagen){
+    const schemaTag = document.getElementById("schema-negocio");
+    if(!schemaTag) return;
+
+    if(schemaOriginalTexto === null){
+        schemaOriginalTexto = schemaTag.textContent;
+    }
+
+    const precioNum = Number(String(producto.PRECIO || "").replace(/[^\d.,-]/g, "").replace(",", "."));
+
+    const schemaProducto = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": producto.PRODUCTO,
+        "description": descripcion,
+        "sku": String(producto.CODIGO),
+        "image": imagen || undefined,
+        "category": producto.CATEGORIA || undefined,
+        "offers": {
+            "@type": "Offer",
+            "url": url,
+            "priceCurrency": "ARS",
+            "price": isFinite(precioNum) && precioNum > 0 ? precioNum : undefined,
+            "availability": "https://schema.org/InStock"
+        }
+    };
+
+    schemaTag.textContent = JSON.stringify(schemaProducto);
+}
+
+function restaurarSchemaNegocio(){
+    const schemaTag = document.getElementById("schema-negocio");
+    if(schemaTag && schemaOriginalTexto !== null){
+        schemaTag.textContent = schemaOriginalTexto;
+    }
+}
+
+function restaurarURLBase(){
+
+    if(!urlBase) return;
+
+    if(metaOriginal){
+        document.title = metaOriginal.title;
+        const metaDesc = document.querySelector('meta[name="description"]');
+        if(metaDesc) metaDesc.setAttribute("content", metaOriginal.description);
+
+        setMetaTag('meta[property="og:url"]', "property", "og:url", urlBase);
+        setMetaTag('meta[property="og:title"]', "property", "og:title", metaOriginal.title);
+        setMetaTag('meta[property="og:description"]', "property", "og:description", metaOriginal.description);
+        setMetaTag('meta[name="twitter:title"]', "name", "twitter:title", metaOriginal.title);
+        setMetaTag('meta[name="twitter:description"]', "name", "twitter:description", metaOriginal.description);
+    }
+
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if(canonical) canonical.setAttribute("href", urlBase);
+
+    restaurarSchemaNegocio();
+
+    if(window.location.href !== urlBase){
+        history.pushState({}, "", urlBase);
+    }
+}
+
+// Al cerrar el Quick View (X, click afuera, Escape) se vuelve a la URL base
+document.getElementById("quickViewModal").addEventListener("hidden.bs.modal", function(){
+    qvProductoActual = null;
+    restaurarURLBase();
+});
+
+// Botón "atrás"/"adelante" del navegador
+window.addEventListener("popstate", function(){
+
+    const codigoParam = new URLSearchParams(window.location.search).get("producto");
+
+    if(!codigoParam){
+        const modal = bootstrap.Modal.getInstance(document.getElementById("quickViewModal"));
+        if(modal) modal.hide();
+        return;
+    }
+
+    const codigo = codigoParam.split("-")[0];
+    const producto = estado.productos.find(p => String(p.CODIGO) === String(codigo));
+    if(producto) abrirQuickView(producto, false); // false: no volver a pushear la URL
+});
+
+// Deep link inicial: si la página se abre con ?producto=... en la URL,
+// abre ese Quick View automáticamente una vez cargado el catálogo.
+function abrirProductoDesdeURL(){
+
+    const codigoParam = new URLSearchParams(window.location.search).get("producto");
+    if(!codigoParam) return;
+
+    const codigo = codigoParam.split("-")[0];
+    const producto = estado.productos.find(p => String(p.CODIGO) === String(codigo));
+    if(producto) abrirQuickView(producto, false);
+}
 
 document.getElementById("qv-agregar").addEventListener("click", function(){
 
@@ -1535,6 +1800,10 @@ async function aplicarApariencia(){
         }
 
         // --- Título de la pestaña del navegador ---
+        // El resto de los metadatos SEO/OG/Twitter/schema.org los aplica
+        // aplicarConfigSEO() en config.js (ver el script inline al final
+        // de index.html) — no se duplica acá para evitar dos fetches y
+        // dos escrituras compitiendo sobre los mismos meta tags.
         if(cfg.nombre){
             document.title = cfg.nombre;
             nombreNegocio = cfg.nombre;
@@ -1556,6 +1825,16 @@ async function aplicarApariencia(){
  */
 function limpiarTelefonoParaLink(telefono){
     return String(telefono || "").trim().replace(/[^\d+]/g, "");
+}
+
+/**
+ * Devuelve el número de teléfono "para mostrar": igual a
+ * limpiarTelefonoParaLink pero además le saca el código de país
+ * argentino (549 / +549) del inicio, para mostrarlo más corto
+ * en el modal de ubicación.
+ */
+function limpiarTelefonoParaMostrar(telefono){
+    return limpiarTelefonoParaLink(telefono).replace(/^\+?549/, "");
 }
 
 /**
@@ -1599,8 +1878,8 @@ function aplicarBeneficios(cfg){
     const tel1TextoEl = document.getElementById("beneficio-telefono1-texto");
 
     if(tel1El && tel1TextoEl && tel1){
-        tel1El.href = `tel:${limpiarTelefonoParaLink(tel1)}`;
-        tel1TextoEl.textContent = tel1;
+        tel1El.href = "https://wa.me/" + limpiarTelefonoParaLink(tel1);
+        tel1TextoEl.textContent = "WhatsApp";
     }
     configurarChipBeneficio("beneficio-telefono1-wrap", !!tel1);
 
@@ -1610,12 +1889,12 @@ function aplicarBeneficios(cfg){
     const tel2TextoEl = document.getElementById("beneficio-telefono2-texto");
 
     if(tel2El && tel2TextoEl && tel2){
-        tel2El.href = `tel:${limpiarTelefonoParaLink(tel2)}`;
-        tel2TextoEl.textContent = tel2;
+        tel2El.href = "https://wa.me/" + limpiarTelefonoParaLink(tel2);
+        tel2TextoEl.textContent = "WhatsApp";
     }
     configurarChipBeneficio("beneficio-telefono2-wrap", !!tel2);
 
-    // --- Dirección ---
+    // --- Dirección: chip que abre el modal de ubicación ---
     const direccion = (cfg.beneficioDireccion || "").trim();
     const direccionTextoEl = document.getElementById("beneficio-direccion-texto");
 
@@ -1623,6 +1902,54 @@ function aplicarBeneficios(cfg){
         direccionTextoEl.textContent = direccion;
     }
     configurarChipBeneficio("beneficio-direccion-wrap", !!direccion);
+
+    // --- Modal de ubicación: minimapa + dirección + teléfonos ---
+    // Se completa siempre que haya al menos dirección o algún teléfono
+    // cargado en el panel admin, aunque el chip de dirección de arriba
+    // (que es el que lo abre) solo se muestra si hay dirección.
+    const mapaWrap = document.getElementById("modalUbicacion-mapa-wrap");
+    const mapaIframe = document.getElementById("modalUbicacion-mapa-iframe");
+
+    if(mapaWrap && mapaIframe){
+        if(direccion){
+            // Embed público de Google Maps — no requiere API key
+            mapaIframe.src = "https://maps.google.com/maps?q=" + encodeURIComponent(direccion) + "&z=15&output=embed";
+            mapaWrap.classList.remove("d-none");
+        } else {
+            mapaIframe.src = "";
+            mapaWrap.classList.add("d-none");
+        }
+    }
+
+    const modalDireccionEl = document.getElementById("modalUbicacion-direccion");
+    if(modalDireccionEl){
+        modalDireccionEl.querySelector("span").textContent = direccion;
+        modalDireccionEl.classList.toggle("d-none", !direccion);
+    }
+
+    const modalTel1El = document.getElementById("modalUbicacion-telefono1");
+    if(modalTel1El){
+        modalTel1El.href = "https://wa.me/" + limpiarTelefonoParaLink(tel1);
+        modalTel1El.querySelector("span").textContent = limpiarTelefonoParaMostrar(tel1);
+        modalTel1El.classList.toggle("d-none", !tel1);
+    }
+
+    const modalTel2El = document.getElementById("modalUbicacion-telefono2");
+    if(modalTel2El){
+        modalTel2El.href = "https://wa.me/" + limpiarTelefonoParaLink(tel2);
+        modalTel2El.querySelector("span").textContent = limpiarTelefonoParaMostrar(tel2);
+        modalTel2El.classList.toggle("d-none", !tel2);
+    }
+
+    const modalComoLlegarEl = document.getElementById("modalUbicacion-comofllegar");
+    if(modalComoLlegarEl){
+        if(direccion){
+            modalComoLlegarEl.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(direccion);
+            modalComoLlegarEl.classList.remove("d-none");
+        } else {
+            modalComoLlegarEl.classList.add("d-none");
+        }
+    }
 
     // --- Textos libres (si el contenido es un link, se muestra como
     // botón clickable con el nombre de la red social detectada en vez
@@ -1838,10 +2165,11 @@ async function descargarCatalogoPDF(){
 // Inicialización: primero fijar API_URL desde config.js, luego
 // apariencia y productos para que API_URL ya esté lista.
 (async () => {
-  cargarConfigCliente();
+  await cargarConfigCliente();
   apariencaCargadaPromise = aplicarApariencia();
   actualizarContador();
-  cargarProductos();
+  await cargarProductos();
+  abrirProductoDesdeURL();
 })();
 
 /* =========================================================
