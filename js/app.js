@@ -1313,9 +1313,24 @@ function sincronizarCarritoConStockActual(){
             return;
         }
 
-        // Actualiza el precio y el stock "de referencia" del ítem por si cambiaron
+        // Actualiza el precio y el stock "de referencia" del ítem por si cambiaron.
+        // Si el precio cambió, se avisa al cliente en vez de ajustarlo en silencio
+        // justo antes del checkout.
+        const precioAnterior = Number(item.PRECIO) || 0;
+        const precioCajaAnterior = Number(item.PRECIO_CAJA) || 0;
+
         item.PRECIO = actual.PRECIO;
         item.STOCK = stockActual;
+        if(item._esCaja) item.PRECIO_CAJA = actual.PRECIO_CAJA;
+
+        const precioCambio = Number(actual.PRECIO) !== precioAnterior ||
+            (item._esCaja && Number(actual.PRECIO_CAJA) !== precioCajaAnterior);
+
+        if(precioCambio){
+            huboAjustes = true;
+            const precioNuevo = item._esCaja ? item.PRECIO_CAJA : item.PRECIO;
+            avisos.push(`"${item.PRODUCTO}": el precio se actualizó a $${formatearPrecio(precioNuevo)}`);
+        }
 
         if(item.cantidad > stockActual){
             huboAjustes = true;
