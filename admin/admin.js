@@ -1905,15 +1905,12 @@ function mostrarSeccion(id) {
       }
       // Tarjeta licencia
       if (typeof mostrarEstadoLicenciaEnConfig === "function") mostrarEstadoLicenciaEnConfig();
-      // Tarjeta multicaja — OCULTA a propósito: el guardado de esta
-      // config (actualizarVisibilidadCampoNombreCaja / guardarConfigRed)
-      // nunca se terminó de implementar, y la función de red local en
-      // sí (el servidor HTTP que compartiría stock/ventas entre varias
-      // cajas) tampoco está construida del lado de Electron. Mostrar
-      // este formulario llevaba a un error real al tocarlo — mejor no
-      // ofrecer una función que en los hechos no hace nada.
-      // const tRed = document.getElementById("cardMultiCajaRed");
-      // if (tRed) tRed.style.display = "block";
+      // Tarjeta multicaja
+      const tRed = document.getElementById("cardMultiCajaRed");
+      if (tRed) {
+        tRed.style.display = "block";
+        cargarConfigRedForm();
+      }
       // Tarjeta MercadoPago
       const tMp = document.getElementById("cardMercadoPago");
       if (tMp) {
@@ -5303,6 +5300,12 @@ function palabraCoincideTolerantePOS(palabraBusqueda, palabraTexto) {
   if (!palabraBusqueda) return true;
   if (palabraTexto.includes(palabraBusqueda)) return true;
   if (palabraBusqueda.length < 3) return false; // muy corta -> el fuzzy da falsos positivos
+  // Un código de barras escaneado (solo dígitos, 6+ caracteres) no
+  // tiene "typos" que tolerar — si no matcheó literal arriba, no va a
+  // matchear con Levenshtein tampoco. Evita correr la comparación
+  // difusa contra cada palabra de cada producto del catálogo en cada
+  // tecla del escaneo (el costo que hacía sentir lento el escaneo).
+  if (/^\d{6,}$/.test(palabraBusqueda)) return false;
   const maxDist = palabraBusqueda.length <= 5 ? 1 : 2;
   return distanciaLevenshteinPOS(palabraBusqueda, palabraTexto, maxDist) <= maxDist;
 }
@@ -5320,14 +5323,25 @@ function productoCoincideBusquedaPOS(producto, filtroTexto) {
   const texto = normalizarBusquedaPOS(filtroTexto);
   if (!texto) return true;
 
-  const textoCompleto = normalizarBusquedaPOS(
-    [producto.CODIGO, producto.PRODUCTO, producto.CATEGORIA, producto.ALIAS].join(" ")
-  );
+  // El texto normalizado (y sus palabras) de cada producto no cambia
+  // entre tecla y tecla — se calcula una sola vez y se guarda en el
+  // propio producto. Con ~2000 productos, recalcular esto (lowercase +
+  // sacar tildes + unir 4 campos) en CADA letra tipeada era el costo
+  // real de la búsqueda por nombre; cacheado, cada tecla solo hace la
+  // comparación en sí.
+  let textoCompleto = producto._textoBusquedaPOS;
+  if (textoCompleto === undefined) {
+    textoCompleto = normalizarBusquedaPOS(
+      [producto.CODIGO, producto.PRODUCTO, producto.CATEGORIA, producto.ALIAS].join(" ")
+    );
+    producto._textoBusquedaPOS = textoCompleto;
+    producto._palabrasBusquedaPOS = textoCompleto.split(/\s+/).filter(Boolean);
+  }
 
   // Camino rápido: la frase completa tipeada aparece tal cual
   if (textoCompleto.includes(texto)) return true;
 
-  const palabrasTexto = textoCompleto.split(/\s+/).filter(Boolean);
+  const palabrasTexto = producto._palabrasBusquedaPOS;
   const palabrasBusqueda = texto.split(/\s+/).filter(Boolean);
 
   // Cada palabra tipeada tiene que encontrar alguna palabra del
@@ -5362,7 +5376,7 @@ function renderPosGrid(filtroTexto) {
   }
 
   let html = "";
-  const visibleList = lista.slice(0, 60);
+  const visibleList = lista.slice(0, 30);
 
   visibleList.forEach((p, idx) => {
     const stock     = p.STOCK !== undefined ? Number(p.STOCK) : null;
@@ -5431,7 +5445,12 @@ function onPosInputKeyup(e) {
     if (valor !== "") {
       agregarProductoPorCodigo(valor);
       input.value = "";
-      renderPosGrid();
+      // Con debounce en vez de render inmediato: si se están
+      // escaneando varios productos seguidos (típico en el POS), esto
+      // evita reconstruir hasta 60 tarjetas de la grilla en CADA
+      // escaneo — solo se reconstruye una vez, 150ms después del
+      // último escaneo de la tanda.
+      renderPosGridConDemora("");
     }
     return;
   }
@@ -5589,6 +5608,10 @@ async function guardarEdicionRapidaPOS() {
     producto.PRECIO = Number(precio);
     producto.STOCK = Number(stock);
     producto.ALIAS = alias;
+    // El código o el alias pueden haber cambiado: invalidar el texto
+    // de búsqueda cacheado para que no quede buscando por el dato viejo.
+    producto._textoBusquedaPOS = undefined;
+    producto._palabrasBusquedaPOS = undefined;
     // Si el producto editado ya estaba en el ticket actual, el código
     // ahí también tiene que actualizarse — si no, quedaría apuntando
     // a un código que ya no existe más en productosPOS.
@@ -5967,6 +5990,11 @@ function elegirFormaPago(el, valor) {
 let mfvTipoDescuento = "PORCENTAJE";
 let mfvModoDescuento = "DESCUENTO"; // "DESCUENTO" | "RECARGO"
 let mfvFormaPago = "EFECTIVO";
+let mfvMpDisponible = false; // cacheado al abrir el modal — ¿hay MP configurado y usable?
+let mfvGenerarQR = false;    // elección del cajero cuando la forma de pago es TRANSFERENCIA:
+                              // true = generar QR para que el cliente escanee y pague ahí mismo;
+                              // false (default) = el cliente ya transfirió directo al alias/CVU,
+                              // registrar la venta sin pasar por Mercado Pago.
 
 function abrirModalFinalizarVenta() {
   if (ticketPOS.length === 0) { toast("El ticket está vacío", "error"); return; }
@@ -6002,6 +6030,15 @@ function abrirModalFinalizarVenta() {
   });
   mfvMostrarRecibido();
 
+  // QR de Mercado Pago para Transferencia — se resetea a "sin QR" cada vez
+  // que se abre el modal, y se consulta si MP está disponible en segundo
+  // plano (no bloquea la apertura del modal) para decidir si mostrar el
+  // selector o no.
+  mfvGenerarQR = false;
+  mfvMpDisponible = false;
+  mfvActualizarVisibilidadQR();
+  verificarMpDisponibleParaModal();
+
   // Recibido
   document.getElementById("mfvRecibido").value = "";
   document.getElementById("mfvCambio").textContent = "—";
@@ -6032,7 +6069,43 @@ function mfvElegirPago(btn, valor) {
   document.querySelectorAll("#mfvPayMethods .pay-method-btn").forEach(b =>
     b.classList.toggle("active", b.dataset.val === valor));
   mfvMostrarRecibido();
+  mfvActualizarVisibilidadQR();
   if (valor === "EFECTIVO") setTimeout(() => document.getElementById("mfvRecibido").focus(), 50);
+}
+
+/** Consulta (una sola vez por apertura del modal) si Mercado Pago está configurado y usable, sin bloquear la apertura del modal */
+async function verificarMpDisponibleParaModal() {
+  const bridge = window.veekpos || window.posOffline;
+  if (!bridge || typeof bridge.mercadoPagoDisponible !== "function") {
+    mfvMpDisponible = false;
+  } else {
+    try {
+      mfvMpDisponible = await bridge.mercadoPagoDisponible();
+    } catch (error) {
+      mfvMpDisponible = false;
+    }
+  }
+  mfvActualizarVisibilidadQR();
+}
+
+/** Muestra/oculta el selector "Generar QR / Ya me transfirió" según la forma de pago elegida y si MP está disponible */
+function mfvActualizarVisibilidadQR() {
+  const wrap = document.getElementById("mfvQrWrap");
+  if (!wrap) return;
+
+  const mostrar = mfvFormaPago === "TRANSFERENCIA" && mfvMpDisponible;
+  wrap.style.display = mostrar ? "block" : "none";
+  if (!mostrar) mfvGenerarQR = false; // si se oculta (no hay MP, o cambiaron de forma de pago), nunca queda "generar QR" activo por error
+
+  const btnSi = document.getElementById("mfvQrSi");
+  const btnNo = document.getElementById("mfvQrNo");
+  if (btnSi) btnSi.classList.toggle("active", mfvGenerarQR);
+  if (btnNo) btnNo.classList.toggle("active", !mfvGenerarQR);
+}
+
+function mfvElegirGenerarQR(valor) {
+  mfvGenerarQR = valor;
+  mfvActualizarVisibilidadQR();
 }
 
 function mfvMostrarRecibido() {
@@ -6137,8 +6210,24 @@ async function confirmarFinalizarVenta() {
 
   cerrarModalFinalizarVenta();
 
-  // Si es TRANSFERENCIA y MercadoPago está configurado → mostrar QR antes de registrar
-  if (mfvFormaPago === "TRANSFERENCIA") {
+  // Subtotal/total (con descuento o recargo ya aplicado) — se calcula ACÁ,
+  // antes de decidir el camino de QR o el directo, porque ambos lo
+  // necesitan. Antes estaba declarado más abajo (en la sección
+  // "OPTIMISTIC"), y la rama de QR lo usaba desde arriba sin que existiera
+  // todavía — un ReferenceError garantizado ("Cannot access 'total' before
+  // initialization") cada vez que se intentaba generar el QR.
+  const subtotal = ticketPOS.reduce((acc, item) => acc + (item.PRECIO * item.cantidad), 0);
+  const { montoDescuento, total } = calcularDescuentoPOS(subtotal);
+  const etiquetaDescuento = obtenerEtiquetaDescuentoPOS(subtotal);
+
+  // Si es TRANSFERENCIA y el cajero eligió generar el QR (ver selector
+  // "¿Cómo se cobra la transferencia?" en el modal) → mostrar QR antes de
+  // registrar. Si no lo eligió (o MP no está disponible), la venta sigue
+  // de largo y se registra directo como transferencia manual — antes esto
+  // era obligatorio siempre que MP estuviera configurado, y si la
+  // generación del QR fallaba por cualquier motivo, la venta quedaba
+  // completamente bloqueada sin forma de simplemente registrarla.
+  if (mfvFormaPago === "TRANSFERENCIA" && mfvGenerarQR) {
     const bridge = window.veekpos || window.posOffline;
     if (bridge && typeof bridge.mercadoPagoDisponible === "function") {
       const mpDisponible = await bridge.mercadoPagoDisponible().catch(() => false);
@@ -6150,9 +6239,6 @@ async function confirmarFinalizarVenta() {
   }
 
   // ── OPTIMISTIC: calcular todo localmente y mostrar el recibo al instante ──
-  const subtotal = ticketPOS.reduce((acc, item) => acc + (item.PRECIO * item.cantidad), 0);
-  const { montoDescuento, total } = calcularDescuentoPOS(subtotal);
-  const etiquetaDescuento = obtenerEtiquetaDescuentoPOS(subtotal);
   const itemsSnapshot = [...ticketPOS];
   const fechaVenta = new Date();
   const ventaIdTemp = "VEN-" + Date.now().toString().slice(-6);
@@ -10223,6 +10309,91 @@ async function activarLicencia() {
    MERCADO PAGO — Cobro con QR (integrado desde pos-offline)
 ========================================================= */
 
+/**
+ * Muestra u oculta el campo "Nombre de esta caja" según el rol elegido
+ * — solo el servidor necesita un nombre propio (es el que se anuncia
+ * por la red para que los clientes lo encuentren, ver local-discovery.js
+ * → iniciarAnuncioServidor). Una caja cliente no anuncia nada, así que
+ * no necesita nombre.
+ */
+function actualizarVisibilidadCampoNombreCaja(rol) {
+  const campo = document.getElementById("campoNombreCaja");
+  if (campo) campo.style.display = rol === "servidor" ? "block" : "none";
+}
+
+/** Carga el estado actual de la config de red al abrir la tarjeta — rol guardado, nombre de caja, y a quién está viendo (servidor propio o servidor encontrado) */
+async function cargarConfigRedForm() {
+  const bridge = window.veekpos || window.posOffline;
+  if (!bridge) return;
+
+  const estadoEl = document.getElementById("estadoRedLocal");
+
+  try {
+    const { rol, nombreCaja } = await bridge.obtenerRolRed();
+    document.getElementById("cfgRolRed").value = rol || "";
+    document.getElementById("cfgNombreCaja").value = nombreCaja || "";
+    actualizarVisibilidadCampoNombreCaja(rol || "");
+
+    if (!estadoEl) return;
+
+    if (rol === "servidor") {
+      const { ip, puertoHttp } = await bridge.obtenerIpLocal();
+      estadoEl.innerHTML = ip
+        ? `🟢 Esta caja es el <b>servidor</b>. Las demás cajas (y la pantalla del cliente, si usás una) se conectan solas por red — si necesitás la dirección a mano: <code>${ip}:${puertoHttp}</code>`
+        : `🟢 Esta caja es el <b>servidor</b>, pero no se pudo detectar la IP de red local (¿está conectada a wifi/cable?).`;
+
+    } else if (rol === "cliente") {
+      const estado = await bridge.obtenerEstadoConexionRed();
+      if (estado.conectado) {
+        estadoEl.textContent = "🟢 Conectada al servidor correctamente.";
+      } else if (estado.servidorConocido) {
+        estadoEl.textContent = "🟡 Se encontró un servidor en la red, pero no responde ahora mismo.";
+      } else {
+        estadoEl.textContent = "🟡 Buscando el servidor en la red local...";
+      }
+
+    } else {
+      const mpConfigurado = await bridge.mercadoPagoDisponible?.().catch(() => false);
+      const { ip, puertoHttp } = await bridge.obtenerIpLocal().catch(() => ({ ip: null }));
+
+      if (mpConfigurado) {
+        estadoEl.innerHTML = ip
+          ? `⚪ Modo independiente — esta caja no comparte datos con otras por red local. La pantalla del cliente para QR sí está activa (hay Mercado Pago configurado): <code>${ip}:${puertoHttp}</code>`
+          : `⚪ Modo independiente. La pantalla del cliente debería estar activa, pero no se pudo detectar la IP de red local (¿está conectada a wifi/cable?).`;
+      } else {
+        estadoEl.innerHTML = ip
+          ? `⚪ Modo independiente — esta caja no comparte datos con otras por red local. La pantalla del cliente para QR no está activa todavía porque no hay Mercado Pago configurado (IP de esta caja, por si la necesitás más adelante: <code>${ip}:${puertoHttp}</code>).`
+          : `⚪ Modo independiente — esta caja no comparte datos con otras por red local. La pantalla del cliente para QR no está activa (no hay Mercado Pago configurado).`;
+      }
+    }
+  } catch (error) {
+    if (estadoEl) estadoEl.textContent = "No se pudo cargar el estado de la red.";
+  }
+}
+
+/** Guarda el rol de red elegido (botón "Guardar configuración de red") */
+async function guardarConfigRed() {
+  const bridge = window.veekpos || window.posOffline;
+  if (!bridge) return;
+
+  const rol = document.getElementById("cfgRolRed").value;
+  const nombreCaja = document.getElementById("cfgNombreCaja").value.trim();
+
+  if (rol === "servidor" && !nombreCaja) {
+    toast("Ponele un nombre a esta caja (ej: Caja 1)", "error");
+    return;
+  }
+
+  try {
+    await bridge.fijarRolRed(rol, nombreCaja);
+    toast("Configuración de red guardada", "success");
+    await cargarConfigRedForm();
+  } catch (error) {
+    toast("No se pudo guardar la configuración de red", "error");
+  }
+}
+
+
 async function mostrarEstadoMercadoPagoEnConfig() {
   const box = document.getElementById("mpEstadoBox");
   const formularioWrap = document.getElementById("mpFormularioWrap");
@@ -10352,6 +10523,47 @@ async function quitarConfigMercadoPago() {
 
 /* ===================== RED LOCAL MULTI-CAJA (Configuración) ===================== */
 
+/**
+ * DIAGNÓSTICO — abre el mismo modal de cobro con QR, pero con una imagen
+ * falsa (un SVG armado acá mismo, sin pedirle nada a Mercado Pago) y sin
+ * arrancar el polling real. Sirve para probar el comportamiento del modal
+ * (por ejemplo, si el botón "Cancelar" responde) sin necesitar tener
+ * Mercado Pago configurado ni depender de la red — así se puede descartar
+ * rápido si un problema es del modal en sí o de la integración con MP.
+ *
+ * A propósito NO toca mpReferenciaActual ni arranca mpPollingIntervalId:
+ * sin una referencia real no hay nada que consultar, así que el polling
+ * ni se inicia — "Cancelar" acá prueba exactamente el mismo camino de
+ * limpieza (detenerPollingMercadoPago, sacar la clase "show", resetear
+ * los flags) que un cobro real, sin arriesgar nada del carrito actual.
+ */
+function abrirModalQRDePrueba() {
+  const svgFalso = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">
+      <rect width="240" height="240" fill="#eef2ff"/>
+      <text x="120" y="112" text-anchor="middle" font-family="monospace" font-size="16" fill="#1e293b">QR DE PRUEBA</text>
+      <text x="120" y="136" text-anchor="middle" font-family="monospace" font-size="12" fill="#64748b">(no es un cobro real)</text>
+    </svg>
+  `)}`;
+
+  document.getElementById("mpQrMontoLabel").textContent = "$0 (prueba)";
+  document.getElementById("mpQrError").style.display = "none";
+  document.getElementById("mpQrEsperando").style.display = "block";
+  document.getElementById("mpQrImagen").src = svgFalso;
+  document.getElementById("mpQrBackdrop").classList.add("show");
+
+  // Empuja el mismo QR falso a la pantalla/tablet del cliente (si hay
+  // una conectada) — así también se puede probar esa parte sin
+  // necesitar Mercado Pago configurado. Si no hay bridge (versión web)
+  // o la tablet no está conectada, no pasa nada, es un no-op seguro.
+  const bridge = window.veekpos || window.posOffline;
+  if (bridge && typeof bridge.mostrarQrDePruebaEnPantalla === "function") {
+    bridge.mostrarQrDePruebaEnPantalla(svgFalso, 0).catch(() => {});
+  }
+
+  toast("🧪 Modal de prueba — este QR no cobra nada de verdad", "info");
+}
+
 async function iniciarCobroMercadoPago(total) {
   document.getElementById("mpQrMontoLabel").textContent = "$" + Number(total).toLocaleString("es-AR");
   document.getElementById("mpQrError").style.display = "none";
@@ -10376,6 +10588,8 @@ async function iniciarCobroMercadoPago(total) {
 
     mpReferenciaActual = referencia;
     document.getElementById("mpQrImagen").src = resultado.qrImagenDataUrl;
+    mpPollingIniciadoEn = Date.now();
+    mpProcesandoConfirmacion = false;
     mpPollingIntervalId = setInterval(consultarCobroMercadoPagoPolling, 3000);
 
   } catch (error) {
@@ -10393,12 +10607,46 @@ let mpPollingIntervalId = null;
 let mpReferenciaActual  = null;
 let mpVentaEnCurso      = null; // { subtotal, total, itemsSnapshot, recibido }
 
+// Dos problemas reales que tenía este polling, arreglados acá:
+//
+// 1) RACE CONDITION que podía duplicar la venta: setInterval no espera a
+//    que termine la vuelta anterior. Si una consulta a Mercado Pago tarda
+//    más de 3 segundos (red lenta), podían quedar DOS llamadas a
+//    consultarCobroQR "en el aire" al mismo tiempo; si ambas contestaban
+//    "pagada: true" (algo totalmente posible ya que consultan lo mismo),
+//    las dos ejecutaban el bloque de éxito completo → la venta se
+//    guardaba DOS VECES en el backend. `mpProcesandoConfirmacion` corta
+//    esto: se chequea antes Y después del await, así que la segunda
+//    llamada que ya estaba en vuelo cuando la primera confirmó el pago,
+//    al volver de su propio await, ve el flag ya en true y no hace nada.
+//
+// 2) Sin límite de tiempo: si el cliente nunca paga (se arrepiente, no
+//    tiene señal, lo que sea), el polling seguía cada 3 segundos PARA
+//    SIEMPRE, sin avisarle nada al cajero, hasta que alguien tocara
+//    "Cancelar" a mano. `mpPollingIniciadoEn` + el timeout de abajo lo
+//    cortan solos con un aviso, después de 10 minutos sin confirmación.
+let mpProcesandoConfirmacion = false;
+let mpPollingIniciadoEn = null;
+const MP_POLLING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
+
 async function consultarCobroMercadoPagoPolling() {
-  if (!mpReferenciaActual) return;
+  if (!mpReferenciaActual || mpProcesandoConfirmacion) return;
+
+  if (mpPollingIniciadoEn && (Date.now() - mpPollingIniciadoEn) > MP_POLLING_TIMEOUT_MS) {
+    mostrarErrorCobroMercadoPago("Pasaron 10 minutos sin confirmar el pago. Si el cliente todavía va a pagar, generá el QR de nuevo.");
+    return;
+  }
+
   try {
     const bridge = window.veekpos || window.posOffline;
     const resultado = await bridge.consultarCobroQR(mpReferenciaActual);
+
+    // Otra vuelta del intervalo ya se adelantó y confirmó el pago mientras
+    // esta esperaba su propia respuesta — no hacer nada, ya se procesó.
+    if (mpProcesandoConfirmacion) return;
+
     if (resultado.success && resultado.pagada) {
+      mpProcesandoConfirmacion = true; // a partir de acá, ninguna otra vuelta en vuelo va a duplicar esto (ver comentario arriba)
       detenerPollingMercadoPago();
       document.getElementById("mpQrBackdrop").classList.remove("show");
       toast("Pago de Mercado Pago confirmado ✓", "success");
@@ -10476,6 +10724,8 @@ async function consultarCobroMercadoPagoPolling() {
 
 function mostrarErrorCobroMercadoPago(mensaje) {
   detenerPollingMercadoPago();
+  mpProcesandoConfirmacion = false;
+  mpPollingIniciadoEn = null;
   const el = document.getElementById("mpQrEsperando");
   const err = document.getElementById("mpQrError");
   const txt = document.getElementById("mpQrErrorTexto");
@@ -10490,10 +10740,22 @@ function detenerPollingMercadoPago() {
 
 function cancelarCobroMercadoPago() {
   detenerPollingMercadoPago();
+  mpProcesandoConfirmacion = false;
+  mpPollingIniciadoEn = null;
   const backdrop = document.getElementById("mpQrBackdrop");
   if (backdrop) backdrop.classList.remove("show");
   mpReferenciaActual = null;
   mpVentaEnCurso = null;
+
+  // Avisa también a la pantalla/tablet del cliente (si hay una conectada)
+  // que este cobro se canceló, para que no se quede mostrando un QR
+  // muerto — ver local-server.js → limpiarQrActivo. No pasa nada si no
+  // hay ninguna pantalla conectada, ni si esto corre en la versión web.
+  const bridge = window.veekpos || window.posOffline;
+  if (bridge && typeof bridge.cancelarCobroQR === "function") {
+    bridge.cancelarCobroQR().catch(() => {});
+  }
+
   toast("Cobro cancelado — el ticket sigue abierto", "info");
 }
 

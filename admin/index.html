@@ -2372,6 +2372,7 @@
             <button class="btn btn-outline-danger btn-sm" id="btnQuitarMercadoPago" onclick="quitarConfigMercadoPago()" style="display:none;">Quitar configuración</button>
             <div class="d-flex gap-2">
               <button class="btn btn-outline-secondary btn-sm" onclick="probarCredencialesMercadoPagoBtn()">🧪 Probar conexión</button>
+              <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalQRDePrueba()" title="Abre el modal de cobro con un QR falso, sin llamar a Mercado Pago — sirve para probar botones/comportamiento del modal (ej. Cancelar) sin necesidad de tener MP configurado.">🧪 QR de prueba</button>
               <button class="btn btn-success btn-sm" id="btnGuardarMercadoPago" onclick="guardarConfigMercadoPagoForm()">💾 Guardar y configurar</button>
             </div>
           </div>
@@ -3483,6 +3484,19 @@
           <button class="pay-method-btn active" data-val="EFECTIVO"      onclick="mfvElegirPago(this,'EFECTIVO')">      <span class="ic">💵</span>Efectivo</button>
           <button class="pay-method-btn"        data-val="TRANSFERENCIA" onclick="mfvElegirPago(this,'TRANSFERENCIA')"><span class="ic">📲</span>Transfer.</button>
           <button class="pay-method-btn"        data-val="TARJETA"       onclick="mfvElegirPago(this,'TARJETA')">       <span class="ic">💳</span>Tarjeta</button>
+        </div>
+      </div>
+
+      <!-- Solo visible con Transferencia elegida y Mercado Pago configurado.
+           Sin esto, la venta quedaba obligada a generar el QR sí o sí, y si
+           esa generación fallaba (o el cliente ya había transferido directo
+           al alias, sin escanear nada), no había forma de simplemente
+           registrar la venta. -->
+      <div id="mfvQrWrap" style="display:none;">
+        <div class="mfv-label">📲 ¿Cómo se cobra la transferencia?</div>
+        <div class="discount-mode-row">
+          <button type="button" class="discount-mode-btn" id="mfvQrNo" data-modo="NO" onclick="mfvElegirGenerarQR(false)">✅ Ya me transfirió</button>
+          <button type="button" class="discount-mode-btn" id="mfvQrSi" data-modo="SI" onclick="mfvElegirGenerarQR(true)">🔲 Generar QR</button>
         </div>
       </div>
 
