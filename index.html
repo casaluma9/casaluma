@@ -16,14 +16,14 @@
     <meta name="keywords" content="mayorista, compra mayorista, artículos mayoristas, envíos todo el país">
     <meta name="robots" content="index, follow">
     <meta name="author" content="">
-    <link rel="canonical" href="https://casaluma9.github.io/casaluma/">
+    <link rel="canonical" href="https://horus254-svg.github.io/Jireh-Mayorista/">
 
     <!-- ===== OPEN GRAPH (WhatsApp, Facebook, LinkedIn) ===== -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://casaluma9.github.io/casaluma/">
+    <meta property="og:url" content="https://horus254-svg.github.io/Jireh-Mayorista/">
     <meta property="og:title" content="Catálogo Mayorista">
     <meta property="og:description" content="Catálogo mayorista online con envíos a todo el país. Consultá precios y hacé tu pedido directamente por WhatsApp.">
-    <meta property="og:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
+    <meta property="og:image" content="https://horus254-svg.github.io/Jireh-Mayorista/icon-512.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
     <meta property="og:locale" content="es_AR">
@@ -33,7 +33,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Catálogo Mayorista">
     <meta name="twitter:description" content="Catálogo mayorista online con envíos a todo el país.">
-    <meta name="twitter:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
+    <meta name="twitter:image" content="https://horus254-svg.github.io/Jireh-Mayorista/icon-512.png">
 
     <!-- ===== SCHEMA.ORG — datos estructurados para Google =====
          id="schema-negocio" para que app.js pueda reemplazar el "name"
@@ -72,6 +72,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+
+    <!-- Adelanta el handshake (DNS+TLS) con jsDelivr (Bootstrap) y con el
+         backend de Apps Script, así cuando app.js hace el primer fetch a
+         API_URL la conexión ya está lista y no suma esa latencia al
+         tiempo de carga del catálogo. script.googleusercontent.com es el
+         dominio al que Apps Script redirige la ejecución real del script. -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://script.google.com">
+    <link rel="preconnect" href="https://script.googleusercontent.com">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -603,6 +612,16 @@
                             <div id="qv-imagen-zoom-wrap" class="qv-imagen-zoom-wrap">
                                 <img id="qv-imagen" src="" alt="" class="qv-img" loading="lazy">
                             </div>
+
+                            <!-- Miniaturas de imágenes adicionales (variantes/colores). Se
+                                 completan dinámicamente en renderGaleriaQuickView() (app.js).
+                                 Si el producto tiene una sola imagen, este bloque queda vacío
+                                 y oculto. -->
+                            <div id="qv-thumbs" class="qv-thumbs"></div>
+
+                            <div id="qv-color-actual" class="qv-color-actual d-none">
+                                Color: <span id="qv-color-actual-nombre"></span>
+                            </div>
                         </div>
 
                         <div class="qv-col-info">
@@ -662,9 +681,13 @@
 
     <!-- SCRIPTS -->
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
+    <!-- defer: descarga en paralelo sin bloquear el parseo del resto del
+         HTML/body; se ejecutan en el mismo orden en que están acá apenas
+         termina de parsearse el documento, así que bootstrap.min.js
+         sigue estando disponible antes que app.js (que usa bootstrap.Modal). -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" defer></script>
 
-    <script src="js/app.js"></script>
+    <script src="js/app.js" defer></script>
 
     <a
         id="whatsapp-float-btn"

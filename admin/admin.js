@@ -3293,6 +3293,9 @@ function nuevoProducto() {
   document.getElementById("pmImagenPreview").innerHTML = "🖼️";
   document.getElementById("pmImagenStatus").textContent = "";
   document.getElementById("pmImagenStatus").className = "pm-image-status";
+  document.getElementById("pmColorPrimario").value = "";
+  document.getElementById("pmGaleriaWrap").innerHTML = "";
+  _pmGaleriaContador = 0;
   document.getElementById("pmPublicado").checked = true;
   document.getElementById("pmDestacado").checked = false;
   document.getElementById("pmOferta").checked = false;
@@ -3325,6 +3328,10 @@ function editarProducto(codigo) {
   document.getElementById("pmImagenArchivo").value = "";
   document.getElementById("pmImagenStatus").textContent = "";
   document.getElementById("pmImagenStatus").className = "pm-image-status";
+  document.getElementById("pmColorPrimario").value = p.COLOR || "";
+  document.getElementById("pmGaleriaWrap").innerHTML = "";
+  _pmGaleriaContador = 0;
+  parsearGaleriaAdminString(p.IMAGENES).forEach(f => agregarFilaGaleria(f.color, f.url));
   document.getElementById("pmPublicado").checked = String(p.PUBLICADO || "").toUpperCase() === "SI";
   document.getElementById("pmDestacado").checked = String(p.DESTACADO || "").toUpperCase() === "SI";
   document.getElementById("pmOferta").checked = String(p.OFERTA || "").toUpperCase() === "SI";
@@ -3454,6 +3461,117 @@ function actualizarPreviewImagenProducto() {
   preview.innerHTML = `<img src="${escapeHtml(url)}" alt="" onerror="this.parentElement.innerHTML='⚠️';">`;
 }
 
+/* ===================== GALERÍA DE COLORES / IMÁGENES ADICIONALES ===================== */
+/* Cada producto puede tener, además de la foto principal (pmImagen), otras
+   fotos asociadas a un color — se muestran como miniaturas en el Quick View
+   del catálogo web. Se guardan todas juntas en la columna IMAGENES de la
+   hoja PRODUCTOS, con el formato "url1|color1, url2|color2, ...". */
+
+let _pmGaleriaContador = 0;
+
+/** Arma un string "url|color, url|color, ..." a partir de una lista de {url, color} — inverso de parsearGaleriaAdminString() */
+function armarGaleriaAdminString(filas) {
+  return filas
+    .filter(f => f.url)
+    .map(f => f.url + (f.color ? "|" + f.color : ""))
+    .join(", ");
+}
+
+/** Parsea el string guardado en IMAGENES de vuelta a [{url, color}, ...] */
+function parsearGaleriaAdminString(texto) {
+  return String(texto || "")
+    .split(",")
+    .map(entrada => entrada.trim())
+    .filter(Boolean)
+    .map(entrada => {
+      const [url, color] = entrada.split("|");
+      return { url: (url || "").trim(), color: (color || "").trim() };
+    });
+}
+
+/** Agrega una fila vacía (o pre-cargada, en modo edición) a la galería de colores */
+function agregarFilaGaleria(color, url) {
+  const wrap = document.getElementById("pmGaleriaWrap");
+  if (!wrap) return;
+
+  const n = ++_pmGaleriaContador;
+
+  const fila = document.createElement("div");
+  fila.className = "pm-galeria-row";
+  fila.dataset.fila = n;
+  fila.innerHTML = `
+    <div class="pm-galeria-preview" id="pmGalPreview_${n}">🖼️</div>
+    <div style="flex:1; min-width:0;">
+      <div class="row g-2">
+        <div class="col-6">
+          <input type="text" class="form-control form-control-sm" id="pmGalColor_${n}" placeholder="Color (ej: Rojo)" value="${escapeHtml(color || "")}">
+        </div>
+        <div class="col-6">
+          <input type="file" class="form-control form-control-sm" accept="image/*" onchange="onSeleccionarArchivoImagenGaleria(event, ${n})">
+        </div>
+      </div>
+      <input type="text" class="form-control form-control-sm mt-1" id="pmGalUrl_${n}" placeholder="o pegá una URL de imagen" value="${escapeHtml(url || "")}" oninput="actualizarPreviewGaleria(${n})">
+      <div class="pm-image-status" id="pmGalStatus_${n}"></div>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-danger pm-galeria-quitar" onclick="quitarFilaGaleria(${n})" title="Quitar este color">✕</button>
+  `;
+
+  wrap.appendChild(fila);
+  actualizarPreviewGaleria(n);
+}
+
+function quitarFilaGaleria(n) {
+  const fila = document.querySelector(`.pm-galeria-row[data-fila="${n}"]`);
+  if (fila) fila.remove();
+}
+
+function actualizarPreviewGaleria(n) {
+  const url = (document.getElementById(`pmGalUrl_${n}`) || {}).value || "";
+  const preview = document.getElementById(`pmGalPreview_${n}`);
+  if (!preview) return;
+  const limpia = url.trim();
+  if (!limpia) { preview.innerHTML = "🖼️"; return; }
+  preview.innerHTML = `<img src="${escapeHtml(limpia)}" alt="" onerror="this.parentElement.innerHTML='⚠️';">`;
+}
+
+/** Handles the file picker de una fila de la galería: recorta y sube igual que la foto principal */
+function onSeleccionarArchivoImagenGaleria(event, n) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById(`pmGalStatus_${n}`);
+
+  if (!file.type.startsWith("image/")) {
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = "Elegí un archivo de imagen (jpg, png, webp)."; }
+    event.target.value = "";
+    return;
+  }
+
+  const TAMANO_ORIGINAL_MAXIMO_MB = 20;
+  if (file.size > TAMANO_ORIGINAL_MAXIMO_MB * 1024 * 1024) {
+    if (statusEl) { statusEl.className = "pm-image-status error"; statusEl.textContent = `⚠️ El archivo pesa demasiado (máx. ${TAMANO_ORIGINAL_MAXIMO_MB}MB). Elegí una foto más liviana.`; }
+    event.target.value = "";
+    return;
+  }
+
+  abrirRecorteImagenProducto(file, event.target, {
+    urlInputId: `pmGalUrl_${n}`,
+    previewId: `pmGalPreview_${n}`,
+    statusId: `pmGalStatus_${n}`
+  });
+}
+
+/** Junta las filas de la galería que están cargadas en el modal en el string que se manda al backend */
+function obtenerGaleriaDesdeFormulario() {
+  const filas = Array.from(document.querySelectorAll("#pmGaleriaWrap .pm-galeria-row")).map(fila => {
+    const n = fila.dataset.fila;
+    const url = (document.getElementById(`pmGalUrl_${n}`) || {}).value || "";
+    const color = (document.getElementById(`pmGalColor_${n}`) || {}).value || "";
+    return { url: url.trim(), color: color.trim() };
+  });
+  return armarGaleriaAdminString(filas);
+}
+
 /**
  * Redimensiona y comprime una imagen en el navegador antes de subirla,
  * para que una foto de celular de varios MB no tarde una eternidad en
@@ -3547,12 +3665,13 @@ async function onSeleccionarArchivoImagenProducto(event) {
 }
 
 /** Sube (comprime + manda a Drive) el blob YA recortado por el editor de recorte */
-async function subirImagenProductoRecortada(blob, inputEl) {
-  const statusEl = document.getElementById("pmImagenStatus");
+async function subirImagenProductoRecortada(blob, inputEl, destino) {
+  destino = destino || _DESTINO_IMAGEN_PRINCIPAL;
+  const statusEl = document.getElementById(destino.statusId);
 
   // Local preview inmediata, mientras se comprime y sube en segundo plano
   const localUrl = URL.createObjectURL(blob);
-  const preview = document.getElementById("pmImagenPreview");
+  const preview = document.getElementById(destino.previewId);
   if (preview) preview.innerHTML = `<img src="${localUrl}" alt="">`;
 
   if (statusEl) { statusEl.className = "pm-image-status uploading"; statusEl.textContent = "⏳ Optimizando imagen..."; }
@@ -3589,7 +3708,8 @@ async function subirImagenProductoRecortada(blob, inputEl) {
       return;
     }
 
-    document.getElementById("pmImagen").value = data.url;
+    const urlInput = document.getElementById(destino.urlInputId);
+    if (urlInput) urlInput.value = data.url;
     if (statusEl) { statusEl.className = "pm-image-status success"; statusEl.textContent = `✓ Imagen subida (${pesoFinalKB}KB)`; }
 
   } catch (error) {
@@ -3606,15 +3726,23 @@ async function subirImagenProductoRecortada(blob, inputEl) {
    imagen y ajusta el zoom dentro de un marco cuadrado fijo; al confirmar, se
    genera un canvas cuadrado recortado que después pasa por comprimirImagenProducto(). */
 
-let _cropState = null; // { file, imgEl, natW, natH, vp, scale, minScale, maxScale, tx, ty, inputEl, dragging, dragStartX, dragStartY, txStart, tyStart }
+let _cropState = null; // { file, imgEl, natW, natH, vp, scale, minScale, maxScale, tx, ty, inputEl, destino, dragging, dragStartX, dragStartY, txStart, tyStart }
 let _cropListenersListos = false;
 
-function abrirRecorteImagenProducto(file, inputEl) {
+// Destino por defecto del recorte: la foto principal del producto.
+// Las filas de la galería de colores pasan su propio destino (ver
+// agregarFilaGaleria / onSeleccionarArchivoImagenGaleria) para que el
+// mismo editor de recorte suba a su URL/preview/estado en vez de
+// pisar siempre la foto principal.
+const _DESTINO_IMAGEN_PRINCIPAL = { urlInputId: "pmImagen", previewId: "pmImagenPreview", statusId: "pmImagenStatus" };
+
+function abrirRecorteImagenProducto(file, inputEl, destino) {
+  destino = destino || _DESTINO_IMAGEN_PRINCIPAL;
   const backdrop = document.getElementById("cropImagenModalBackdrop");
   const imgEl = document.getElementById("cropImgEl");
   if (!backdrop || !imgEl) {
     // Fallback de seguridad: si el modal no está en el HTML, subimos sin recortar.
-    subirImagenProductoRecortada(file, inputEl);
+    subirImagenProductoRecortada(file, inputEl, destino);
     return;
   }
 
@@ -3637,7 +3765,7 @@ function abrirRecorteImagenProducto(file, inputEl) {
       scale: minScale, minScale, maxScale: minScale * 4,
       tx: (vp - natW * minScale) / 2,
       ty: (vp - natH * minScale) / 2,
-      inputEl,
+      inputEl, destino,
       dragging: false, dragStartX: 0, dragStartY: 0, txStart: 0, tyStart: 0
     };
 
@@ -3770,12 +3898,13 @@ function confirmarRecorteImagenProducto() {
   const backdrop = document.getElementById("cropImagenModalBackdrop");
   const urlOriginal = s.imgEl.src;
   const inputEl = s.inputEl;
+  const destino = s.destino;
 
   canvas.toBlob(blob => {
     if (backdrop) backdrop.classList.remove("show");
     URL.revokeObjectURL(urlOriginal);
     _cropState = null;
-    if (blob) subirImagenProductoRecortada(blob, inputEl);
+    if (blob) subirImagenProductoRecortada(blob, inputEl, destino);
   }, "image/jpeg", 0.92);
 }
 
@@ -4147,6 +4276,8 @@ async function guardarProductoForm() {
   const precio   = document.getElementById("pmPrecio").value;
   const stock    = document.getElementById("pmStock").value;
   const imagen   = document.getElementById("pmImagen").value.trim();
+  const colorPrimario = document.getElementById("pmColorPrimario").value.trim();
+  const imagenes = obtenerGaleriaDesdeFormulario();
   const publicado = document.getElementById("pmPublicado").checked ? "SI" : "NO";
   const destacado  = document.getElementById("pmDestacado").checked ? "SI" : "NO";
   const oferta     = document.getElementById("pmOferta").checked ? "SI" : "NO";
@@ -4180,6 +4311,8 @@ async function guardarProductoForm() {
       PRECIO: precio || 0,
       STOCK: stock || 0,
       IMAGEN: imagen,
+      COLOR: colorPrimario,
+      IMAGENES: imagenes,
       PUBLICADO: publicado,
       DESTACADO: destacado,
       OFERTA: oferta,
@@ -5013,6 +5146,7 @@ function imprimirEtiquetaEnvio(datos) {
       border: 2px solid #000;
       border-radius: 4mm;
       page-break-inside: avoid;
+      color: #000;
     ">
 
       <!-- Franja frágil / cabecera -->
@@ -5172,6 +5306,43 @@ let descuentoTipoPOS   = "PORCENTAJE"; // "PORCENTAJE" | "MONTO"
 let descuentoValorPOS  = 0;            // valor ingresado (ej: 10 para 10%, o 500 para $500)
 let descuentoActivoPOS = false;
 let ajusteModoPOS      = "DESCUENTO";  // "DESCUENTO" | "RECARGO" — signo del ajuste aplicado
+
+/**
+ * Índice CODIGO -> producto y CODIGO_CAJA -> producto, para no hacer
+ * un Array.find() (O(n) sobre ~2000 productos) en cada escaneo. Se
+ * reconstruye solo, y una sola vez, la primera vez que se necesita
+ * después de que productosPOS cambió de referencia (recarga de
+ * catálogo) — se compara por referencia, así que no hace falta tocar
+ * cada uno de los puntos donde se reasigna productosPOS.
+ */
+let _productosPOSMapaCodigo = null;
+let _productosPOSMapaCaja = null;
+let _productosPOSMapaRef = null;
+
+function _asegurarMapasProductosPOS() {
+  if (_productosPOSMapaRef === productosPOS) return;
+  _productosPOSMapaCodigo = new Map();
+  _productosPOSMapaCaja = new Map();
+  for (const p of productosPOS) {
+    _productosPOSMapaCodigo.set(String(p.CODIGO).trim().toLowerCase(), p);
+    if (p.CODIGO_CAJA && Number(p.UNIDADES_POR_CAJA) > 0) {
+      _productosPOSMapaCaja.set(String(p.CODIGO_CAJA).trim().toLowerCase(), p);
+    }
+  }
+  _productosPOSMapaRef = productosPOS;
+}
+
+/** Busca un producto por CODIGO (unitario) en O(1) en vez de recorrer todo productosPOS */
+function buscarProductoPOSPorCodigo(codigo) {
+  _asegurarMapasProductosPOS();
+  return _productosPOSMapaCodigo.get(String(codigo).trim().toLowerCase()) || null;
+}
+
+/** Busca un producto por CODIGO_CAJA (código de la caja/bulto cerrado) en O(1) */
+function buscarProductoPOSPorCodigoCaja(codigo) {
+  _asegurarMapasProductosPOS();
+  return _productosPOSMapaCaja.get(String(codigo).trim().toLowerCase()) || null;
+}
 
 /** Limpia el caché de productos del POS y recarga desde el backend */
 async function actualizarCatalogoPOSManual() {
@@ -5353,6 +5524,62 @@ function productoCoincideBusquedaPOS(producto, filtroTexto) {
 
 /* ---- product grid ---- */
 
+// Producto que queda "fijado" como primer tile de la grilla después de
+// cada escaneo/click, además de aparecer en la tarjeta de "Último
+// escaneado" de más arriba — se mantiene ahí hasta el próximo escaneo
+// (se reemplaza) o hasta que se vacíe/finalice la venta (ver
+// limpiarPineadoPOS, llamado desde los puntos donde ticketPOS se
+// resetea a []).
+let productoPineadoPOS = null;
+
+/** Arma el HTML de un tile de producto — reutilizado para la grilla normal y para el tile pineado */
+function _armarTileProductoHTML(p, dataIdxAttr, esPineado) {
+  const stock     = p.STOCK !== undefined ? Number(p.STOCK) : null;
+  const agotado   = stock !== null && stock <= 0;
+  const stockBajo = stock !== null && stock > 0 && stock <= 5;
+
+  let stockBadge = "";
+  if (agotado)        stockBadge = `<span class="tile-stock out">Sin stock</span>`;
+  else if (stockBajo) stockBadge = `<span class="tile-stock low">Stock: ${stock}</span>`;
+  else if (stock !== null) stockBadge = `<span class="tile-stock ok">Stock: ${stock}</span>`;
+
+  const cat = p.CATEGORIA ? escapeHtml(String(p.CATEGORIA).trim()) : "";
+  const imagenUrl = p.IMAGEN ? String(p.IMAGEN).trim() : "";
+
+  return `
+    <div
+      class="product-tile${esPineado ? " product-tile-pinned" : ""}"
+      role="button"
+      tabindex="0"
+      ${dataIdxAttr}>
+      ${esPineado ? `<span class="tile-pinned-badge">📌 Último</span>` : ""}
+      <div class="tile-photo">
+        ${imagenUrl
+          ? `<img src="${escapeHtml(imagenUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='🛒';">`
+          : "🛒"}
+      </div>
+      <div class="tile-info">
+        <span class="tile-code">${escapeHtml(p.CODIGO)}</span>
+        <span class="tile-name">${escapeHtml(p.PRODUCTO)}</span>
+        ${cat ? `<span class="tile-cat">${cat}</span>` : ""}
+      </div>
+      <div class="tile-right">
+        <span class="tile-price">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</span>
+        ${stockBadge}
+      </div>
+      ${obtenerRolActual() === "vendedor" ? "" : `<button type="button" class="tile-edit" title="Editar precio y stock" onclick="event.stopPropagation(); abrirEdicionRapidaPOS('${escapeJsAttr(p.CODIGO)}');">✏️</button>`}
+      ${Number(p.UNIDADES_POR_CAJA) > 0 ? `<button type="button" class="tile-caja" title="Agregar 1 caja (${p.UNIDADES_POR_CAJA} uds) a $${Number(p.PRECIO_CAJA || 0).toLocaleString("es-AR")}" onclick="event.stopPropagation(); agregarCajaAlTicket(productosPOS.find(x => String(x.CODIGO)==='${escapeHtml(p.CODIGO)}'));">📦x${p.UNIDADES_POR_CAJA}</button>` : ""}
+      <span class="tile-add">+</span>
+    </div>`;
+}
+
+/** Saca el pineo — se llama al vaciar el ticket o al finalizar la venta, para volver la grilla a su orden por defecto */
+function limpiarPineadoPOS() {
+  if (!productoPineadoPOS) return;
+  productoPineadoPOS = null;
+  renderPosGrid(document.getElementById("posBusqueda")?.value.trim() || "");
+}
+
 function renderPosGrid(filtroTexto) {
   const grid = document.getElementById("posProductGrid");
   if (!grid) return;
@@ -5365,7 +5592,7 @@ function renderPosGrid(filtroTexto) {
     lista = lista.filter(p => productoCoincideBusquedaPOS(p, filtroTexto));
   }
 
-  if (lista.length === 0) {
+  if (lista.length === 0 && !productoPineadoPOS) {
     grid.innerHTML = `
       <div class="pos-empty-state" style="grid-column:1/-1;">
         <div class="ic">🔍</div>
@@ -5375,46 +5602,19 @@ function renderPosGrid(filtroTexto) {
     return;
   }
 
+  // El producto pineado va primero, sin duplicarlo si además calzaba
+  // con el filtro/categoría actual — el resto completa hasta el límite
+  // de tiles visibles de siempre.
+  let visibleList = lista.slice(0, 30);
+  if (productoPineadoPOS) {
+    visibleList = visibleList.filter(p => String(p.CODIGO).trim() !== String(productoPineadoPOS.CODIGO).trim());
+    visibleList = [productoPineadoPOS, ...visibleList].slice(0, 30);
+  }
+
   let html = "";
-  const visibleList = lista.slice(0, 30);
-
   visibleList.forEach((p, idx) => {
-    const stock     = p.STOCK !== undefined ? Number(p.STOCK) : null;
-    const agotado   = stock !== null && stock <= 0;
-    const stockBajo = stock !== null && stock > 0 && stock <= 5;
-
-    let stockBadge = "";
-    if (agotado)        stockBadge = `<span class="tile-stock out">Sin stock</span>`;
-    else if (stockBajo) stockBadge = `<span class="tile-stock low">Stock: ${stock}</span>`;
-    else if (stock !== null) stockBadge = `<span class="tile-stock ok">Stock: ${stock}</span>`;
-
-    const cat = p.CATEGORIA ? escapeHtml(String(p.CATEGORIA).trim()) : "";
-    const imagenUrl = p.IMAGEN ? String(p.IMAGEN).trim() : "";
-
-    html += `
-      <div
-        class="product-tile"
-        role="button"
-        tabindex="0"
-        data-idx="${idx}">
-        <div class="tile-photo">
-          ${imagenUrl
-            ? `<img src="${escapeHtml(imagenUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='🛒';">`
-            : "🛒"}
-        </div>
-        <div class="tile-info">
-          <span class="tile-code">${escapeHtml(p.CODIGO)}</span>
-          <span class="tile-name">${escapeHtml(p.PRODUCTO)}</span>
-          ${cat ? `<span class="tile-cat">${cat}</span>` : ""}
-        </div>
-        <div class="tile-right">
-          <span class="tile-price">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</span>
-          ${stockBadge}
-        </div>
-        ${obtenerRolActual() === "vendedor" ? "" : `<button type="button" class="tile-edit" data-idx="${idx}" title="Editar precio y stock" onclick="event.stopPropagation(); abrirEdicionRapidaPOS('${escapeJsAttr(p.CODIGO)}');">✏️</button>`}
-        ${Number(p.UNIDADES_POR_CAJA) > 0 ? `<button type="button" class="tile-caja" title="Agregar 1 caja (${p.UNIDADES_POR_CAJA} uds) a $${Number(p.PRECIO_CAJA || 0).toLocaleString("es-AR")}" onclick="event.stopPropagation(); agregarCajaAlTicket(productosPOS.find(x => String(x.CODIGO)==='${escapeHtml(p.CODIGO)}'));">📦x${p.UNIDADES_POR_CAJA}</button>` : ""}
-        <span class="tile-add">+</span>
-      </div>`;
+    const esPineado = !!productoPineadoPOS && String(p.CODIGO).trim() === String(productoPineadoPOS.CODIGO).trim();
+    html += _armarTileProductoHTML(p, `data-idx="${idx}"`, esPineado);
   });
 
   grid.innerHTML = html;
@@ -5471,13 +5671,11 @@ async function agregarProductoPorCodigo(codigo) {
   if (codigo === "") return;
   await asegurarProductosPOS();
 
-  const producto = productosPOS.find(p => String(p.CODIGO).trim().toLowerCase() === codigo.toLowerCase());
+  const producto = buscarProductoPOSPorCodigo(codigo);
   if (producto) { agregarProductoPOS(producto.CODIGO); return; }
 
   // No matcheó el código unitario — probar si es el código de la caja/bulto cerrado
-  const productoPorCaja = productosPOS.find(p =>
-    String(p.CODIGO_CAJA || "").trim().toLowerCase() === codigo.toLowerCase() && Number(p.UNIDADES_POR_CAJA) > 0
-  );
+  const productoPorCaja = buscarProductoPOSPorCodigoCaja(codigo);
   if (productoPorCaja) { agregarCajaAlTicket(productoPorCaja); return; }
 
   toast(`Producto no encontrado: ${codigo}`, "error");
@@ -5636,7 +5834,7 @@ async function guardarEdicionRapidaPOS() {
 
 function agregarProductoPOS(codigo) {
   codigo = String(codigo).trim();
-  const producto = productosPOS.find(p => String(p.CODIGO).trim() === codigo);
+  const producto = buscarProductoPOSPorCodigo(codigo);
   if (!producto) { toast("Producto no encontrado", "error"); return; }
   const stock = producto.STOCK !== undefined ? Number(producto.STOCK) : null;
   if (stock !== null && stock <= 0) {
@@ -5673,6 +5871,17 @@ function scrollTicketAlProducto(codigo) {
 function mostrarUltimoEscaneado(producto) {
   const panel = document.getElementById("scanResultPanel");
   if (!panel) return;
+
+  // Además de la tarjeta de arriba, este producto queda pineado como
+  // primer tile de la grilla hasta el próximo escaneo o hasta vaciar/
+  // finalizar la venta (ver limpiarPineadoPOS). Se usa la versión con
+  // demora (no renderPosGrid directo) por la misma razón que ya
+  // explicaba onPosInputKeyup más abajo: si se están escaneando varios
+  // productos seguidos, no tiene sentido reconstruir toda la grilla en
+  // CADA escaneo — se reconstruye una sola vez, 150ms después del
+  // último de la tanda.
+  productoPineadoPOS = producto;
+  renderPosGridConDemora(document.getElementById("posBusqueda")?.value.trim() || "");
 
   const thumb = document.getElementById("scanResultThumb");
   const imagenUrl = producto.IMAGEN ? String(producto.IMAGEN).trim() : "";
@@ -5740,6 +5949,7 @@ function vaciarTicketPOS() {
   if (ticketPOS.length === 0) return;
   // Sin confirm() — acción recuperable (el cajero puede volver a agregar productos)
   ticketPOS = [];
+  limpiarPineadoPOS();
   resetearDescuentoPOS();
   const inputRecibido = document.getElementById("inputRecibido");
   const cambioValor = document.getElementById("cambioValor");
@@ -6261,6 +6471,7 @@ async function confirmarFinalizarVenta() {
   // Mostrar recibo y limpiar ticket INMEDIATAMENTE
   mostrarRecibo(ventaIdTemp, itemsSnapshot, total, subtotal, montoDescuento, recibido);
   ticketPOS = [];
+  limpiarPineadoPOS();
   resetearDescuentoPOS();
   if (inputRec) inputRec.value = "";
   const cambioEl = document.getElementById("cambioValor");
@@ -6566,6 +6777,7 @@ async function confirmarPedidoAdmin() {
     // cajero pueda empezar de cero, pero sin tocar stock ni métricas
     // de ventas (a diferencia de finalizarVentaPOS).
     ticketPOS = [];
+    limpiarPineadoPOS();
     resetearDescuentoPOS();
     renderTicketPOS();
     ultimoCodigoAgregadoPOS = null;
@@ -6874,7 +7086,7 @@ function buildThermalESCPOS(ventaId, items, total, formaPago, fecha, descuento, 
   b.center(); b.text(cfg.nombre + " - Sistema POS"); b.feed(1);
   b.boldOff();
 
-  b.feed(3);
+  b.feed(6); // margen generoso antes del corte -- con 3 el guillotine cortaba muy cerca de la ultima linea y dejaba texto fantasma del ticket anterior en el siguiente
   b.cut();
 
   return b.build();
@@ -6955,7 +7167,7 @@ function buildThermalCierreESCPOS(resumen) {
   b.text("Cierre generado por " + cfg.nombre + " POS"); b.feed(1);
   b.boldOff();
 
-  b.feed(3);
+  b.feed(6); // margen generoso antes del corte -- con 3 el guillotine cortaba muy cerca de la ultima linea y dejaba texto fantasma del ticket anterior en el siguiente
   b.cut();
 
   return b.build();
@@ -6963,6 +7175,20 @@ function buildThermalCierreESCPOS(resumen) {
 
 function money(n) {
   return Number(n || 0).toLocaleString("es-AR");
+}
+
+/**
+ * Convierte texto a ASCII puro para que imprima bien en cualquier
+ * impresora térmica, sin importar su tabla de códigos activa. Ver la
+ * nota completa en EscPosBuilder.text() de por qué hace falta esto.
+ */
+function normalizarParaImpresoraTermica(str) {
+  return str
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita tildes/diacríticos: á→a, ñ→n, é→e, etc.
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ") // espacios "raros" (NBSP, espacio angosto, etc.) → espacio normal
+    .replace(/[¡¿]/g, "") // sin equivalente ASCII limpio — se descartan
+    .replace(/[""]/g, '"').replace(/['']/g, "'") // comillas tipográficas → comillas rectas
+    .replace(/[^\x00-\x7F]/g, "?"); // cualquier otro caracter no-ASCII remanente → "?" en vez de bytes basura
 }
 
 /** Small helper that accumulates ESC/POS bytes with simple word-wrap and two-column row support */
@@ -6982,10 +7208,34 @@ class EscPosBuilder {
   cut()     { this.push(ESCPOS.CUT); }
   feed(n)   { this.push(ESCPOS.FEED(n)); }
 
-  /** Encodes text as bytes (Latin-1, which covers Spanish accents on most ESC/POS printers) */
+  /**
+   * Codifica el texto para la impresora térmica.
+   *
+   * Antes esto mandaba los bytes crudos en UTF-8 (vía TextEncoder) —
+   * el comentario decía "Latin-1" pero el código hacía otra cosa, y
+   * esa es justo la causa del texto corrompido que se ve en tickets
+   * reales ("p.m." → "p.τám.", "¡Gracias" → "ᴛíGracias"): un
+   * caracter no-ASCII en UTF-8 ocupa 2 o 3 bytes, y la impresora — que
+   * lee byte por byte contra SU PROPIA tabla de un solo byte — imprime
+   * cada uno de esos bytes como un símbolo suelto en vez de reconocer
+   * el caracter original. Pasa con tildes, con "¡"/"¿", y hasta con el
+   * espacio angosto que $ toLocaleString mete entre "p." y "m." en
+   * formato 12hs — ese espacio también es multi-byte en UTF-8.
+   *
+   * En vez de adivinar qué tabla de códigos usa esta impresora en
+   * particular (varía según el modelo/driver), se transforma el texto
+   * a ASCII puro antes de mandarlo: sin tildes (á→a, ñ→n, etc., vía
+   * normalize+strip de diacríticos), sin "¡"/"¿" (no tienen
+   * equivalente ASCII limpio), y cualquier espacio "raro" (NBSP,
+   * espacio angosto, etc.) pasa a espacio normal. El ASCII de 7 bits
+   * se imprime igual sin importar la tabla de códigos activa en la
+   * impresora, así que esto funciona en cualquier modelo.
+   */
   text(str) {
-    const encoder = new TextEncoder(); // UTF-8; most modern POS80 controllers accept it fine
-    this.push(Array.from(encoder.encode(String(str))));
+    const limpio = normalizarParaImpresoraTermica(String(str));
+    const bytes = [];
+    for (let i = 0; i < limpio.length; i++) bytes.push(limpio.charCodeAt(i) & 0xFF);
+    this.push(bytes);
   }
 
   sep() {
@@ -7102,7 +7352,7 @@ function probarImpresoraUSB() {
   b.text("Si ves esto, la impresión"); b.feed(1);
   b.text("directa por USB funciona bien."); b.feed(1);
   b.boldOff();
-  b.feed(3);
+  b.feed(6); // margen generoso antes del corte -- con 3 el guillotine cortaba muy cerca de la ultima linea y dejaba texto fantasma del ticket anterior en el siguiente
   b.cut();
 
   enviarBytesAImpresoraUSB(b.build())
@@ -7228,6 +7478,88 @@ function imprimirVentaDesdeData(ventaObj) {
   );
 }
 
+/**
+ * Estima el alto real del ticket (en micrones) a partir de la
+ * cantidad de líneas que va a tener el contenido, en vez de usar
+ * siempre un alto fijo de 297mm (largo A4) para cualquier venta.
+ *
+ * Por qué no se mide el DOM: ya se probó (ver nota en
+ * _imprimirConDialogo) y resultó frágil, porque el frame de
+ * impresión está oculto y "mostrarlo" para medir su scrollHeight es
+ * poco confiable. Esta función en cambio calcula el alto a partir de
+ * los mismos datos con los que se arma el HTML (buildThermalHTML) —
+ * sin tocar el DOM, así que es determinística.
+ *
+ * Por qué importa para la velocidad: con impresión silenciosa
+ * (bridge.imprimirSilencioso), el alto de página que se le pasa al
+ * driver de la impresora es el alto de "hoja" que Windows va a
+ * intentar imprimir. Con un ticket de 3 productos pero alto fijo de
+ * 297mm, el driver puede alimentar papel de más (o demorar el corte)
+ * hasta completar esa altura, aunque el contenido real termine mucho
+ * antes — eso es lo que hace sentir lenta la salida física del
+ * ticket. Ajustando el alto al contenido real, el driver corta apenas
+ * termina de imprimir lo que hay.
+ */
+function estimarAltoTicketVentaMicrones(items, descuento, cambioData, cfg) {
+  const cfgReal = cfg || obtenerConfigNegocio();
+
+  let lineas = 6; // nombre del negocio, separador, fecha, N° de venta, forma de pago, separador
+  if (cfgReal.subtitulo) lineas++;
+  if (cfgReal.direccion) lineas++;
+  if (cfgReal.telefono1 || cfgReal.telefono2) lineas++;
+
+  lineas += (items ? items.length : 0) * 2; // cada producto ocupa 2 líneas: nombre, y cantidad x precio
+  if (descuento && Number(descuento.monto) !== 0) lineas += 2; // fila de "Subtotal" + fila de descuento/recargo
+  lineas += 1; // fila de TOTAL
+  if (cambioData && cambioData.recibido > 0) lineas += 2; // Recibido + Cambio
+
+  lineas += 2; // separador final + primera línea del pie
+  if (cfgReal.pie) lineas++;
+
+  const ALTO_LINEA_MM = 4.6; // alto aproximado de una línea a 80mm, fuente ~9-10pt
+  const MARGEN_MM = 12;      // margen de seguridad: feed final, espaciados entre bloques, etc.
+
+  const altoMm = Math.max(40, lineas * ALTO_LINEA_MM + MARGEN_MM); // nunca menos de 40mm (ticket mínimo)
+  return Math.round(Math.min(altoMm, 297) * 1000); // nunca más que el tope anterior (297mm) — red de seguridad
+}
+
+/**
+ * Resuelve qué impresora usar para el camino RAW: el nombre guardado
+ * en Configuración si hay uno, o si no, la impresora predeterminada de
+ * Windows (consultada una sola vez por sesión y cacheada en memoria).
+ *
+ * Por qué hace falta esto: antes, sin nada guardado en Configuración,
+ * el camino RAW se saltaba directo (el if de más abajo exigía un
+ * nombreImpresora no vacío) y toda la impresión dependía del camino
+ * viejo — más lento, y con un bug conocido de Electron en Windows
+ * donde, si se cancela el diálogo nativo, el callback a veces no
+ * llega nunca y el botón de imprimir queda colgado hasta que el
+ * watchdog de pos-offline.js lo destraba a la fuerza a los 10s.
+ */
+let _nombreImpresoraPorDefectoCache = null; // se resuelve una sola vez por sesión de la app
+
+async function resolverNombreImpresoraParaRaw(bridge) {
+  const guardado = localStorage.getItem("veekpos_impresora") || "";
+  if (guardado) return guardado;
+
+  if (_nombreImpresoraPorDefectoCache !== null) return _nombreImpresoraPorDefectoCache;
+
+  if (typeof bridge.listarImpresoras !== "function") {
+    _nombreImpresoraPorDefectoCache = "";
+    return "";
+  }
+
+  try {
+    const impresoras = await bridge.listarImpresoras();
+    const porDefecto = (impresoras || []).find(p => p.isDefault) || (impresoras || [])[0];
+    _nombreImpresoraPorDefectoCache = (porDefecto && porDefecto.name) || "";
+  } catch (error) {
+    console.error("No se pudo obtener la impresora predeterminada de Windows:", error);
+    _nombreImpresoraPorDefectoCache = "";
+  }
+  return _nombreImpresoraPorDefectoCache;
+}
+
 function _ejecutarImpresion(ventaId, items, total, formaPago, fecha, descuento) {
   const cambioData = obtenerDatosCambio();
 
@@ -7247,23 +7579,70 @@ function _ejecutarImpresion(ventaId, items, total, formaPago, fecha, descuento) 
     }
   };
 
+  const altoEstimadoMicrones = estimarAltoTicketVentaMicrones(items, descuento, cambioData);
+
   if (usbPrintHabilitado() && puertoImpresoraUSB) {
     const bytes = buildThermalESCPOS(ventaId, items, total, formaPago, fecha, descuento);
     enviarBytesAImpresoraUSB(bytes)
       .catch(error => {
         console.error("Error al imprimir por USB:", error);
-        return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData));
+        return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData), altoEstimadoMicrones);
       })
       .finally(liberar);
     return;
   }
 
-  _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData))
+  // Impresora térmica instalada como impresora de Windows (no Web
+  // Serial): si el bridge de Electron soporta impresión RAW, se
+  // prueba primero — son los mismos bytes ESC/POS que ya arma
+  // buildThermalESCPOS para el camino USB de arriba, pero escritos
+  // directo en la cola de la impresora en vez de por puerto serie.
+  // Es mucho más rápido que el camino de abajo (que renderiza la
+  // página completa en Chromium antes de imprimir) porque no pasa por
+  // ese renderizado. Si no está disponible (paquete nativo no
+  // instalado en esta PC) o falla, se cae solo al camino de siempre.
+  const bridge = window.veekpos || window.posOffline;
+
+  if (bridge && typeof bridge.imprimirDirectoRaw === "function") {
+    resolverNombreImpresoraParaRaw(bridge)
+      .then(nombreImpresora => {
+        if (!nombreImpresora) {
+          // No hay ninguna impresora configurada NI predeterminada en
+          // Windows que se pueda usar — ni vale la pena intentar RAW.
+          return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData), altoEstimadoMicrones);
+        }
+
+        const bytesRaw = buildThermalESCPOS(ventaId, items, total, formaPago, fecha, descuento);
+        const tAntesDeInvocar = performance.now();
+        return bridge.imprimirDirectoRaw({ deviceName: nombreImpresora, bytes: bytesRaw })
+          .then(resultado => {
+            const totalIpcMs = Math.round(performance.now() - tAntesDeInvocar);
+            // DIAGNÓSTICO TEMPORAL — se puede borrar una vez identificado el
+            // cuello de botella real. totalIpcMs es el tiempo completo desde
+            // que se invoca hasta que responde (incluye ida y vuelta del IPC);
+            // los otros tres vienen de adentro del proceso de Electron/PowerShell.
+            console.log(
+              `[impresión RAW] impresora: "${nombreImpresora}" — total IPC: ${totalIpcMs}ms — tiempo en el proceso persistente: ${resultado?.timings?.totalMs ?? "?"}ms`
+            );
+            if (resultado && resultado.success) return;
+            console.warn("Impresión RAW no disponible o falló, se usa el camino anterior:", resultado && resultado.errorType);
+            return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData), altoEstimadoMicrones);
+          });
+      })
+      .catch(error => {
+        console.error("Error al imprimir RAW:", error);
+        return _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData), altoEstimadoMicrones);
+      })
+      .finally(liberar);
+    return;
+  }
+
+  _imprimirConDialogo(buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, null, cambioData), altoEstimadoMicrones)
     .finally(liberar);
 }
 
 /** Falls back to the regular browser print dialog (used when USB printing is off, unsupported, or fails) */
-async function _imprimirConDialogo(html) {
+async function _imprimirConDialogo(html, altoMicronesEstimado) {
   const frame = document.getElementById("thermalPrintFrame");
   if (!frame) { toast("Error: frame de impresión no encontrado", "error"); return; }
 
@@ -7286,15 +7665,21 @@ async function _imprimirConDialogo(html) {
   }
 
   // NOTA: acá hubo dos intentos de calcular el alto real del ticket
-  // (midiendo scrollHeight) para no pedirle a Windows una página más
-  // grande de lo necesario y así imprimir más rápido. Los dos
-  // terminaron cortando o desalineando tickets reales — medir el alto
-  // de un elemento que normalmente está oculto (display:none) es
-  // frágil: para que la medición sea correcta hay que "mostrarlo"
-  // brevemente, y esa manipulación de estilos resultó nada confiable
-  // en la práctica. Se vuelve a un alto fijo, simple y sin trucos:
-  // menos veloz en teoría, pero nunca corta ni desalinea un ticket.
-  const altoMicrones = 297000; // 297mm (largo A4) — margen de sobra para cualquier ticket, incluido el de cierre de caja
+  // MIDIENDO EL DOM (scrollHeight) para no pedirle a Windows una
+  // página más grande de lo necesario. Los dos terminaron cortando o
+  // desalineando tickets reales — medir el alto de un elemento que
+  // normalmente está oculto (display:none) es frágil: para que la
+  // medición sea correcta hay que "mostrarlo" brevemente, y esa
+  // manipulación de estilos resultó nada confiable en la práctica.
+  //
+  // Esto es distinto: no se mide el DOM, se ESTIMA a partir de los
+  // datos del ticket (estimarAltoTicketVentaMicrones, calculado en
+  // _ejecutarImpresion antes de armar el HTML) — determinístico, sin
+  // tocar estilos ni depender de timing de renderizado. Si por lo que
+  // sea no llega un estimado (ej. ticket de cierre de caja, que no lo
+  // calcula), se mantiene el alto fijo de 297mm como red de
+  // seguridad, igual que antes.
+  const altoMicrones = altoMicronesEstimado || 297000;
 
   // Asegura que, si se cae al diálogo normal (window.print más abajo),
   // la página tenga el tamaño térmico (80mm) y no el A4 que pudo haber
@@ -10697,6 +11082,7 @@ async function consultarCobroMercadoPagoPolling() {
 
         // Limpiar ticket y actualizar UI
         ticketPOS = [];
+        limpiarPineadoPOS();
         resetearDescuentoPOS();
         const inputRec = document.getElementById("inputRecibido");
         const cambioEl = document.getElementById("cambioValor");
