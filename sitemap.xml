@@ -13,12 +13,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/7990500239556-abaco-abcedario/</loc>
-    <lastmod>2026-09-10</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1786224985508-slime-c-avion/</loc>
     <lastmod>2026-09-10</lastmod>
     <changefreq>weekly</changefreq>
@@ -38,6 +32,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7798307625929-acuarela-trama/</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7990500239556-abaco-abcedario/</loc>
     <lastmod>2026-09-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
