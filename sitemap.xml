@@ -511,12 +511,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2400000000938-mate-listo-500ml/</loc>
-    <lastmod>2026-09-12</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7892506185601-mate-listo-argentina-500ml/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
@@ -776,6 +770,18 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/2000556847140-set-limpieza-c-balde/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7450077081014-set-policia/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7453077239881-set-policia-blister/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1105,7 +1111,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/7892432280227-botella-sport-500ml/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/5658565547697-botella-sport-500ml/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1172,12 +1178,6 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1787074351772-balde-de-bloques-x120/</loc>
-    <lastmod>2026-09-12</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1787074425604-juego-de-loteria-en-bolsa/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -2167,7 +2167,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6587456265794-termo-bola-liso-1-3lt/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/6587456265794-termo-bola-liso-1-litro/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -2869,12 +2869,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2025113755-bowl-vidrio-gr-750-ml/</loc>
-    <lastmod>2026-09-12</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7798052580108-inodoro-explosivo/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
@@ -3115,13 +3109,13 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1789159708020-botella-sport-c-disenos-750ml/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/1780998104209-botella-sport-c-disenos-750ml/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/1780998103257-vaso-hoppy-c-diseno-900ml/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/1780998103257-vaso-termico-hoppy-c-diseno-900ml/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -3134,6 +3128,18 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/6952274890150-espejo-de-cartera-c-luz-led/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435002355-camion-volcador-c-casco-duravit-40x22-cm/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7798052580351-slime-c-bicho/</loc>
     <lastmod>2026-09-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
