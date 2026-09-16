@@ -529,12 +529,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/7892506185601-mate-listo-argentina-500ml/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/5658565430036-mate-listo-c-diseno-750ml/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
@@ -884,6 +878,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/31103-unicornio-c-luz-musical/</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7798052582881-valija-carry-on/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1357,12 +1357,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2005713630559-mate-acero-st/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/2006295257257-mate-3d-caballo/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
@@ -1466,12 +1460,6 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/714604032250-termo-bala-dakota-1lt/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/7862601287807-botella-termica-c-manija-780ml/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1903,7 +1891,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6921254911086-cepillo-de-madera/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/6921254911086-cepillo-de-pelo-madera/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -2096,12 +2084,6 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788026987995-yerbera-y-azucarera-plateado/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2004711143146-termo-media-manija-c-mate-1lt/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -2737,19 +2719,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788986755753-taza-sonic-color-rosa/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788986850413-taza-sonic-color-amarillo/</loc>
-    <lastmod>2026-09-16</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788986905600-taza-sonic-color-verde/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788986755753-taza-sonic-color/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -3229,7 +3199,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2025032524056-avion-c-luz-y-sonido/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/2025032524056-avion-c-luz-y-sonido-23x14-cm/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -3332,6 +3302,30 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1789529578789-disfraz-infantil-nena/</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/6931550440784-labubu-coca-cola-gr/</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7790780094353-set-de-tazas-x4-corazon/</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/2003494638849-frisbee-ninja/</loc>
+    <lastmod>2026-09-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/TEMP-1789580931660-carrito-de-compra/</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
