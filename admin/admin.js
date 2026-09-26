@@ -8502,6 +8502,78 @@ let camaraDetectorTimer = null;   // usado por la rama BarcodeDetector nativo
 let zxingReader = null;           // usado por la rama fallback ZXing
 let camaraScanActivo = false;     // evita agregar el mismo código dos veces al cerrar
 
+
+/* ---- diagnóstico + lectura por foto (fallback para iOS) ---- */
+
+function scanDebug(msg) {
+  let el = document.getElementById("scanDebug");
+  if (!el) {
+    const hint = document.querySelector(".scan-modal-hint");
+    if (!hint) return;
+    el = document.createElement("div");
+    el.id = "scanDebug";
+    el.style.cssText = "color:#94a3b8;font-size:11px;text-align:center;margin-top:6px;";
+    hint.after(el);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "scanPhotoBtn";
+    btn.textContent = "📸 Sacar foto del código";
+    btn.style.cssText = "display:block;margin:10px auto 0;padding:10px 16px;border:none;border-radius:10px;background:#22c55e;color:#fff;font-weight:700;font-size:14px;cursor:pointer;";
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
+    inp.style.display = "none";
+    inp.addEventListener("change", () => { if (inp.files && inp.files[0]) leerCodigoDeFoto(inp.files[0]); inp.value = ""; });
+    btn.addEventListener("click", () => inp.click());
+    el.after(btn); btn.after(inp);
+  }
+  el.textContent = msg;
+}
+
+function zxingLib() {
+  return (typeof ZXing !== "undefined") ? ZXing : (typeof ZXingBrowser !== "undefined" ? ZXingBrowser : null);
+}
+
+async function leerCodigoDeFoto(file) {
+  const Z = zxingLib();
+  if (!Z) { toast("Motor de escaneo no cargado (revisá internet)", "error"); return; }
+  scanDebug("Procesando foto...");
+  try {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = url; });
+    const hints = new Map();
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
+      Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
+      Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.ITF
+    ]);
+    hints.set(Z.DecodeHintType.TRY_HARDER, true);
+    const reader = new Z.MultiFormatReader();
+    reader.setHints(hints);
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    for (const maxLado of [1600, 1000, 2200]) {
+      const k = Math.min(1, maxLado / Math.max(img.width, img.height));
+      canvas.width = Math.round(img.width * k); canvas.height = Math.round(img.height * k);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
+        const valor = reader.decode(bmp).getText();
+        URL.revokeObjectURL(url);
+        cerrarCamaraScan();
+        agregarProductoPorCodigo(valor);
+        return;
+      } catch (e) { /* probar otro tamaño */ }
+    }
+    URL.revokeObjectURL(url);
+    scanDebug("No se detectó código en la foto. Acercate y probá de nuevo.");
+  } catch (e) {
+    console.error(e);
+    scanDebug("Error procesando la foto: " + (e && e.message));
+  }
+}
+
 async function abrirCamaraScan() {
   const backdrop  = document.getElementById("scanModalBackdrop");
   const videoWrap = document.getElementById("scanVideoWrap");
@@ -8509,6 +8581,7 @@ async function abrirCamaraScan() {
 
   backdrop.classList.add("show");
   camaraScanActivo = true;
+  scanDebug("Iniciando cámara... motor: " + ("BarcodeDetector" in window ? "nativo" : (zxingLib() ? "ZXing OK" : "ZXing NO CARGADO")));
 
   // getUserMedia requiere HTTPS (o localhost) — en iOS, además, ni siquiera
   // existe el objeto si la página no es segura, así que lo detectamos antes
@@ -8524,10 +8597,21 @@ async function abrirCamaraScan() {
 
   try {
     camaraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
+      // 1280x720: el default de iOS (640x480) es muy poco para leer barras finas
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
+    video.setAttribute("playsinline", "");
+    video.muted = true;
     video.srcObject = camaraStream;
+    // Enfoque continuo (iOS lo soporta en algunos modelos); si no, se ignora
+    try {
+      const track = camaraStream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.focusMode && caps.focusMode.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+      }
+    } catch (e) { /* noop */ }
     // iOS Safari necesita el play() explícito incluso con autoplay+playsinline
     try { await video.play(); } catch (e) { /* algunos navegadores ya lo reproducen solos */ }
 
@@ -8542,6 +8626,7 @@ async function abrirCamaraScan() {
 
   } catch (error) {
     console.error("Error de cámara:", error);
+    scanDebug("Error: " + (error && (error.name + " " + error.message)));
     const permisoDenegado = error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
     videoWrap.innerHTML = permisoDenegado
       ? `<div class="scan-unsupported">
@@ -8574,7 +8659,8 @@ function iniciarDeteccionNativa(video) {
 }
 
 async function iniciarDeteccionZXing(video) {
-  if (typeof ZXingBrowser === "undefined" && typeof ZXing === "undefined") {
+  const ZXingLib = (typeof ZXing !== "undefined") ? ZXing : (typeof ZXingBrowser !== "undefined" ? ZXingBrowser : null);
+  if (!ZXingLib) {
     document.getElementById("scanVideoWrap").innerHTML = `
       <div class="scan-unsupported">
         No se pudo cargar el motor de escaneo.<br>
@@ -8584,32 +8670,54 @@ async function iniciarDeteccionZXing(video) {
   }
 
   try {
-    // El paquete UMD de zxing-library expone la librería como `ZXing`
-    const ZXingLib = (typeof ZXingBrowser !== "undefined") ? ZXingBrowser : ZXing;
+    // Decodificamos nosotros mismos: dibujamos el frame del <video> en un canvas
+    // y lo pasamos al MultiFormatReader. Evita decodeFromVideoElementContinuously,
+    // que hace reset() y puede cortar el stream que ya tenemos en iOS Safari.
     const hints = new Map();
-    const formatos = [
+    hints.set(ZXingLib.DecodeHintType.POSSIBLE_FORMATS, [
       ZXingLib.BarcodeFormat.EAN_13, ZXingLib.BarcodeFormat.EAN_8,
       ZXingLib.BarcodeFormat.UPC_A, ZXingLib.BarcodeFormat.UPC_E,
       ZXingLib.BarcodeFormat.CODE_128, ZXingLib.BarcodeFormat.CODE_39,
       ZXingLib.BarcodeFormat.QR_CODE, ZXingLib.BarcodeFormat.ITF
-    ];
-    hints.set(ZXingLib.DecodeHintType.POSSIBLE_FORMATS, formatos);
+    ]);
     hints.set(ZXingLib.DecodeHintType.TRY_HARDER, true);
 
-    zxingReader = new ZXingLib.BrowserMultiFormatReader(hints);
+    const reader = new ZXingLib.MultiFormatReader();
+    reader.setHints(hints);
+    zxingReader = reader;
 
-    // decodeFromVideoElementContinuously reutiliza el stream de video ya
-    // asignado a <video> (no vuelve a pedir permiso de cámara) y llama al
-    // callback en cada frame; seguimos escaneando hasta encontrar un match.
-    zxingReader.decodeFromVideoElementContinuously(video, (result, err) => {
-      if (result && camaraScanActivo) {
-        const valor = result.getText ? result.getText() : result.text;
-        cerrarCamaraScan();
-        agregarProductoPorCodigo(valor);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    let ocupado = false;
+    let frames = 0;
+
+    camaraDetectorTimer = setInterval(() => {
+      if (ocupado || !camaraScanActivo) return;
+      if (video.readyState < 2 || !video.videoWidth) { scanDebug("Esperando imagen de la cámara..."); return; }
+      ocupado = true;
+      try {
+        // Recorte central (franja ancha) donde está el reticle: más rápido y más preciso
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const sw = Math.round(vw * 0.8), sh = Math.round(vh * 0.5);
+        const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
+        canvas.width = sw; canvas.height = sh;
+        if (++frames % 10 === 0) scanDebug("Leyendo " + vw + "x" + vh + " · intentos: " + frames);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const source = new ZXingLib.HTMLCanvasElementLuminanceSource(canvas);
+        const bitmap = new ZXingLib.BinaryBitmap(new ZXingLib.HybridBinarizer(source));
+        const result = reader.decode(bitmap);
+        const valor = result.getText();
+        if (valor) {
+          cerrarCamaraScan();
+          agregarProductoPorCodigo(valor);
+        }
+      } catch (err) {
+        // NotFoundException en casi todos los frames: esperable
+      } finally {
+        ocupado = false;
       }
-      // NotFoundException se dispara en casi todos los frames sin código
-      // visible: es esperable, no un error real.
-    });
+    }, 150);
   } catch (error) {
     console.error("Error iniciando ZXing:", error);
     document.getElementById("scanVideoWrap").innerHTML = `
@@ -8626,10 +8734,7 @@ function cerrarCamaraScan() {
   camaraScanActivo = false;
 
   if (camaraDetectorTimer) { clearInterval(camaraDetectorTimer); camaraDetectorTimer = null; }
-  if (zxingReader) {
-    try { zxingReader.reset(); } catch (e) { /* noop */ }
-    zxingReader = null;
-  }
+  zxingReader = null;
   if (camaraStream) { camaraStream.getTracks().forEach(t => t.stop()); camaraStream = null; }
 
   document.getElementById("btnCameraScan").classList.remove("active");
