@@ -66,7 +66,7 @@ async function fetchAPI(url, opciones = {}, config = {}) {
   const esMutacionPorNombre = /^(guardar|actualizar|eliminar|crear|editar|registrar|cambiar|anular|borrar|marcar|activar|fijar|probar|cancelar|confirmar|aplicar|reordenar|subir|migrar|inicializar|sumar)/i.test(accionUrl);
 
   const esLectura = (!opciones.method || opciones.method === "GET") && !esMutacionPorNombre;
-  const timeoutMs = config.timeoutMs || (esLectura ? 10000 : 20000);
+  const timeoutMs = config.timeoutMs || (esLectura ? 25000 : 30000);
   const maxIntentos = esLectura ? (config.reintentos ?? 2) : 1;
 
   let ultimoError;
@@ -155,12 +155,25 @@ function iniciarPollingSecciones() {
 
   setTimeout(() => {
     ejecutarPollingSecciones();
-    setInterval(ejecutarPollingSecciones, 15000); // 15 s — near real-time without hammering the API
+    setInterval(ejecutarPollingSecciones, 30000); // 15 s — near real-time without hammering the API
   }, offsetInicial);
 }
 
+// Polling más liviano: sin interacción del usuario por más de 5 minutos
+// (caja abierta pero nadie mirando la pantalla) se consulta 1 de cada 4
+// ciclos (~2 min) en vez de cada 30s; y sin red no se consulta.
+let _ultimaInteraccionUsuario = Date.now();
+let _cicloPolling = 0;
+["pointerdown", "keydown", "wheel", "touchstart"].forEach(ev =>
+  document.addEventListener(ev, () => { _ultimaInteraccionUsuario = Date.now(); }, { passive: true, capture: true })
+);
+
 function ejecutarPollingSecciones() {
   if (document.hidden) return; // pestaña en segundo plano: no consultar
+  if (!navigator.onLine) return;
+  _cicloPolling++;
+  const inactivo = Date.now() - _ultimaInteraccionUsuario > 5 * 60 * 1000;
+  if (inactivo && _cicloPolling % 4 !== 0) return;
 
   const dashboardVisible = document.getElementById("dashboard").style.display === "block";
   const pedidosVisible   = document.getElementById("pedidos").style.display === "block";
@@ -220,29 +233,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Verificar licencia (solo en Electron con window.veekpos disponible)
   aplicarEstadoLicencia();
 
-  mostrarSeccion("dashboard");
-  cargarConfigNegocioDesdeBackend();
-  reconectarImpresoraUSBSiPosible();
-  // Antes esto esperaba a que terminaran las métricas para recién
-  // ahí arrancar el pedido de ventas POS — dos idas y vueltas al
-  // backend en serie, una atrás de la otra, aunque no dependen entre
-  // sí. Ahora arrancan las dos al mismo tiempo: el dashboard queda
-  // listo en lo que tarda la más lenta de las dos, no en la suma.
-  await Promise.all([cargarMetricas(), cargarVentasPOS()]);
-  iniciarPollingSecciones();
+  // Pantalla inicial: el POS (si el rol lo permite; si no, el dashboard).
+  // Nada de lo que sigue bloquea el arranque: antes se esperaba a las
+  // metricas/ventas del dashboard (Apps Script, ~20s) antes de quitar la
+  // pantalla de carga, aunque el usuario ni estuviera en el dashboard.
+  // En Electron, pos-offline.js se inyecta desde preload.js y envuelve
+  // asegurarProductosPOS (catalogo desde SQLite). Se espera (max 3s) a que
+  // este listo, para no abrir el POS con la version online lenta.
+  if (window.veekpos || window.posOffline) {
+    for (let i = 0; i < 60 && !window.__posOfflineListo; i++) await new Promise(r => setTimeout(r, 50));
+  }
+  mostrarSeccion(seccionPermitidaParaRol("pos") ? "pos" : "dashboard");
 
-  // Si quedaron ventas pendientes de sincronizar de una sesión
-  // anterior (por ejemplo, se cerró la app en medio de un corte de
-  // conexión), mostrar el aviso y probar subirlas ahora.
-  actualizarBadgeVentasPendientes(_leerColaVentasPendientes().length);
-  sincronizarVentasPendientes();
-
-  // Ocultar el loading cat una vez que el dashboard cargó
+  // Quitar el loading ya mismo
   const cat = document.getElementById("loadingCat");
   if (cat) {
     cat.style.opacity = "0";
     setTimeout(() => cat.remove(), 500);
   }
+
+  cargarConfigNegocioDesdeBackend();
+  reconectarImpresoraUSBSiPosible();
+  iniciarPollingSecciones();
+
+  // Ventas pendientes de sesiones anteriores: aviso + reintento en segundo plano
+  actualizarBadgeVentasPendientes(_leerColaVentasPendientes().length);
+  sincronizarVentasPendientes();
 
   setupScannerListener();
   suscribirseATransferenciasMP();
@@ -264,7 +280,21 @@ function escapeHtml(text) {
  *  — si no, un apóstrofe en el dato (código, nombre, motivo, etc.) corta el
  *  string antes de tiempo y rompe el atributo con "missing ) after argument list". */
 function escapeJsAttr(text) {
-  return escapeHtml(text).replace(/'/g, "&#39;");
+  // Orden correcto: primero se escapa para el string JS (\ y '), y RECIÉN
+  // DESPUÉS para el atributo HTML. Antes solo se convertía ' en &#39;, que el
+  // navegador decodifica de nuevo a ' ANTES de ejecutar el JS, así que el
+  // apóstrofe seguía cortando el string. Sirve tanto para onclick="..." como
+  // para onclick='...'.
+  const js = String(text ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, " ");
+  return js
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -1599,6 +1629,9 @@ function renderVentasPOSRecientes(lista) {
     const pago  = v.FORMA_PAGO || v.PAGO || "—";
     const total = Number(v.TOTAL || 0).toLocaleString("es-AR");
 
+    const _vidRec = String(v.VENTA_ID || v.ID || "");
+    _ventasMapPOS[_vidRec] = v;
+
     html += `
       <tr>
         <td class="mono">${escapeHtml(String(v.VENTA_ID || v.ID || "—"))}</td>
@@ -1608,7 +1641,7 @@ function renderVentasPOSRecientes(lista) {
         <td class="money">$${total}</td>
         <td>
           <button class="btn btn-sm btn-outline-secondary"
-            onclick='imprimirVentaDesdeData(${JSON.stringify(v)})'>🖨️</button>
+            onclick="imprimirVentaDesdeData(_ventasMapPOS['${escapeJsAttr(_vidRec)}'])">🖨️</button>
         </td>
       </tr>
     `;
@@ -1707,9 +1740,9 @@ function renderVentasPOSHistorial(lista) {
         <td class="money" style="${anulada ? 'text-decoration:line-through;' : ''}">$${total}</td>
         <td>
           <button class="btn btn-sm btn-outline-secondary"
-            onclick='imprimirVentaDesdeData(_ventasMapPOS[${JSON.stringify(_vid)}])' title="Reimprimir">🖨️ Reimprimir</button>
+            onclick="imprimirVentaDesdeData(_ventasMapPOS['${escapeJsAttr(_vid)}'])" title="Reimprimir">🖨️ Reimprimir</button>
           <button class="btn btn-sm btn-outline-danger ms-1"
-            onclick='eliminarVentaPOS(_ventasMapPOS[${JSON.stringify(_vid)}])'
+            onclick="eliminarVentaPOS(_ventasMapPOS['${escapeJsAttr(_vid)}'])"
             ${anulada ? 'disabled title="Ya anulada"' : 'title="Anular"'}>🗑️ Anular</button>
         </td>`;
       frag.appendChild(tr);
@@ -1859,6 +1892,8 @@ function mostrarConfigTab(tabId, btnEl) {
 }
 
 function mostrarSeccion(id) {
+  // "Reportes de Compras" ahora es la pestaña "Compras y reposición" de Reportes
+  if (id === "reportesCompras") { _repTabActiva = "compras"; id = "reportes"; }
   if (!seccionPermitidaParaRol(id)) {
     toast("No tenés permiso para acceder a esta sección", "error");
     id = "dashboard";
@@ -1880,6 +1915,7 @@ function mostrarSeccion(id) {
   });
 
   dolarBurbujaAlCambiarSeccion(id);
+  if (id === "dashboard") cargarSiVencido("dashboard", () => { cargarMetricas(); cargarVentasPOS(); });
   if (id === "pedidos")   cargarSiVencido("pedidos", cargarPedidos);
   if (id === "productos") cargarSiVencido("productos", cargarProductos);
   if (id === "ingresoProductos") {
@@ -1970,8 +2006,11 @@ function mostrarSeccion(id) {
     cargarResumenCierreCaja(selector ? selector.value : null);
   }
   if (id === "movimientosCaja") cargarMovimientosCajaHoy();
-  if (id === "reportes")   cargarSiVencido("reportes", cargarTodosLosReportes);
-  if (id === "reportesCompras") cargarReporteCompras();
+  if (id === "reportes") {
+    // Pasado el tiempo de caché de secciones, se vuelve a pedir todo al entrar
+    cargarSiVencido("reportes", () => { Object.keys(_repTabRangoCargado).forEach(k => _repTabRangoCargado[k] = null); });
+    mostrarTabReportes(_repTabActiva || _repTabPorDefecto());
+  }
 }
 
 /* ===================== PEDIDOS ===================== */
@@ -2024,21 +2063,117 @@ function encolarVentaPendiente(venta) {
   _guardarColaVentasPendientes(cola);
 }
 
-/** Muestra/oculta un aviso discreto de cuántas ventas todavía no se subieron al servidor */
-function actualizarBadgeVentasPendientes(cantidad) {
-  let badge = document.getElementById("badgeVentasPendientes");
-  if (!badge) {
-    badge = document.createElement("div");
-    badge.id = "badgeVentasPendientes";
-    badge.style.cssText = "position:fixed;bottom:14px;right:14px;z-index:9999;background:var(--amber-500,#f59e0b);color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;display:none;";
-    badge.onclick = () => sincronizarVentasPendientes(true);
-    document.body.appendChild(badge);
+/* ---- Botón de estado de sincronización (barra lateral) ----
+   Reemplaza la banda azul de arriba y el aviso flotante de abajo a la
+   derecha. Siempre visible, con color según el estado:
+     verde  = todo sincronizado
+     azul   = hay pendientes / sincronizando
+     ámbar  = sin conexión (trabajando local)
+     rojo   = hay operaciones con error que no subieron
+   En la app de escritorio lo alimenta pos-offline.js (cola SQLite);
+   en la web, la cola de ventas de localStorage de acá abajo. */
+const _TEXTOS_ESTADO_SYNC = {
+  ok: "Sincronizado",
+  sincronizando: "Sincronizando…",
+  pendiente: "Pendiente de subir",
+  offline: "Sin conexión",
+  error: "Error al sincronizar"
+};
+
+function pintarEstadoSync(info) {
+  const estado = (info && info.estado) || "ok";
+  const cantidad = Number((info && info.cantidad) || 0);
+  const texto = (info && info.texto) || _TEXTOS_ESTADO_SYNC[estado] || "";
+  const detalle = (info && info.detalle) || "";
+
+  const btn = document.getElementById("syncEstadoBtn");
+  if (btn) {
+    btn.dataset.estado = estado;
+    btn.title = detalle || texto;
+    const t = document.getElementById("syncEstadoTexto");
+    const c = document.getElementById("syncEstadoCantidad");
+    if (t) t.textContent = texto;
+    if (c) c.textContent = cantidad > 0 ? String(cantidad) : "";
   }
+  const punto = document.getElementById("syncEstadoDotMovil");
+  if (punto) {
+    punto.dataset.estado = estado;
+    punto.title = (detalle || texto) + (cantidad > 0 ? ` (${cantidad})` : "");
+  }
+}
+window.pintarEstadoSync = pintarEstadoSync;
+
+/** Click en el botón: en escritorio fuerza la sync de la cola SQLite; en la web reintenta la cola local */
+function clickBotonEstadoSync() {
+  if (typeof window.clickEstadoSyncEscritorio === "function") return window.clickEstadoSyncEscritorio();
+  if (_leerColaVentasPendientes().length === 0) { toast("Todo está sincronizado ✓", "success"); return; }
+  sincronizarVentasPendientes(true);
+}
+
+function _esAppEscritorio() {
+  return typeof window.veekpos !== "undefined" || typeof window.posOffline !== "undefined";
+}
+
+/** Versión web del indicador (en escritorio lo maneja pos-offline.js) */
+function actualizarBadgeVentasPendientes(cantidad) {
+  if (_esAppEscritorio()) return;
   if (cantidad > 0) {
-    badge.textContent = `📴 ${cantidad} venta${cantidad === 1 ? "" : "s"} sin sincronizar — tocar para reintentar`;
-    badge.style.display = "block";
+    pintarEstadoSync({
+      estado: navigator.onLine ? "pendiente" : "offline",
+      cantidad,
+      detalle: `${cantidad} venta${cantidad === 1 ? "" : "s"} sin sincronizar — tocá para reintentar`
+    });
   } else {
-    badge.style.display = "none";
+    pintarEstadoSync({ estado: navigator.onLine ? "ok" : "offline" });
+  }
+}
+
+/**
+ * Registra una venta ya cobrada. En la app de escritorio va SIEMPRE por
+ * el camino local-primero de pos-offline.js (red multi-caja o SQLite +
+ * cola, sin esperar a Apps Script). En la web, POST directo y, si falla,
+ * a la cola de localStorage. Devuelve { ventaId } con el ID definitivo
+ * si se conoce, o null.
+ */
+async function registrarVentaCobrada(venta) {
+  if (typeof window.registrarVentaLocalPrimero === "function") {
+    try {
+      return await window.registrarVentaLocalPrimero(venta);
+    } catch (error) {
+      console.error("Falló el registro local de la venta, se usa la cola de respaldo:", error);
+    }
+  }
+
+  try {
+    const response = await fetchAPI(
+      API_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "guardarVenta",
+          total: venta.total,
+          formaPago: venta.formaPago,
+          vendedor: venta.vendedor || "",
+          observaciones: venta.observaciones || "",
+          carrito: venta.carrito,
+          clienteVentaId: venta.clienteVentaId
+        })
+      },
+      { timeoutMs: 15000 } // mutación: sin reintento automático propio (lo maneja la cola)
+    );
+    const data = await response.json();
+    if (data.success) return { ventaId: data.ventaId || null };
+    toast("⚠️ La venta se mostró pero el servidor la rechazó: " + (data.message || "error desconocido"), "error");
+    encolarVentaPendiente(venta);
+    return null;
+  } catch (err) {
+    console.error("Error al guardar venta en backend:", err);
+    // Se guarda en la cola local con el mismo clienteVentaId: el
+    // backend lo reconoce y nunca la duplica al reintentar.
+    encolarVentaPendiente(venta);
+    toast("📴 Sin conexión — la venta se guardó localmente y se subirá sola al reconectar", "error");
+    return null;
   }
 }
 
@@ -2049,10 +2184,13 @@ let _sincronizandoVentasPendientes = false;
  *  automáticos de fondo (cada 30s, o al reconectar) no, para no repetir el mismo error cada rato mientras dure el corte. */
 async function sincronizarVentasPendientes(manual) {
   if (_sincronizandoVentasPendientes) return;
+  // En escritorio esta cola se migra a SQLite al arrancar (pos-offline.js)
+  if (_esAppEscritorio() && typeof window.registrarVentaLocalPrimero === "function") return;
   const cola = _leerColaVentasPendientes();
-  if (cola.length === 0) return;
+  if (cola.length === 0) { actualizarBadgeVentasPendientes(0); return; }
 
   _sincronizandoVentasPendientes = true;
+  if (!_esAppEscritorio()) pintarEstadoSync({ estado: "sincronizando", cantidad: cola.length });
   const pendientes = [];
 
   for (const venta of cola) {
@@ -2067,6 +2205,7 @@ async function sincronizarVentasPendientes(manual) {
             total: venta.total,
             formaPago: venta.formaPago,
             observaciones: venta.observaciones || "",
+            vendedor: venta.vendedor || "",
             carrito: venta.carrito,
             clienteVentaId: venta.clienteVentaId
           })
@@ -2103,8 +2242,10 @@ async function sincronizarVentasPendientes(manual) {
 // además cada 30s como red de respaldo (el evento "online" del
 // navegador no siempre es 100% confiable para saber si hay internet
 // real, solo que hay una interfaz de red activa).
-window.addEventListener("online", sincronizarVentasPendientes);
-setInterval(sincronizarVentasPendientes, 30000);
+window.addEventListener("online", () => sincronizarVentasPendientes());
+window.addEventListener("offline", () => actualizarBadgeVentasPendientes(_leerColaVentasPendientes().length));
+setInterval(() => sincronizarVentasPendientes(), 30000);
+document.addEventListener("DOMContentLoaded", () => actualizarBadgeVentasPendientes(_leerColaVentasPendientes().length));
 
 function cacheGet(clave) {
   try {
@@ -2121,7 +2262,15 @@ function cacheSet(clave, data) {
   } catch(e) {}
 }
 
-async function cargarPedidos() {
+let _cargandoPedidos = null; // evita que el polling y la apertura de la sección pidan la lista a la vez
+
+function cargarPedidos() {
+  if (_cargandoPedidos) return _cargandoPedidos;
+  _cargandoPedidos = _cargarPedidosImpl().finally(() => { _cargandoPedidos = null; });
+  return _cargandoPedidos;
+}
+
+async function _cargarPedidosImpl() {
   // Mostrar caché al instante si existe
   const cached = cacheGet("pedidos");
   if (cached) {
@@ -2130,7 +2279,10 @@ async function cargarPedidos() {
     if (!cached.stale) return; // fresco, no hace falta recargar
   }
   try {
-    const response = await fetchAPI(API_URL + "?action=pedidos");
+    // Un solo intento con más margen: antes eran 2 intentos de 25s, y si
+    // Apps Script estaba lento el segundo volvía a pedir la misma lectura
+    // pesada mientras la primera todavía corría del lado del servidor.
+    const response = await fetchAPI(API_URL + "?action=pedidos", {}, { timeoutMs: 45000, reintentos: 1 });
     const data = await response.json();
     if (!data.pedidos) return;
 
@@ -2146,9 +2298,13 @@ async function cargarPedidos() {
     pedidosGlobal = data.pedidos;
     cacheSet("pedidos", pedidosGlobal);
     _avisoPedidosCaido = false; // se pudo actualizar bien — resetea el aviso para el próximo corte
-    if (cambio) filtrarPedidos();
+    if (cambio && _pedidosEnProceso.size === 0) filtrarPedidos(); // no pisar el "Guardando…" de una acción en curso
   } catch (error) {
-    console.error("Error pedidos:", error);
+    if (error && error.name === "AbortError") {
+      console.warn("Pedidos: el servidor tardó demasiado en responder (se reintenta en el próximo ciclo).");
+    } else {
+      console.error("Error pedidos:", error);
+    }
     // Solo se avisa la primera vez que falla, no en cada intento del
     // polling de 15s — si la conexión está mal por un rato, un toast
     // nuevo cada 15s sería más molesto que informativo.
@@ -2191,7 +2347,7 @@ async function _eliminarPedidosCanceladosConfirmado() {
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "eliminarPedidosCancelados", rol: obtenerRolActual() })
       },
-      { timeoutMs: 20000 }
+      { timeoutMs: 30000 }
     );
     const data = await response.json();
 
@@ -2220,30 +2376,135 @@ function recargarVentasPOSHistorial() {
   cargarVentasPOSHistorial();
 }
 
-async function cambiarEstado(pedidoId, estado) {
+/* ---- Feedback visual de acciones sobre pedidos ----
+   Antes, al cambiar el estado o marcar un pedido como cobrado no pasaba
+   nada visible hasta que respondía Apps Script (a veces varios
+   segundos), y no quedaba claro si el click se había registrado.
+   Ahora: el control muestra "Guardando…" con spinner apenas se toca,
+   la tarjeta queda atenuada, y al terminar se ve ✓ en verde (o el
+   error en rojo, volviendo al valor anterior). */
+function _tarjetaPedido(pedidoId) {
+  return document.querySelector(`[data-pedido-card="${CSS.escape(String(pedidoId))}"]`);
+}
+
+function _marcarPedidoProcesando(pedidoId, el, texto) {
+  const card = _tarjetaPedido(pedidoId);
+  if (card) {
+    card.classList.add("pedido-procesando");
+    card.querySelectorAll(".pedido-pago-btn, .pedido-card-controls select, .pedido-cobrado-controles button")
+      .forEach(b => { b.disabled = true; });
+  }
+  if (el) {
+    el.dataset.textoOriginal = el.tagName === "SELECT" ? "" : el.innerHTML;
+    el.classList.add("accion-pendiente");
+    if (el.tagName !== "SELECT") el.innerHTML = `<span class="spinner-accion"></span>${texto}`;
+    else {
+      const aviso = document.createElement("span");
+      aviso.className = "accion-aviso accion-aviso-pendiente";
+      aviso.innerHTML = `<span class="spinner-accion"></span>${texto}`;
+      el.insertAdjacentElement("afterend", aviso);
+    }
+  }
+}
+
+function _terminarPedidoProcesando(pedidoId, el, ok, textoResultado) {
+  const card = _tarjetaPedido(pedidoId);
+  if (card) {
+    card.classList.remove("pedido-procesando");
+    if (!ok) {
+      card.querySelectorAll(".pedido-pago-btn, .pedido-card-controls select, .pedido-cobrado-controles button")
+        .forEach(b => { b.disabled = false; });
+    }
+  }
+  if (!el) return;
+  el.classList.remove("accion-pendiente");
+  if (el.tagName === "SELECT") {
+    const aviso = el.parentElement && el.parentElement.querySelector(".accion-aviso");
+    if (aviso) {
+      aviso.className = "accion-aviso " + (ok ? "accion-aviso-ok" : "accion-aviso-error");
+      aviso.textContent = textoResultado;
+      if (!ok) setTimeout(() => aviso.remove(), 2500);
+    }
+    if (!ok) {
+      el.value = el.dataset.estadoPrevio || el.value; // vuelve al estado que tenía
+      el.classList.add("accion-error");
+      setTimeout(() => el.classList.remove("accion-error"), 600);
+    } else {
+      el.classList.add("accion-ok");
+    }
+  } else {
+    el.classList.add(ok ? "accion-ok" : "accion-error");
+    el.innerHTML = textoResultado;
+    if (!ok) {
+      setTimeout(() => {
+        el.classList.remove("accion-error");
+        if (el.dataset.textoOriginal) el.innerHTML = el.dataset.textoOriginal;
+      }, 1800);
+    }
+  }
+}
+
+/** Después de un cambio exitoso: deja ver el ✓ un momento, redibuja y resalta la tarjeta */
+function _refrescarPedidosConDestello(pedidoId) {
+  setTimeout(() => {
+    filtrarPedidos();
+    requestAnimationFrame(() => {
+      const card = _tarjetaPedido(pedidoId);
+      if (card) {
+        card.classList.add("pedido-recien-actualizado");
+        setTimeout(() => card.classList.remove("pedido-recien-actualizado"), 1600);
+      }
+    });
+  }, 900);
+}
+
+/** Lee la respuesta de Apps Script avisando claro si no vino JSON (ej. página de error 404 de Google) */
+async function _leerRespuestaJSON(response) {
+  const texto = await response.text();
+  try { return JSON.parse(texto); }
+  catch (e) {
+    throw new Error(response.ok
+      ? "El servidor devolvió una respuesta inválida"
+      : `El servidor respondió ${response.status} — revisá la implementación de Apps Script`);
+  }
+}
+
+async function cambiarEstado(pedidoId, estado, el) {
+  if (_pedidosEnProceso.has(pedidoId)) return;
+  _pedidosEnProceso.add(pedidoId);
+  _marcarPedidoProcesando(pedidoId, el, "Guardando…");
+  let ok = false, mensaje = "";
   try {
     const response = await fetchAPI(
       API_URL +
       "?action=actualizarEstado" +
       "&pedidoId=" + encodeURIComponent(pedidoId) +
-      "&estado="   + encodeURIComponent(estado)
+      "&estado="   + encodeURIComponent(estado),
+      {},
+      { timeoutMs: 30000 }
     );
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      console.error("Respuesta no era JSON válido en cambiarEstado:", error);
-      toast("Error de conexión", "error");
-      return;
+    const data = await _leerRespuestaJSON(response);
+    if (!data.success) {
+      mensaje = data.message || "No se pudo actualizar el pedido";
+    } else {
+      ok = true;
+      const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
+      if (p) { p.ESTADO = estado; invalidarCache("pedidos"); }
     }
-    if (!data.success) { toast("No se pudo actualizar el pedido", "error"); return; }
-    // Actualizar en memoria sin recargar todo
-    const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
-    if (p) { p.ESTADO = estado; invalidarCache("pedidos"); filtrarPedidos(); }
-    toast("Estado actualizado", "success");
   } catch (error) {
-    console.error(error);
-    toast("Error de conexión", "error");
+    console.error("Error al cambiar el estado del pedido:", error);
+    mensaje = error && error.name === "AbortError" ? "El servidor no respondió a tiempo" : (error.message || "Error de conexión");
+  } finally {
+    _pedidosEnProceso.delete(pedidoId);
+  }
+
+  if (ok) {
+    _terminarPedidoProcesando(pedidoId, el, true, "✓ Guardado");
+    toast(`Pedido ${pedidoId}: estado cambiado a ${estado}`, "success");
+    _refrescarPedidosConDestello(pedidoId);
+  } else {
+    _terminarPedidoProcesando(pedidoId, el, false, "✕ No se guardó");
+    toast(`No se pudo cambiar el estado: ${mensaje}`, "error");
   }
 }
 
@@ -2287,47 +2548,54 @@ async function cambiarFormaPagoPedido(pedidoId, formaPago) {
 /** Llama al backend para marcar/desmarcar el pedido como cobrado en caja, y refresca la lista */
 const _pedidosEnProceso = new Set(); // evita doble cobro del mismo pedido
 
-async function aplicarCobroPedido(pedidoId, cobrado, formaPago) {
+async function aplicarCobroPedido(pedidoId, cobrado, formaPago, el) {
   if (_pedidosEnProceso.has(pedidoId)) return; // ya procesando
   _pedidosEnProceso.add(pedidoId);
+  _marcarPedidoProcesando(pedidoId, el, cobrado ? "Cobrando…" : "Desmarcando…");
 
-  // Deshabilitar los botones de ese pedido visualmente
-  document.querySelectorAll(`.pedido-pago-btns[data-pedido="${pedidoId}"] button`)
-    .forEach(b => b.disabled = true);
-
+  let ok = false, mensaje = "";
   try {
-    const response = await fetch(
+    // Con timeout (antes era un fetch sin límite: si Apps Script se
+    // colgaba, el botón quedaba bloqueado para siempre)
+    const response = await fetchAPI(
       API_URL +
       "?action=marcarPedidoCobrado" +
       "&pedidoId=" + encodeURIComponent(pedidoId) +
       "&cobrado=" + (cobrado ? "SI" : "NO") +
-      "&formaPago=" + encodeURIComponent(formaPago || "")
+      "&formaPago=" + encodeURIComponent(formaPago || ""),
+      {},
+      { timeoutMs: 30000 }
     );
-    const data = await response.json();
+    const data = await _leerRespuestaJSON(response);
 
     if (!data.success) {
-      toast(data.message || "No se pudo actualizar el cobro del pedido", "error");
-      return;
+      mensaje = data.message || "No se pudo actualizar el cobro del pedido";
+    } else {
+      ok = true;
+      const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
+      if (p) {
+        p.COBRADO = cobrado ? "SI" : "NO";
+        p.FORMA_PAGO_COBRO = formaPago || "";
+        invalidarCache("pedidos");
+      }
     }
-
-    // Actualizar en memoria para respuesta inmediata
-    const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
-    if (p) {
-      p.COBRADO = cobrado ? "SI" : "NO";
-      p.FORMA_PAGO_COBRO = formaPago || "";
-      invalidarCache("pedidos");
-      filtrarPedidos();
-    }
-
-    toast(cobrado
-      ? `Pedido cobrado con ${formaPago} — ya suma al cierre de caja`
-      : "Pedido desmarcado — ya no suma al cierre de caja", "success");
-
   } catch (error) {
     console.error("Error al marcar el pedido como cobrado:", error);
-    toast("Error de conexión al actualizar el pedido", "error");
+    mensaje = error && error.name === "AbortError" ? "El servidor no respondió a tiempo" : (error.message || "Error de conexión");
   } finally {
     _pedidosEnProceso.delete(pedidoId);
+  }
+
+  if (ok) {
+    _terminarPedidoProcesando(pedidoId, el, true, cobrado ? "✓ Cobrado" : "✓ Desmarcado");
+    toast(cobrado
+      ? `Pedido ${pedidoId} cobrado con ${formaPago} — ya suma al cierre de caja`
+      : `Pedido ${pedidoId} desmarcado — ya no suma al cierre de caja`, "success");
+    _refrescarPedidosConDestello(pedidoId);
+    invalidarCache("ventasPOS");
+  } else {
+    _terminarPedidoProcesando(pedidoId, el, false, "✕ Error");
+    toast(`No se pudo ${cobrado ? "marcar como cobrado" : "desmarcar"} el pedido: ${mensaje}`, "error");
   }
 }
 
@@ -2382,6 +2650,8 @@ async function abrirDetallePedido(pedidoId) {
     // complicaría tener que devolver/redescontar con más margen de error.
     const btnEditarItems = document.getElementById("btnEditarItemsPedido");
     if (btnEditarItems) btnEditarItems.style.display = pedido.ESTADO === "NUEVO" ? "inline-flex" : "none";
+    const btnEditarCliente = document.getElementById("btnEditarClientePedido");
+    if (btnEditarCliente) btnEditarCliente.style.display = "inline-flex";
 
     const simbolo = String(pedido.MONEDA || "ARS").toUpperCase() === "USD" ? "US$" : "$";
     const filas = detalle.map(item => `
@@ -2430,6 +2700,125 @@ function cerrarModalDetallePedido() {
   pedidoDetalleActual = null;
   _carritoEdicionPedido = null;
   _descuentoEdicionPedido = null;
+}
+
+/* ===================== EDITAR DATOS DEL CLIENTE DE UN PEDIDO =====================
+   Cualquier estado. El backend (editarDatosClientePedido, en
+   PapeleraYClientes.gs) actualiza el pedido, refleja los cambios en la
+   hoja CLIENTES (o crea el cliente si no existía) y regenera el PDF. */
+
+function activarEdicionClientePedido() {
+  if (!pedidoDetalleActual) return;
+  const p = pedidoDetalleActual.pedido;
+  const campo = (id, label, valor, col, extra) => `
+    <div class="${col}">
+      <label class="form-label" style="font-size:12px;">${label}</label>
+      <input type="text" class="form-control form-control-sm" id="${id}" value="${escapeHtml(valor || "")}" ${extra || ""}>
+    </div>`;
+
+  ["btnEditarItemsPedido", "btnEditarClientePedido"].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.style.display = "none";
+  });
+
+  document.getElementById("pedidoDetalleBody").innerHTML = `
+    <div class="config-preview-hint mb-3">
+      <span class="ic">👤</span> Editando los datos del cliente del pedido <strong>${escapeHtml(p.PEDIDO_ID)}</strong>.
+      Los cambios también se guardan en <strong>Clientes</strong>.
+    </div>
+    <div class="row g-2 mb-2">
+      ${campo("edCliNombre", 'Nombre / razón social <span class="text-danger">*</span>', p.CLIENTE, "col-12")}
+    </div>
+    <div class="row g-2 mb-2">
+      ${campo("edCliDni", "DNI/CUIT", p.DNI, "col-6", 'inputmode="numeric"')}
+      ${campo("edCliTelefono", "Teléfono", p.TELEFONO, "col-6")}
+    </div>
+    <div class="row g-2 mb-2">
+      ${campo("edCliDireccion", "Dirección", p.DIRECCION, "col-12")}
+    </div>
+    <div class="row g-2 mb-2">
+      ${campo("edCliLocalidad", "Localidad", p.LOCALIDAD, "col-7")}
+      ${campo("edCliCP", "Código Postal", p.CODIGO_POSTAL || p.CODIGOPOSTAL, "col-5")}
+    </div>
+    <div class="row g-2 mb-2">
+      ${campo("edCliProvincia", "Provincia", p.PROVINCIA, "col-6")}
+      ${campo("edCliEmpresa", "Transporte / empresa", p.EMPRESA, "col-6")}
+    </div>
+    <div class="d-flex gap-2 justify-content-end mt-3">
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="cancelarEdicionClientePedido()">Cancelar</button>
+      <button type="button" class="btn btn-primary btn-sm" id="btnGuardarClientePedido" onclick="guardarEdicionClientePedido()">💾 Guardar cambios</button>
+    </div>`;
+
+  setTimeout(() => document.getElementById("edCliNombre")?.focus(), 50);
+}
+
+function cancelarEdicionClientePedido() {
+  if (!pedidoDetalleActual) return;
+  abrirDetallePedido(pedidoDetalleActual.pedido.PEDIDO_ID);
+}
+
+async function guardarEdicionClientePedido() {
+  if (!pedidoDetalleActual) return;
+  const val = id => (document.getElementById(id)?.value || "").trim();
+  const nombre = val("edCliNombre");
+  if (!nombre) {
+    toast("El nombre del cliente es obligatorio", "error");
+    document.getElementById("edCliNombre")?.focus();
+    return;
+  }
+
+  const pedidoId = pedidoDetalleActual.pedido.PEDIDO_ID;
+  const cuerpo = {
+    action: "editarDatosClientePedido",
+    pedidoId,
+    nombre,
+    dni: val("edCliDni"),
+    telefono: val("edCliTelefono"),
+    direccion: val("edCliDireccion"),
+    localidad: val("edCliLocalidad"),
+    codigoPostal: val("edCliCP"),
+    provincia: val("edCliProvincia"),
+    empresa: val("edCliEmpresa")
+  };
+
+  const btn = document.getElementById("btnGuardarClientePedido");
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+
+  try {
+    const response = await fetchAPI(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(cuerpo)
+    });
+    const data = await _leerRespuestaJSON(response);
+
+    if (!data || !data.success) {
+      let msg = (data && data.message) || "No se pudieron guardar los cambios";
+      if (/no v[aá]lida|desconocida|no reconocida|invalid/i.test(msg)) {
+        msg = "El backend todavía no tiene esta función: agregá PapeleraYClientes.gs en Apps Script y publicá una nueva versión (ver LEEME).";
+      }
+      toast(msg, "error");
+      if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar cambios"; }
+      return;
+    }
+
+    const accion = data.cliente && data.cliente.accion === "creado" ? "y se creó el cliente en Clientes" : "y en Clientes";
+    toast(`Datos del cliente actualizados en el pedido ${accion}`, "success");
+    if (data.pdfError) toast("Ojo: no se pudo regenerar el PDF del pedido", "error");
+
+    // Que Clientes, el selector de clientes y la lista de pedidos vean los datos nuevos
+    _clientesPedidoCache = [];
+    invalidarCache("clientes", "pedidos");
+    try { if (typeof cargarClientesDesdeBackend === "function") cargarClientesDesdeBackend(); } catch (e) {}
+    try { recargarPedidos(); } catch (e) {}
+
+    abrirDetallePedido(pedidoId);
+
+  } catch (error) {
+    console.error("Error al editar cliente del pedido:", error);
+    toast("Error de conexión — revisá tu internet e intentá de nuevo", "error");
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar cambios"; }
+  }
 }
 
 /* ===================== EDITAR ÍTEMS DE UN PEDIDO (solo estado NUEVO) ===================== */
@@ -2741,22 +3130,223 @@ async function guardarEdicionItemsPedido() {
  * WhatsApp). No crea ningún registro en Pedidos ni toca stock — es
  * pura utilidad de impresión, todo queda en el navegador.
  */
+let _etqManualClienteSeleccionado = null; // cliente elegido de la lista (null = destinatario nuevo/escrito a mano)
+let _etqManualClientes = [];
+
 function abrirModalEtiquetaManual() {
   ["etqManualCliente", "etqManualDni", "etqManualTelefono", "etqManualDireccion",
    "etqManualLocalidad", "etqManualCP", "etqManualProvincia", "etqManualTransporte",
-   "etqManualReferencia"].forEach(id => {
+   "etqManualReferencia", "etqManualBuscarCliente"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
+  _etqManualClienteSeleccionado = null;
+  const chk = document.getElementById("etqManualGuardarCliente");
+  if (chk) chk.checked = true;
+  const res = document.getElementById("etqManualResultadosClientes");
+  if (res) { res.style.display = "none"; res.innerHTML = ""; }
+  etqManualActualizarGuardar();
+
   document.getElementById("etiquetaManualModalBackdrop").classList.add("show");
-  setTimeout(() => document.getElementById("etqManualCliente")?.focus(), 50);
+  setTimeout(() => (document.getElementById("etqManualBuscarCliente") || document.getElementById("etqManualCliente"))?.focus(), 50);
+  etqManualCargarClientes();
 }
 
 function cerrarModalEtiquetaManual() {
   document.getElementById("etiquetaManualModalBackdrop").classList.remove("show");
 }
 
-function generarEtiquetaManual() {
+/** Trae los clientes (con localidad/provincia/CP) — usa el mismo cache que el selector de pedidos */
+async function etqManualCargarClientes() {
+  let lista = [];
+  try { lista = await cargarClientesParaPedido(); } catch (e) { lista = []; }
+  // Sin internet en la app de escritorio: se usa la copia local de clientes
+  if ((!lista || lista.length === 0) && window.posOffline && typeof window.posOffline.obtenerClientesConCredito === "function") {
+    try { lista = await window.posOffline.obtenerClientesConCredito(); } catch (e) { lista = []; }
+  }
+  if ((!lista || lista.length === 0) && Array.isArray(clientesGlobal)) lista = clientesGlobal;
+  _etqManualClientes = lista || [];
+  const buscador = document.getElementById("etqManualBuscarCliente");
+  if (buscador && buscador.value.trim()) etqManualFiltrarClientes();
+}
+
+function etqManualFiltrarClientes() {
+  const input = document.getElementById("etqManualBuscarCliente");
+  const res = document.getElementById("etqManualResultadosClientes");
+  if (!input || !res) return;
+  const q = normalizarBusquedaPOS(input.value);
+  if (!q) { res.style.display = "none"; res.innerHTML = ""; return; }
+
+  const qDigitos = q.replace(/\D/g, "");
+  const coincidencias = _etqManualClientes.filter(c => {
+    const texto = normalizarBusquedaPOS([c.NOMBRE, c.ALIAS, c.DNI, c.TELEFONO, c.LOCALIDAD].join(" "));
+    if (texto.includes(q)) return true;
+    return qDigitos.length >= 3 && String(c.DNI || "").replace(/\D/g, "").includes(qDigitos);
+  }).slice(0, 12);
+
+  if (coincidencias.length === 0) {
+    res.innerHTML = `<div style="padding:8px 10px; font-size:12.5px; color:var(--slate-500);">
+      No hay clientes con "${escapeHtml(input.value.trim())}".
+      <a href="#" onclick="event.preventDefault(); etqManualUsarComoNuevo();">Cargarlo como cliente nuevo</a>
+    </div>`;
+  } else {
+    res.innerHTML = coincidencias.map(c => `
+      <div class="etq-cli-opcion" style="padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--slate-100);"
+           onmousedown="event.preventDefault(); etqManualSeleccionarCliente('${escapeJsAttr(c.CLIENTE_ID)}')"
+           onmouseover="this.style.background='var(--slate-100)'" onmouseout="this.style.background=''">
+        <div style="font-weight:600; font-size:13px;">${escapeHtml(c.NOMBRE)}${c.ALIAS ? ` <span style="color:var(--slate-500); font-weight:400;">(${escapeHtml(c.ALIAS)})</span>` : ""}</div>
+        <div style="font-size:11.5px; color:var(--slate-500);">${[c.DNI ? "DNI " + escapeHtml(c.DNI) : "", escapeHtml(c.LOCALIDAD || ""), escapeHtml(c.TELEFONO || "")].filter(Boolean).join(" · ")}</div>
+      </div>`).join("");
+  }
+  res.style.display = "block";
+}
+
+function etqManualTeclaBuscar(event) {
+  if (event.key === "Escape") {
+    const res = document.getElementById("etqManualResultadosClientes");
+    if (res) res.style.display = "none";
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    const primera = document.querySelector("#etqManualResultadosClientes .etq-cli-opcion");
+    if (primera) primera.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  }
+}
+
+function etqManualOcultarResultados() {
+  setTimeout(() => {
+    const res = document.getElementById("etqManualResultadosClientes");
+    if (res) res.style.display = "none";
+  }, 150);
+}
+
+function etqManualSeleccionarCliente(clienteId) {
+  const c = _etqManualClientes.find(x => String(x.CLIENTE_ID) === String(clienteId));
+  if (!c) return;
+  _etqManualClienteSeleccionado = c;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ""; };
+  set("etqManualCliente", c.NOMBRE);
+  set("etqManualDni", c.DNI);
+  set("etqManualTelefono", c.TELEFONO);
+  set("etqManualDireccion", c.DIRECCION);
+  set("etqManualLocalidad", c.LOCALIDAD);
+  set("etqManualCP", c.CODIGO_POSTAL || c.CODIGOPOSTAL);
+  set("etqManualProvincia", c.PROVINCIA);
+  set("etqManualTransporte", c.EMPRESA);
+  set("etqManualBuscarCliente", c.NOMBRE);
+  const res = document.getElementById("etqManualResultadosClientes");
+  if (res) res.style.display = "none";
+  etqManualActualizarGuardar();
+}
+
+/** Pasa lo escrito en el buscador al nombre del destinatario, como cliente nuevo */
+function etqManualUsarComoNuevo() {
+  const texto = (document.getElementById("etqManualBuscarCliente")?.value || "").trim();
+  etqManualLimpiarCliente();
+  const nombre = document.getElementById("etqManualCliente");
+  if (nombre) { if (texto && !/^\d+$/.test(texto)) nombre.value = texto; nombre.focus(); }
+  const dni = document.getElementById("etqManualDni");
+  if (dni && /^\d{7,11}$/.test(texto)) dni.value = texto;
+}
+
+/** "✕ Nuevo": deja el formulario vacío para cargar un destinatario que no está en la lista */
+function etqManualLimpiarCliente() {
+  _etqManualClienteSeleccionado = null;
+  ["etqManualCliente", "etqManualDni", "etqManualTelefono", "etqManualDireccion",
+   "etqManualLocalidad", "etqManualCP", "etqManualProvincia", "etqManualTransporte",
+   "etqManualBuscarCliente"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  const res = document.getElementById("etqManualResultadosClientes");
+  if (res) res.style.display = "none";
+  etqManualActualizarGuardar();
+  document.getElementById("etqManualCliente")?.focus();
+}
+
+/**
+ * Muestra el tilde "Guardar como cliente nuevo" solo cuando el
+ * destinatario NO es un cliente existente. Si se elige uno de la lista
+ * pero después se cambia el nombre o el DNI a mano, se lo toma como
+ * otro destinatario (nuevo).
+ */
+function etqManualActualizarGuardar() {
+  const c = _etqManualClienteSeleccionado;
+  if (c) {
+    const nombre = (document.getElementById("etqManualCliente")?.value || "").trim().toLowerCase();
+    const dni = (document.getElementById("etqManualDni")?.value || "").replace(/\D/g, "");
+    const mismoNombre = nombre === String(c.NOMBRE || "").trim().toLowerCase();
+    const mismoDni = dni === String(c.DNI || "").replace(/\D/g, "");
+    if (!mismoNombre || !mismoDni) _etqManualClienteSeleccionado = null;
+  }
+
+  const fila = document.getElementById("etqManualGuardarClienteFila");
+  const aviso = document.getElementById("etqManualClienteSeleccionadoAviso");
+  if (fila) fila.style.display = _etqManualClienteSeleccionado ? "none" : "block";
+  if (aviso) {
+    aviso.style.display = _etqManualClienteSeleccionado ? "block" : "none";
+    if (_etqManualClienteSeleccionado) aviso.textContent = "✓ Cliente de la lista: " + _etqManualClienteSeleccionado.NOMBRE;
+  }
+}
+
+/** Busca si el destinatario ya existe en la lista local (por DNI o nombre exacto) */
+function _etqManualBuscarExistente(nombre, dni) {
+  const dniNum = String(dni || "").replace(/\D/g, "");
+  if (dniNum) return _etqManualClientes.find(c => String(c.DNI || "").replace(/\D/g, "") === dniNum) || null;
+  const n = String(nombre || "").trim().toLowerCase();
+  return _etqManualClientes.find(c => String(c.NOMBRE || "").trim().toLowerCase() === n) || null;
+}
+
+/**
+ * Guarda el destinatario como cliente nuevo. Usa guardarClienteDesdeRotulo
+ * (guarda también localidad/provincia/CP y no duplica por DNI); si el
+ * backend todavía no tiene ese archivo, cae a crearCliente; y en la app
+ * de escritorio sin internet, lo guarda local y lo encola para Sheets.
+ */
+async function etqManualGuardarCliente(datos) {
+  const existente = _etqManualBuscarExistente(datos.nombre, datos.dni);
+  if (existente) return { ok: true, existente: true, nombre: existente.NOMBRE };
+
+  const post = async (cuerpo) => {
+    const response = await fetchAPI(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(cuerpo)
+    });
+    return _leerRespuestaJSON(response);
+  };
+
+  try {
+    let data = await post({ action: "guardarClienteDesdeRotulo", ...datos });
+    if (!data || (!data.success && /no v[aá]lida|desconocida|no reconocida|invalid/i.test(String(data.message || "")))) {
+      data = await post({ action: "crearCliente", nombre: datos.nombre, alias: "", dni: datos.dni, telefono: datos.telefono,
+                          empresa: datos.empresa, direccion: datos.direccion, aCredito: "NO" });
+    }
+    if (!data || !data.success) return { ok: false, message: (data && data.message) || "No se pudo guardar el cliente" };
+
+    _clientesPedidoCache = [];
+    invalidarCache("clientes");
+    try { if (typeof cargarClientesDesdeBackend === "function") cargarClientesDesdeBackend(); } catch (e) {}
+    return { ok: true, existente: !!data.existente, nombre: data.nombre || datos.nombre };
+
+  } catch (error) {
+    // App de escritorio sin conexión: guardar local + encolar para Sheets
+    if (window.posOffline && typeof window.posOffline.crearCliente === "function" && typeof window.posOffline.encolarAccion === "function") {
+      try {
+        const local = { nombre: datos.nombre, alias: "", dni: datos.dni, telefono: datos.telefono,
+                        direccion: datos.direccion, empresa: datos.empresa, aCredito: "NO" };
+        await window.posOffline.crearCliente(local);
+        await window.posOffline.encolarAccion("cliente_upsert", { editando: false, ...local });
+        return { ok: true, offline: true, nombre: datos.nombre };
+      } catch (e2) {
+        console.error("No se pudo guardar el cliente offline:", e2);
+      }
+    }
+    console.error("Error al guardar cliente desde el rótulo:", error);
+    return { ok: false, message: "Error de conexión al guardar el cliente" };
+  }
+}
+
+async function generarEtiquetaManual() {
   const val = id => (document.getElementById(id)?.value || "").trim();
 
   const cliente = val("etqManualCliente");
@@ -2768,11 +3358,10 @@ function generarEtiquetaManual() {
 
   // Si no se cargó una referencia a mano, se genera una localmente
   // (timestamp) solo para tener algo que mostrar en el código de
-  // barras — no es un ID de pedido real, no queda guardado en
-  // ningún lado más que en esta etiqueta impresa.
+  // barras — no es un ID de pedido real.
   const referencia = val("etqManualReferencia") || ("MANUAL-" + Date.now());
 
-  imprimirEtiquetaEnvio({
+  const datos = {
     pedidoId: referencia,
     cliente,
     telefono: val("etqManualTelefono"),
@@ -2782,9 +3371,27 @@ function generarEtiquetaManual() {
     codigoPostal: val("etqManualCP"),
     dni: val("etqManualDni"),
     transporte: val("etqManualTransporte")
-  });
+  };
 
+  etqManualActualizarGuardar();
+  const quiereGuardar = !_etqManualClienteSeleccionado && !!document.getElementById("etqManualGuardarCliente")?.checked;
+
+  // Primero se imprime (window.open tiene que salir del click directo,
+  // si no el navegador lo puede bloquear); el guardado va después.
+  imprimirEtiquetaEnvio(datos);
   cerrarModalEtiquetaManual();
+
+  if (quiereGuardar) {
+    const r = await etqManualGuardarCliente({
+      nombre: cliente, dni: datos.dni, telefono: datos.telefono, direccion: datos.direccion,
+      localidad: datos.localidad, provincia: datos.provincia, codigoPostal: datos.codigoPostal,
+      empresa: datos.transporte
+    });
+    if (!r.ok) toast("El rótulo se generó, pero no se pudo guardar el cliente: " + r.message, "error");
+    else if (r.existente) toast(`"${r.nombre}" ya estaba en Clientes — no se duplicó`, "success");
+    else if (r.offline) toast("Cliente guardado offline — se sincroniza con Sheets cuando vuelva la conexión", "success");
+    else toast(`Cliente "${r.nombre}" guardado en Clientes`, "success");
+  }
 }
 
 function imprimirEtiquetaDesdeDetalle() {
@@ -3274,16 +3881,16 @@ function renderPedidos(listaOriginal) {
              <span class="pedido-cobrado-badge">✓ Cobrado</span>
              <span class="pedido-cobrado-forma">${formaPagoActual}</span>
              <button class="btn btn-outline-danger btn-sm" style="font-size:11px;padding:2px 8px;"
-               onclick="aplicarCobroPedido('${p.PEDIDO_ID}', false, '')">Desmarcar</button>
+               onclick="aplicarCobroPedido('${p.PEDIDO_ID}', false, '', this)">Desmarcar</button>
            </div>`
         : `<div class="pedido-pago-btns" data-pedido="${p.PEDIDO_ID}">
              <span style="font-size:11px;font-weight:600;color:var(--slate-500);">Cobrar con:</span>
-             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'EFECTIVO')">💵 Efectivo</button>
-             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'TRANSFERENCIA')">📲 Transfer.</button>
-             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'TARJETA')">💳 Tarjeta</button>
+             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'EFECTIVO', this)">💵 Efectivo</button>
+             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'TRANSFERENCIA', this)">📲 Transfer.</button>
+             <button class="pedido-pago-btn" onclick="aplicarCobroPedido('${p.PEDIDO_ID}', true, 'TARJETA', this)">💳 Tarjeta</button>
            </div>`;
       const tmp = document.createElement("div");
-      tmp.innerHTML = `<div class="pedido-card estado-${claseEstado}">
+      tmp.innerHTML = `<div class="pedido-card estado-${claseEstado}${_pedidosEnProceso.has(p.PEDIDO_ID) ? " pedido-procesando" : ""}" data-pedido-card="${escapeHtml(p.PEDIDO_ID)}">
         <div class="pedido-card-top">
           <div>
             <div class="pedido-card-id">${escapeHtml(p.PEDIDO_ID)}</div>
@@ -3298,7 +3905,7 @@ function renderPedidos(listaOriginal) {
           </div>
         </div>
         <div class="pedido-card-controls">
-          <select class="form-select form-select-sm" style="max-width:160px;" onchange="cambiarEstado('${p.PEDIDO_ID}',this.value)">
+          <select class="form-select form-select-sm" style="max-width:160px;" data-estado-previo="${escapeHtml(p.ESTADO)}" onchange="cambiarEstado('${p.PEDIDO_ID}',this.value,this)">
             <option value="NUEVO"      ${p.ESTADO==="NUEVO"?"selected":""}>🆕 Nuevo</option>
             <option value="PREPARANDO" ${p.ESTADO==="PREPARANDO"?"selected":""}>⚙️ Preparando</option>
             <option value="ENVIADO"    ${p.ESTADO==="ENVIADO"?"selected":""}>📦 Enviado</option>
@@ -3367,7 +3974,8 @@ async function _actualizarProductosAdminEnBackground(cacheKey) {
     const data = await response.json();
     if (!data.productos) return;
     productosAdminGlobal = data.productos;
-    try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data.productos })); } catch(e) {}
+    // En escritorio el catálogo vive en SQLite (pos-offline.js): no duplicarlo en localStorage
+    if (!_esAppEscritorio()) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data.productos })); } catch(e) {} }
     poblarFiltroCategoriasProductos();
     filtrarProductos();
   } catch (error) {
@@ -4726,7 +5334,7 @@ function eliminarProducto(codigo) {
 
   const backdrop = document.getElementById("modalEliminarProdBackdrop");
   const texto = document.getElementById("modalEliminarProdTexto");
-  if (texto) texto.textContent = `¿Eliminar el producto "${codigo}"? Esta acción no se puede deshacer.`;
+  if (texto) texto.textContent = `¿Mover el producto "${codigo}" a la papelera? Lo vas a poder restaurar desde Productos → 🗑️ Papelera.`;
   if (backdrop) backdrop.classList.add("show");
 }
 
@@ -4742,7 +5350,8 @@ async function eliminarProductoForm() {
   if (!codigo) return;
 
   try {
-    const params = new URLSearchParams({ action: "eliminarProducto", codigo });
+    const usuario = sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "";
+    const params = new URLSearchParams({ action: "eliminarProducto", codigo, usuario });
     const response = await fetchAPI(API_URL + "?" + params.toString());
     const data = await response.json();
 
@@ -4751,7 +5360,7 @@ async function eliminarProductoForm() {
       return;
     }
 
-    toast("Producto eliminado", "success");
+    toast("Producto enviado a la papelera", "success");
     cargarProductos();
     productosPOS = [];
 
@@ -4759,6 +5368,174 @@ async function eliminarProductoForm() {
     console.error("Error al eliminar producto:", error);
     toast("Error de conexión al eliminar el producto", "error");
   }
+}
+
+/* ===================== PAPELERA DE PRODUCTOS =====================
+   Los productos borrados no se pierden: el backend (PapeleraYClientes.gs)
+   los mueve a la hoja PAPELERA_PRODUCTOS con todos sus datos. Desde acá
+   se pueden restaurar, borrar definitivo o vaciar la papelera.
+   En la app de escritorio, un borrado hecho SIN internet aparece en la
+   papelera recién cuando se sincroniza con Sheets. */
+
+let _papeleraProductos = [];
+
+async function _postPapelera(cuerpo) {
+  const response = await fetchAPI(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(cuerpo)
+  });
+  const data = await _leerRespuestaJSON(response);
+  if (data && data.success === false && /no v[aá]lida|desconocida|no reconocida|invalid/i.test(String(data.message || ""))) {
+    data.message = "El backend todavía no tiene la papelera: agregá el archivo PapeleraYClientes.gs en Apps Script y publicá una nueva versión (ver LEEME).";
+  }
+  return data;
+}
+
+function abrirPapeleraProductos() {
+  const backdrop = document.getElementById("papeleraProductosModalBackdrop");
+  if (!backdrop) return;
+  const buscador = document.getElementById("papeleraBuscar");
+  if (buscador) buscador.value = "";
+  backdrop.classList.add("show");
+  cargarPapeleraProductos();
+}
+
+function cerrarPapeleraProductos() {
+  const backdrop = document.getElementById("papeleraProductosModalBackdrop");
+  if (backdrop) backdrop.classList.remove("show");
+}
+
+async function cargarPapeleraProductos() {
+  const cont = document.getElementById("papeleraProductosLista");
+  if (!cont) return;
+  cont.innerHTML = `<div class="text-center text-muted py-4">Cargando papelera...</div>`;
+
+  try {
+    const data = await _postPapelera({ action: "papeleraProductos" });
+    if (!data || !data.success) {
+      cont.innerHTML = `<div class="text-center text-danger py-4" style="font-size:13px;">${escapeHtml((data && data.message) || "No se pudo cargar la papelera")}</div>`;
+      return;
+    }
+    _papeleraProductos = data.productos || [];
+    renderPapeleraProductos();
+  } catch (error) {
+    console.error("Error al cargar la papelera:", error);
+    cont.innerHTML = `<div class="text-center text-danger py-4" style="font-size:13px;">Error de conexión al cargar la papelera. Revisá tu internet.</div>`;
+  }
+}
+
+function renderPapeleraProductos() {
+  const cont = document.getElementById("papeleraProductosLista");
+  const contador = document.getElementById("papeleraContador");
+  const btnVaciar = document.getElementById("btnVaciarPapelera");
+  if (!cont) return;
+
+  const esVendedor = obtenerRolActual() === "vendedor";
+  if (btnVaciar) btnVaciar.style.display = (_papeleraProductos.length > 0 && !esVendedor) ? "inline-flex" : "none";
+  if (contador) contador.textContent = _papeleraProductos.length === 1 ? "1 producto" : `${_papeleraProductos.length} productos`;
+
+  const filtro = normalizarBusquedaPOS((document.getElementById("papeleraBuscar") || {}).value || "");
+  const lista = filtro
+    ? _papeleraProductos.filter(p => normalizarBusquedaPOS(p.PRODUCTO + " " + p.CODIGO + " " + p.CATEGORIA).includes(filtro))
+    : _papeleraProductos;
+
+  if (_papeleraProductos.length === 0) {
+    cont.innerHTML = `<div class="text-center text-muted py-5" style="font-size:13.5px;">🗑️ La papelera está vacía</div>`;
+    return;
+  }
+  if (lista.length === 0) {
+    cont.innerHTML = `<div class="text-center text-muted py-4" style="font-size:13px;">Ningún producto coincide con la búsqueda</div>`;
+    return;
+  }
+
+  cont.innerHTML = lista.map(p => `
+    <div class="d-flex align-items-center gap-2" style="padding:9px 4px; border-bottom:1px solid var(--slate-200);">
+      ${p.IMAGEN && !String(p.IMAGEN).startsWith("data:") ? `<img src="${escapeHtml(p.IMAGEN)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none'">` : `<div style="width:40px;height:40px;border-radius:6px;background:var(--slate-100);display:flex;align-items:center;justify-content:center;flex-shrink:0;">📦</div>`}
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.PRODUCTO || "(sin nombre)")}</div>
+        <div style="font-size:11.5px; color:var(--slate-500);">
+          <span style="font-family:var(--font-mono);">${escapeHtml(p.CODIGO)}</span>
+          ${p.CATEGORIA ? " · " + escapeHtml(p.CATEGORIA) : ""}
+          · $${Number(p.PRECIO || 0).toLocaleString("es-AR")} · stock ${Number(p.STOCK || 0)}
+        </div>
+        <div style="font-size:11px; color:var(--slate-400);">Eliminado ${escapeHtml(p.FECHA_ELIMINADO || "")}${p.USUARIO ? " por " + escapeHtml(p.USUARIO) : ""}</div>
+      </div>
+      <button type="button" class="btn btn-outline-success btn-sm" style="white-space:nowrap;" onclick="restaurarProductoPapelera('${escapeJsAttr(p.PAPELERA_ID)}', this)">↩️ Restaurar</button>
+      ${esVendedor ? "" : `<button type="button" class="btn btn-outline-danger btn-sm" title="Borrar definitivamente" onclick="eliminarDefinitivoPapelera('${escapeJsAttr(p.PAPELERA_ID)}', '${escapeJsAttr(p.PRODUCTO || p.CODIGO)}')">✕</button>`}
+    </div>`).join("");
+}
+
+async function restaurarProductoPapelera(papeleraId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Restaurando..."; }
+  try {
+    const data = await _postPapelera({ action: "restaurarProductoPapelera", papeleraId });
+    if (!data || !data.success) {
+      toast((data && data.message) || "No se pudo restaurar el producto", "error");
+      if (btn) { btn.disabled = false; btn.textContent = "↩️ Restaurar"; }
+      return;
+    }
+    toast(`Producto "${data.producto || data.codigo}" restaurado`, "success");
+    _papeleraProductos = _papeleraProductos.filter(p => p.PAPELERA_ID !== papeleraId);
+    renderPapeleraProductos();
+    await _refrescarCatalogoTrasPapelera();
+  } catch (error) {
+    console.error("Error al restaurar producto:", error);
+    toast("Error de conexión al restaurar el producto", "error");
+    if (btn) { btn.disabled = false; btn.textContent = "↩️ Restaurar"; }
+  }
+}
+
+/** Después de restaurar: que Productos y el POS vuelvan a ver el producto */
+async function _refrescarCatalogoTrasPapelera() {
+  try { invalidarCache("productosAdmin", "productos"); } catch (e) {}
+  productosPOS = [];
+  try {
+    if (typeof window.olvidarVersionCatalogoLocal === "function") await window.olvidarVersionCatalogoLocal();
+    if (typeof actualizarCatalogoProductosManual === "function") await actualizarCatalogoProductosManual();
+    else if (typeof cargarProductos === "function") await cargarProductos();
+  } catch (e) {
+    console.warn("No se pudo refrescar el catálogo después de restaurar:", e);
+  }
+}
+
+function eliminarDefinitivoPapelera(papeleraId, nombre) {
+  confirmarAccion(
+    `¿Borrar "${nombre}" DEFINITIVAMENTE? Ya no se va a poder recuperar.`,
+    async () => {
+      try {
+        const data = await _postPapelera({ action: "eliminarDefinitivoPapelera", papeleraId, rol: obtenerRolActual() });
+        if (!data || !data.success) { toast((data && data.message) || "No se pudo borrar", "error"); return; }
+        _papeleraProductos = _papeleraProductos.filter(p => p.PAPELERA_ID !== papeleraId);
+        renderPapeleraProductos();
+        toast("Producto borrado definitivamente", "success");
+      } catch (error) {
+        console.error("Error al borrar de la papelera:", error);
+        toast("Error de conexión", "error");
+      }
+    },
+    "🗑️ Borrar definitivamente"
+  );
+}
+
+function vaciarPapeleraProductos() {
+  if (_papeleraProductos.length === 0) return;
+  confirmarAccion(
+    `¿Vaciar la papelera? Se van a borrar DEFINITIVAMENTE ${_papeleraProductos.length} producto(s) y no se van a poder recuperar.`,
+    async () => {
+      try {
+        const data = await _postPapelera({ action: "vaciarPapeleraProductos", rol: obtenerRolActual() });
+        if (!data || !data.success) { toast((data && data.message) || "No se pudo vaciar la papelera", "error"); return; }
+        _papeleraProductos = [];
+        renderPapeleraProductos();
+        toast("Papelera vaciada", "success");
+      } catch (error) {
+        console.error("Error al vaciar la papelera:", error);
+        toast("Error de conexión", "error");
+      }
+    },
+    "🗑️ Vaciar papelera"
+  );
 }
 
 /* ===================== CLIENTES ===================== */
@@ -5746,7 +6523,7 @@ async function _actualizarCacheProductosPOS(cacheKey) {
     const response = await fetchAPI(API_URL + "?action=productos");
     const data = await response.json();
     const productos = data.productos || [];
-    localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), productos }));
+    if (!_esAppEscritorio()) { try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), productos })); } catch(e) {} }
     if (JSON.stringify(productos.map(p => p.CODIGO + p.STOCK)) !==
         JSON.stringify(productosPOS.map(p => p.CODIGO + p.STOCK))) {
       productosPOS = productos;
@@ -5941,7 +6718,7 @@ function _armarTileProductoHTML(p, dataIdxAttr, esPineado) {
         ${stockBadge}
       </div>
       ${obtenerRolActual() === "vendedor" ? "" : `<button type="button" class="tile-edit" title="Editar precio y stock" onclick="event.stopPropagation(); abrirEdicionRapidaPOS('${escapeJsAttr(p.CODIGO)}');">✏️</button>`}
-      ${Number(p.UNIDADES_POR_CAJA) > 0 ? `<button type="button" class="tile-caja" title="Agregar 1 caja (${p.UNIDADES_POR_CAJA} uds) a $${Number(p.PRECIO_CAJA || 0).toLocaleString("es-AR")}" onclick="event.stopPropagation(); agregarCajaAlTicket(productosPOS.find(x => String(x.CODIGO)==='${escapeHtml(p.CODIGO)}'));">📦x${p.UNIDADES_POR_CAJA}</button>` : ""}
+      ${Number(p.UNIDADES_POR_CAJA) > 0 ? `<button type="button" class="tile-caja" title="Agregar 1 caja (${p.UNIDADES_POR_CAJA} uds) a $${Number(p.PRECIO_CAJA || 0).toLocaleString("es-AR")}" onclick="event.stopPropagation(); agregarCajaAlTicket(productosPOS.find(x => String(x.CODIGO)==='${escapeJsAttr(p.CODIGO)}'));">📦x${p.UNIDADES_POR_CAJA}</button>` : ""}
       <span class="tile-add">+</span>
     </div>`;
 }
@@ -6369,10 +7146,10 @@ function renderTicketPOS() {
             inputmode="numeric"
             value="${item.cantidad}"
             onfocus="seleccionarCantidadPOS(this)"
-            onchange="actualizarCantidadManualPOS('${item.CODIGO}', this.value)">
+            onchange="actualizarCantidadManualPOS('${escapeJsAttr(item.CODIGO)}', this.value)">
         </div>
         <div class="ti-sub money">$${sub.toLocaleString("es-AR")}</div>
-        <button class="ti-remove" onclick="quitarProductoPOS('${item.CODIGO}')" title="Quitar">✕</button>
+        <button class="ti-remove" onclick="quitarProductoPOS('${escapeJsAttr(item.CODIGO)}')" title="Quitar">✕</button>
       </div>`;
   });
 
@@ -6875,56 +7652,24 @@ async function confirmarFinalizarVenta() {
   const btn = document.getElementById("btnFinalizarVenta");
   if (btn) btn.disabled = false;
 
-  // ── GUARDAR en el backend en segundo plano ──
-  try {
-    // Por POST, con el carrito en el body — un carrito grande por GET
-    // (todo metido en la URL) puede superar lo que Google/Apps Script
-    // acepta, y la venta fallaba con "error de conexión" sin serlo
-    // realmente (el mismo problema que tenían los pedidos grandes).
-    const response = await fetchAPI(
-      API_URL,
-      {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "guardarVenta",
-          total: total,
-          formaPago: formaPagoPOS,
-          observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
-          carrito: itemsSnapshot,
-          clienteVentaId: clienteVentaId
-        })
-      },
-      { timeoutMs: 15000 } // mutación: sin reintento automático propio (lo maneja la cola de abajo), con más margen que una lectura chica
-    );
-    const data = await response.json();
-
-    if (data.success && data.ventaId && data.ventaId !== ventaIdTemp) {
-      // Actualizar el ID real en el recibo imprimible
-      ultimaVentaImprimible.ventaId = data.ventaId;
-      // Actualizar el ID visible en el modal de recibo si sigue abierto
-      const idEl = document.getElementById("reciboVentaId");
-      if (idEl) idEl.textContent = data.ventaId;
-    } else if (!data.success) {
-      toast("⚠️ La venta se mostró pero no se guardó en el servidor. Reintentá.", "error");
-    }
-  } catch (err) {
-    console.error("Error al guardar venta en backend:", err);
-    // Antes acá la venta se perdía directamente — el cajero ya le
-    // había dado el ticket al cliente, pero la fila nunca llegaba a
-    // VENTAS_LOCAL ni se descontaba el stock del lado del servidor, y
-    // no había ninguna forma de recuperarla después. Ahora se guarda
-    // en una cola local (localStorage) con el mismo clienteVentaId, y
-    // se reintenta sola en cuanto vuelve la conexión — de forma
-    // segura: el backend reconoce ese ID y nunca la duplica, aunque el
-    // primer intento sí hubiera llegado a guardarse y solo se haya
-    // perdido la respuesta.
-    encolarVentaPendiente({
-      clienteVentaId, total, formaPago: formaPagoPOS,
-      observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
-      carrito: itemsSnapshot
-    });
-    toast("📴 Sin conexión — la venta se guardó localmente y se subirá sola al reconectar", "error");
+  // ── GUARDAR: local-primero en escritorio, POST + cola en la web ──
+  // (Antes, en la app de escritorio esto iba DIRECTO a Apps Script y se
+  // salteaba la SQLite local, la red multi-caja y la cola unificada.)
+  const ventaParaGuardar = {
+    clienteVentaId,
+    ventaIdTemp,
+    total, subtotal,
+    descuento: montoDescuento,
+    formaPago: formaPagoPOS,
+    vendedor: sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "",
+    observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
+    carrito: itemsSnapshot
+  };
+  const resultadoGuardado = await registrarVentaCobrada(ventaParaGuardar);
+  if (resultadoGuardado && resultadoGuardado.ventaId && resultadoGuardado.ventaId !== ventaIdTemp) {
+    ultimaVentaImprimible.ventaId = resultadoGuardado.ventaId;
+    const idEl = document.getElementById("reciboVentaId");
+    if (idEl) idEl.textContent = resultadoGuardado.ventaId;
   }
 
   // Métricas en segundo plano
@@ -8502,78 +9247,6 @@ let camaraDetectorTimer = null;   // usado por la rama BarcodeDetector nativo
 let zxingReader = null;           // usado por la rama fallback ZXing
 let camaraScanActivo = false;     // evita agregar el mismo código dos veces al cerrar
 
-
-/* ---- diagnóstico + lectura por foto (fallback para iOS) ---- */
-
-function scanDebug(msg) {
-  let el = document.getElementById("scanDebug");
-  if (!el) {
-    const hint = document.querySelector(".scan-modal-hint");
-    if (!hint) return;
-    el = document.createElement("div");
-    el.id = "scanDebug";
-    el.style.cssText = "color:#94a3b8;font-size:11px;text-align:center;margin-top:6px;";
-    hint.after(el);
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.id = "scanPhotoBtn";
-    btn.textContent = "📸 Sacar foto del código";
-    btn.style.cssText = "display:block;margin:10px auto 0;padding:10px 16px;border:none;border-radius:10px;background:#22c55e;color:#fff;font-weight:700;font-size:14px;cursor:pointer;";
-    const inp = document.createElement("input");
-    inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
-    inp.style.display = "none";
-    inp.addEventListener("change", () => { if (inp.files && inp.files[0]) leerCodigoDeFoto(inp.files[0]); inp.value = ""; });
-    btn.addEventListener("click", () => inp.click());
-    el.after(btn); btn.after(inp);
-  }
-  el.textContent = msg;
-}
-
-function zxingLib() {
-  return (typeof ZXing !== "undefined") ? ZXing : (typeof ZXingBrowser !== "undefined" ? ZXingBrowser : null);
-}
-
-async function leerCodigoDeFoto(file) {
-  const Z = zxingLib();
-  if (!Z) { toast("Motor de escaneo no cargado (revisá internet)", "error"); return; }
-  scanDebug("Procesando foto...");
-  try {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = url; });
-    const hints = new Map();
-    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
-      Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
-      Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.ITF
-    ]);
-    hints.set(Z.DecodeHintType.TRY_HARDER, true);
-    const reader = new Z.MultiFormatReader();
-    reader.setHints(hints);
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    for (const maxLado of [1600, 1000, 2200]) {
-      const k = Math.min(1, maxLado / Math.max(img.width, img.height));
-      canvas.width = Math.round(img.width * k); canvas.height = Math.round(img.height * k);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      try {
-        const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
-        const valor = reader.decode(bmp).getText();
-        URL.revokeObjectURL(url);
-        cerrarCamaraScan();
-        agregarProductoPorCodigo(valor);
-        return;
-      } catch (e) { /* probar otro tamaño */ }
-    }
-    URL.revokeObjectURL(url);
-    scanDebug("No se detectó código en la foto. Acercate y probá de nuevo.");
-  } catch (e) {
-    console.error(e);
-    scanDebug("Error procesando la foto: " + (e && e.message));
-  }
-}
-
 async function abrirCamaraScan() {
   const backdrop  = document.getElementById("scanModalBackdrop");
   const videoWrap = document.getElementById("scanVideoWrap");
@@ -8581,7 +9254,6 @@ async function abrirCamaraScan() {
 
   backdrop.classList.add("show");
   camaraScanActivo = true;
-  scanDebug("Iniciando cámara... motor: " + ("BarcodeDetector" in window ? "nativo" : (zxingLib() ? "ZXing OK" : "ZXing NO CARGADO")));
 
   // getUserMedia requiere HTTPS (o localhost) — en iOS, además, ni siquiera
   // existe el objeto si la página no es segura, así que lo detectamos antes
@@ -8597,21 +9269,10 @@ async function abrirCamaraScan() {
 
   try {
     camaraStream = await navigator.mediaDevices.getUserMedia({
-      // 1280x720: el default de iOS (640x480) es muy poco para leer barras finas
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: { ideal: "environment" } },
       audio: false
     });
-    video.setAttribute("playsinline", "");
-    video.muted = true;
     video.srcObject = camaraStream;
-    // Enfoque continuo (iOS lo soporta en algunos modelos); si no, se ignora
-    try {
-      const track = camaraStream.getVideoTracks()[0];
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      if (caps.focusMode && caps.focusMode.includes("continuous")) {
-        await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-      }
-    } catch (e) { /* noop */ }
     // iOS Safari necesita el play() explícito incluso con autoplay+playsinline
     try { await video.play(); } catch (e) { /* algunos navegadores ya lo reproducen solos */ }
 
@@ -8626,7 +9287,6 @@ async function abrirCamaraScan() {
 
   } catch (error) {
     console.error("Error de cámara:", error);
-    scanDebug("Error: " + (error && (error.name + " " + error.message)));
     const permisoDenegado = error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
     videoWrap.innerHTML = permisoDenegado
       ? `<div class="scan-unsupported">
@@ -8659,8 +9319,7 @@ function iniciarDeteccionNativa(video) {
 }
 
 async function iniciarDeteccionZXing(video) {
-  const ZXingLib = (typeof ZXing !== "undefined") ? ZXing : (typeof ZXingBrowser !== "undefined" ? ZXingBrowser : null);
-  if (!ZXingLib) {
+  if (typeof ZXingBrowser === "undefined" && typeof ZXing === "undefined") {
     document.getElementById("scanVideoWrap").innerHTML = `
       <div class="scan-unsupported">
         No se pudo cargar el motor de escaneo.<br>
@@ -8670,54 +9329,32 @@ async function iniciarDeteccionZXing(video) {
   }
 
   try {
-    // Decodificamos nosotros mismos: dibujamos el frame del <video> en un canvas
-    // y lo pasamos al MultiFormatReader. Evita decodeFromVideoElementContinuously,
-    // que hace reset() y puede cortar el stream que ya tenemos en iOS Safari.
+    // El paquete UMD de zxing-library expone la librería como `ZXing`
+    const ZXingLib = (typeof ZXingBrowser !== "undefined") ? ZXingBrowser : ZXing;
     const hints = new Map();
-    hints.set(ZXingLib.DecodeHintType.POSSIBLE_FORMATS, [
+    const formatos = [
       ZXingLib.BarcodeFormat.EAN_13, ZXingLib.BarcodeFormat.EAN_8,
       ZXingLib.BarcodeFormat.UPC_A, ZXingLib.BarcodeFormat.UPC_E,
       ZXingLib.BarcodeFormat.CODE_128, ZXingLib.BarcodeFormat.CODE_39,
       ZXingLib.BarcodeFormat.QR_CODE, ZXingLib.BarcodeFormat.ITF
-    ]);
+    ];
+    hints.set(ZXingLib.DecodeHintType.POSSIBLE_FORMATS, formatos);
     hints.set(ZXingLib.DecodeHintType.TRY_HARDER, true);
 
-    const reader = new ZXingLib.MultiFormatReader();
-    reader.setHints(hints);
-    zxingReader = reader;
+    zxingReader = new ZXingLib.BrowserMultiFormatReader(hints);
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    let ocupado = false;
-    let frames = 0;
-
-    camaraDetectorTimer = setInterval(() => {
-      if (ocupado || !camaraScanActivo) return;
-      if (video.readyState < 2 || !video.videoWidth) { scanDebug("Esperando imagen de la cámara..."); return; }
-      ocupado = true;
-      try {
-        // Recorte central (franja ancha) donde está el reticle: más rápido y más preciso
-        const vw = video.videoWidth, vh = video.videoHeight;
-        const sw = Math.round(vw * 0.8), sh = Math.round(vh * 0.5);
-        const sx = Math.round((vw - sw) / 2), sy = Math.round((vh - sh) / 2);
-        canvas.width = sw; canvas.height = sh;
-        if (++frames % 10 === 0) scanDebug("Leyendo " + vw + "x" + vh + " · intentos: " + frames);
-        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-
-        const source = new ZXingLib.HTMLCanvasElementLuminanceSource(canvas);
-        const bitmap = new ZXingLib.BinaryBitmap(new ZXingLib.HybridBinarizer(source));
-        const result = reader.decode(bitmap);
-        const valor = result.getText();
-        if (valor) {
-          cerrarCamaraScan();
-          agregarProductoPorCodigo(valor);
-        }
-      } catch (err) {
-        // NotFoundException en casi todos los frames: esperable
-      } finally {
-        ocupado = false;
+    // decodeFromVideoElementContinuously reutiliza el stream de video ya
+    // asignado a <video> (no vuelve a pedir permiso de cámara) y llama al
+    // callback en cada frame; seguimos escaneando hasta encontrar un match.
+    zxingReader.decodeFromVideoElementContinuously(video, (result, err) => {
+      if (result && camaraScanActivo) {
+        const valor = result.getText ? result.getText() : result.text;
+        cerrarCamaraScan();
+        agregarProductoPorCodigo(valor);
       }
-    }, 150);
+      // NotFoundException se dispara en casi todos los frames sin código
+      // visible: es esperable, no un error real.
+    });
   } catch (error) {
     console.error("Error iniciando ZXing:", error);
     document.getElementById("scanVideoWrap").innerHTML = `
@@ -8734,7 +9371,10 @@ function cerrarCamaraScan() {
   camaraScanActivo = false;
 
   if (camaraDetectorTimer) { clearInterval(camaraDetectorTimer); camaraDetectorTimer = null; }
-  zxingReader = null;
+  if (zxingReader) {
+    try { zxingReader.reset(); } catch (e) { /* noop */ }
+    zxingReader = null;
+  }
   if (camaraStream) { camaraStream.getTracks().forEach(t => t.stop()); camaraStream = null; }
 
   document.getElementById("btnCameraScan").classList.remove("active");
@@ -8755,7 +9395,7 @@ function cerrarCamaraScan() {
 let cierreCajaResumenActual = null; // último resumen "esperado" cargado del backend
 
 /** Loads today's expected totals by payment method and pre-fills the form */
-async function cargarResumenCierreCaja(fecha) {
+async function cargarResumenCierreCaja(fecha, forzar = false) {
   const estadoEl = document.getElementById("cierreCajaEstado");
 
   // Caché por fecha — 90 segundos (el cierre rara vez cambia en segundos,
@@ -8764,7 +9404,7 @@ async function cargarResumenCierreCaja(fecha) {
   const CACHE_TTL = 90 * 1000;
 
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = forzar ? null : localStorage.getItem(CACHE_KEY);
     if (raw) {
       const { ts, data } = JSON.parse(raw);
       if (Date.now() - ts < CACHE_TTL) {
@@ -9079,14 +9719,134 @@ function obtenerRangoReportes() {
   return qs;
 }
 
-/** Dispara los 6 reportes a la vez con el rango de fecha actual. */
-function cargarTodosLosReportes() {
-  cargarReporteVentasPeriodo();
-  cargarReporteProductos();
-  cargarReporteCategorias();
-  cargarReporteFormasPago();
-  cargarReporteCierres();
-  cargarReporteClientes();
+/* ---- Pestañas de Reportes: cada una carga recién cuando se abre, y
+   solo si el período cambió desde la última vez (no se piden los 3
+   grupos de datos de golpe al entrar a la sección). ---- */
+let _repTabActiva = null;
+const _repTabRangoCargado = { ventas: null, productos: null, compras: null };
+
+function _repTabPorDefecto() {
+  return obtenerRolActual() === "deposito" ? "compras" : "ventas";
+}
+
+function mostrarTabReportes(tab, forzar) {
+  if (obtenerRolActual() === "deposito") tab = "compras";
+  _repTabActiva = tab;
+  _repCompletarRangoPorDefecto();
+  document.querySelectorAll("#repTabs .rep-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("#reportes .rep-pane").forEach(p => p.classList.toggle("active", p.id === "repPane-" + tab));
+
+  const rango = obtenerRangoReportes();
+  if (!forzar && _repTabRangoCargado[tab] !== null && _repTabRangoCargado[tab] === rango) {
+    // Ya cargada con este período: si es la de productos, redibujar los
+    // gráficos (estaban ocultos y Chart.js necesita el ancho real)
+    if (tab === "productos" && _repProductosDatosActuales.length) renderReporteProductos();
+    return;
+  }
+  _repTabRangoCargado[tab] = rango;
+
+  if (tab === "ventas") {
+    cargarReportesVentas(forzar);
+  } else if (tab === "productos") {
+    cargarReporteProductos(forzar);
+  } else if (tab === "compras") {
+    cargarReporteCompras(forzar);
+  }
+}
+
+/* Los reportes leen hojas enteras en Apps Script: con planillas grandes
+   pueden tardar bastante más que una lectura común. Más margen de espera
+   y UN solo intento (reintentar al vencer el tiempo solo duplicaba la
+   carga sobre el servidor y volvía a fallar). */
+const _REP_OPC_FETCH = { timeoutMs: 90000, reintentos: 1 };
+
+function _repMensajeError(error) {
+  if (error && error.name === "AbortError") return "Google tardó demasiado en responder. Probá de nuevo en un momento o con un período más corto.";
+  if (error && /Failed to fetch|NetworkError/i.test(String(error.message))) return "Sin conexión con el servidor. Revisá internet.";
+  return (error && error.message) || "Error al cargar el reporte";
+}
+
+/** Pestaña Ventas: los 5 reportes en UNA sola llamada (reportesVentas). Con un Code.gs viejo, cae a los 5 pedidos de antes. */
+let _repVentasGen = 0;
+async function cargarReportesVentas(forzar) {
+  const gen = ++_repVentasGen;
+  const cuerpos = { repVentasPeriodoTabla: 4, repCategoriasTabla: 3, repFormasPagoTabla: 3, repCierresTabla: 5, repClientesTabla: 4 };
+  Object.entries(cuerpos).forEach(([id, cols]) => {
+    const tb = document.getElementById(id);
+    if (tb) tb.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted py-3">Cargando…</td></tr>`;
+  });
+  const btn = document.getElementById("btnAplicarReportes");
+  if (btn) btn.disabled = true;
+
+  try {
+    const url = API_URL + "?action=reportesVentas" + obtenerRangoReportes() + (forzar ? "&sinCache=1&_=" + Date.now() : "");
+    const data = await _leerRespuestaJSON(await fetchAPI(url, {}, _REP_OPC_FETCH));
+    if (gen !== _repVentasGen) return;
+
+    if (!data || !data.success) {
+      if (/no v[aá]lida/i.test(String((data && data.message) || ""))) {
+        // Code.gs viejo: sin el endpoint combinado
+        await Promise.all([cargarReporteVentasPeriodo(), cargarReporteCategorias(), cargarReporteFormasPago(), cargarReporteCierres(), cargarReporteClientes()]);
+        return;
+      }
+      throw new Error((data && data.message) || "El servidor no devolvió los reportes");
+    }
+    const ok = d => (d && d.success) ? d : { success: false };
+    await Promise.all([
+      cargarReporteVentasPeriodo(ok(data.ventasPeriodo)),
+      cargarReporteCategorias(ok(data.categorias)),
+      cargarReporteFormasPago(ok(data.formasPago)),
+      cargarReporteCierres(ok(data.cierres)),
+      cargarReporteClientes(ok(data.clientes))
+    ]);
+    // Si alguno vino con error del servidor, que no quede "Cargando…"
+    Object.entries(cuerpos).forEach(([id, cols]) => {
+      const tb = document.getElementById(id);
+      if (tb && /Cargando…/.test(tb.textContent)) tb.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted py-3">No se pudo calcular este reporte</td></tr>`;
+    });
+  } catch (error) {
+    if (gen !== _repVentasGen) return;
+    console.error("Error al cargar los reportes de ventas:", error);
+    const msg = escapeHtml(_repMensajeError(error));
+    Object.entries(cuerpos).forEach(([id, cols]) => {
+      const tb = document.getElementById(id);
+      if (tb) tb.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted py-3">${msg} <button class="btn btn-outline-primary btn-sm ms-2" onclick="cargarTodosLosReportes(true)">Reintentar</button></td></tr>`;
+    });
+    _repTabRangoCargado.ventas = null; // que vuelva a intentar al reabrir la pestaña
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/** Sin fechas elegidas: mes en curso (lo mismo que haría el backend), para que todas las pestañas usen el mismo período */
+function _repCompletarRangoPorDefecto() {
+  const d = document.getElementById("repDesde"), h = document.getElementById("repHasta");
+  if (!d || !h) return;
+  const hoy = new Date();
+  const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  if (!d.value && !h.value) { d.value = iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)); h.value = iso(hoy); }
+  else if (!h.value) h.value = iso(hoy);
+  else if (!d.value) d.value = h.value;
+}
+
+/** Botón "Aplicar" (y la carga al entrar): recarga la pestaña visible; las otras se recargan al abrirlas */
+function cargarTodosLosReportes(forzar) {
+  _repTabRangoCargado.ventas = _repTabRangoCargado.productos = _repTabRangoCargado.compras = null;
+  mostrarTabReportes(_repTabActiva || _repTabPorDefecto(), !!forzar);
+}
+
+/** Atajos de período: Hoy / 7 días / 30 días / Este mes / Mes anterior */
+function repRangoRapido(tipo) {
+  const hoy = new Date();
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  let desde = new Date(hoy), hasta = new Date(hoy);
+  if (tipo === "7") desde.setDate(hoy.getDate() - 6);
+  else if (tipo === "30") desde.setDate(hoy.getDate() - 29);
+  else if (tipo === "mes") desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  else if (tipo === "mesAnterior") { desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1); hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0); }
+  document.getElementById("repDesde").value = iso(desde);
+  document.getElementById("repHasta").value = iso(hasta);
+  cargarTodosLosReportes();
 }
 
 /** Sincroniza los inputs de fecha "Desde"/"Hasta" con el rango que devolvió el backend (cuando no se eligió nada, para que el usuario vea qué período se está mostrando). */
@@ -9119,7 +9879,7 @@ function cambiarLimiteReporte(key, valor) {
   _repLimites[key] = valor;
   switch (key) {
     case "ventasPeriodo": renderReporteVentasPeriodo(); break;
-    case "productos": renderReporteProductos(_repProductosDatosActuales, (document.getElementById("repProductosBuscador") || {}).value || ""); break;
+    case "productos": renderReporteProductos(); break;
     case "categorias": renderReporteCategorias(); break;
     case "formasPago": renderReporteFormasPago(); break;
     case "cierres": renderReporteCierres(); break;
@@ -9128,22 +9888,21 @@ function cambiarLimiteReporte(key, valor) {
 }
 
 /* ---- Reporte 1: Ventas por período ---- */
-async function cargarReporteVentasPeriodo() {
+async function cargarReporteVentasPeriodo(datosPrevios) {
   const tbody = document.getElementById("repVentasPeriodoTabla");
   const resumenWrap = document.getElementById("repVentasPeriodoResumen");
   const cacheKey = "ventasPeriodo" + obtenerRangoReportes();
-  const cached = _getCacheReporte(cacheKey);
+  const cached = datosPrevios ? null : _getCacheReporte(cacheKey);
   if (cached) { _aplicarReporteVentas(cached, tbody, resumenWrap); return; }
 
   try {
-    const response = await fetchAPI(API_URL + "?action=reporteVentasPeriodo" + obtenerRangoReportes());
-    const data = await response.json();
+    const data = datosPrevios || await _leerRespuestaJSON(await fetchAPI(API_URL + "?action=reporteVentasPeriodo" + obtenerRangoReportes(), {}, _REP_OPC_FETCH));
     if (!data.success) return;
     _cacheReporte(cacheKey, data);
     _aplicarReporteVentas(data, tbody, resumenWrap);
   } catch (error) {
     console.error("Error reporte ventas:", error);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))}</td></tr>`;
   }
 }
 
@@ -9186,90 +9945,704 @@ function renderReporteVentasPeriodo() {
   }).join("");
 }
 
-/* ---- Reporte 2: Productos más vendidos ---- */
-let _repProductosDatosActuales = []; // último set de productos cargado, para filtrar sin re-pedir al backend
+/* ---- Reporte 2: Productos más vendidos ----
+   Carga: una sola llamada (el backend ya trae período anterior, stock y
+   categoría, y cachea el resultado). Mientras carga se muestra un
+   esqueleto; si el usuario cambia de rango a mitad de una carga, la
+   respuesta vieja se descarta (contador _repProductosGen). Buscador,
+   categoría, orden y Top N filtran en memoria, sin volver a pedir nada. */
+let _repProductosDatosActuales = []; // ranking completo del último período cargado
+let _repProductosMeta = null;        // { desde, hasta, anterior, totales, totalesAnterior, generado }
+let _repProductosGen = 0;
+let _repProductosSinVentas = [];     // catálogo sin ventas en el período (solo para el buscador)
 
-async function cargarReporteProductos() {
-  const _ck_repProductos = "reporteProductosVendidos" + obtenerRangoReportes();
-  const _cd_repProductos = _getCacheReporte(_ck_repProductos);
-  if (_cd_repProductos) { _aplicar_cargarReporteProductos(_cd_repProductos); return; }
-  const tbody = document.getElementById("repProductosTabla");
-
-  try {
-    const response = await fetchAPI(API_URL + "?action=reporteProductosVendidos" + obtenerRangoReportes());
-    const data = await response.json();
-    if (!data.success) return;
-
-    _cacheReporte(_ck_repProductos, data);
-    _aplicar_cargarReporteProductos(data);
-
-  } catch (error) {
-    console.error("Error al cargar reporte de productos vendidos:", error);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
-  }
+/**
+ * Búsqueda de Reportes: sin acentos ni mayúsculas, por PALABRAS en
+ * cualquier orden ("1kg yerba" encuentra "Yerba Playadito 1kg"), y
+ * también por código, código de caja, alias o categoría. Un código
+ * escrito con o sin ceros adelante ("0123" / "123") también coincide.
+ */
+function coincideBusquedaReportes(textoNormalizado, consulta) {
+  const q = normalizarBusquedaPOS(consulta);
+  if (!q) return true;
+  const palabras = q.split(/\s+/).filter(Boolean);
+  return palabras.every(w => {
+    if (textoNormalizado.includes(w)) return true;
+    if (/^\d+$/.test(w)) {
+      const sinCeros = w.replace(/^0+/, "");
+      return sinCeros.length >= 2 && textoNormalizado.split(/\s+/).some(t => t.replace(/^0+/, "") === sinCeros);
+    }
+    return false;
+  });
 }
 
-/** Aplica los datos del reporte (desde backend o caché) a la tabla, y guarda la lista
- *  completa en _repProductosDatosActuales para que el buscador pueda filtrar localmente
- *  sin tener que volver a pedirle nada al servidor. */
-function _aplicar_cargarReporteProductos(data) {
-  sincronizarRangoReportes(data.desde, data.hasta);
-  _repProductosDatosActuales = data.productos || [];
+const _fmtNum = n => Number(n || 0).toLocaleString("es-AR");
+const _fmtPlata = n => "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
+const _fmtFechaCorta = s => {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${Number(m[3])}/${Number(m[2])}/${m[1].slice(2)}` : String(s || "");
+};
 
-  // Si había algo tipeado en el buscador, se respeta al recargar/cambiar de rango
-  const buscador = document.getElementById("repProductosBuscador");
-  const filtro = buscador ? buscador.value : "";
-  renderReporteProductos(_repProductosDatosActuales, filtro);
+/** Variación porcentual con texto y flecha (nunca solo color) */
+function _repVariacion(actual, anterior) {
+  actual = Number(actual || 0); anterior = Number(anterior || 0);
+  if (!anterior && !actual) return { clase: "na", texto: "—", valor: 0 };
+  if (!anterior) return { clase: "nuevo", texto: "● nuevo", valor: Infinity };
+  const pct = (actual - anterior) / anterior * 100;
+  if (Math.abs(pct) < 0.5) return { clase: "flat", texto: "= 0%", valor: 0 };
+  const r = Math.abs(pct) >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10;
+  return pct > 0
+    ? { clase: "up", texto: `▲ ${r.toLocaleString("es-AR")}%`, valor: pct }
+    : { clase: "down", texto: `▼ ${Math.abs(r).toLocaleString("es-AR")}%`, valor: pct };
 }
 
-/** Renderiza la tabla de productos más vendidos, opcionalmente filtrada por texto
- *  (coincidencia parcial, sin distinguir mayúsculas/minúsculas, contra código o nombre). */
-function renderReporteProductos(productos, filtro = "") {
+function _repProductosEsqueleto() {
   const tbody = document.getElementById("repProductosTabla");
   if (!tbody) return;
-
-  const texto = filtro.trim().toLowerCase();
-  const lista = texto
-    ? productos.filter(p =>
-        String(p.PRODUCTO || "").toLowerCase().includes(texto) ||
-        String(p.CODIGO || "").toLowerCase().includes(texto))
-    : productos;
-
-  if (!productos || productos.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Sin ventas para el rango elegido</td></tr>`;
-    return;
-  }
-
-  if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Ningún producto coincide con "${escapeHtml(filtro)}"</td></tr>`;
-    return;
-  }
-
-  const listaLimitada = _limitarReporte(lista, "productos");
-  tbody.innerHTML = listaLimitada.map(p => `
+  const fila = w => `<span class="rep-skel" style="width:${w}px;"></span>`;
+  tbody.innerHTML = Array.from({ length: 6 }, (_, i) => `
     <tr>
-      <td class="mono">${escapeHtml(p.CODIGO)}</td>
-      <td>${escapeHtml(p.PRODUCTO)}</td>
-      <td class="money">${Number(p.VENDIDOS || 0).toLocaleString("es-AR")}</td>
-      <td class="money">$${Number(p.INGRESOS || 0).toLocaleString("es-AR")}</td>
+      <td>${fila(14)}</td>
+      <td>${fila(160 - i * 12)}<br>${fila(80)}</td>
+      <td class="num">${fila(90)}</td>
+      <td class="num">${fila(60)}</td>
+      <td class="num d-none d-md-table-cell">${fila(34)}</td>
+      <td class="num">${fila(44)}</td>
+      <td class="num d-none d-md-table-cell">${fila(26)}</td>
     </tr>`).join("");
+  const kpis = document.getElementById("repProductosKpis");
+  if (kpis && !_repProductosMeta) {
+    kpis.innerHTML = Array.from({ length: 4 }, () =>
+      `<div class="rep-prod-kpi"><div class="lbl">${fila(70)}</div><div class="val">${fila(90)}</div></div>`).join("");
+  }
 }
 
-/** Llamado por el input del buscador (oninput) en la tabla de productos más vendidos. */
-function filtrarReporteProductos(texto) {
-  renderReporteProductos(_repProductosDatosActuales, texto);
+/**
+ * Pide reporteProductosVendidos para el período elegido, UNA sola vez:
+ * Productos y Compras usan la misma respuesta (caché de sesión de 90 s +
+ * la promesa en curso, así dos pestañas que la piden juntas no duplican
+ * el pedido). forzar=true saltea ambas cachés (también la del servidor).
+ */
+const _repProdPedidosEnCurso = {};
+async function _obtenerReporteProductosVendidos(forzar) {
+  const rango = obtenerRangoReportes();
+  const clave = "reporteProductosVendidos" + rango;
+  if (!forzar) {
+    const enCache = _getCacheReporte(clave);
+    if (enCache) return enCache;
+    if (_repProdPedidosEnCurso[clave]) return _repProdPedidosEnCurso[clave];
+  }
+  const promesa = (async () => {
+    const response = await fetchAPI(API_URL + "?action=reporteProductosVendidos" + rango + (forzar ? "&sinCache=1&_=" + Date.now() : ""), {}, _REP_OPC_FETCH);
+    const data = await _leerRespuestaJSON(response);
+    if (data && data.success) {
+      data._rango = "&desde=" + encodeURIComponent(data.desde) + "&hasta=" + encodeURIComponent(data.hasta);
+      _cacheReporte(clave, data);
+      _cacheReporte("reporteProductosVendidos" + data._rango, data);
+    }
+    return data;
+  })();
+  _repProdPedidosEnCurso[clave] = promesa;
+  try { return await promesa; }
+  finally { delete _repProdPedidosEnCurso[clave]; }
+}
+
+async function cargarReporteProductos(forzar) {
+  const rango = obtenerRangoReportes();
+  const estado = document.getElementById("repProductosEstado");
+  const gen = ++_repProductosGen;
+
+  if (!forzar) {
+    const enCache = _getCacheReporte("reporteProductosVendidos" + rango);
+    if (enCache) { _aplicar_cargarReporteProductos(enCache); return; }
+  }
+
+  // Si ya hay datos de este mismo rango, se dejan a la vista mientras se
+  // actualiza; si es un rango nuevo, esqueleto.
+  const mismoRango = _repProductosMeta && _repProductosMeta._rango === rango;
+  if (!mismoRango) _repProductosEsqueleto();
+  if (estado) estado.textContent = "Cargando…";
+
+  try {
+    const data = await _obtenerReporteProductosVendidos(forzar);
+    if (gen !== _repProductosGen) return; // llegó tarde: ya se pidió otro rango
+    if (!data || !data.success) {
+      _repProductosError((data && data.message) || "El servidor no devolvió el reporte");
+      return;
+    }
+    _aplicar_cargarReporteProductos(data);
+  } catch (error) {
+    if (gen !== _repProductosGen) return;
+    console.error("Error al cargar reporte de productos vendidos:", error);
+    _repProductosError(_repMensajeError(error));
+  }
+}
+
+function _repProductosError(mensaje) {
+  if (typeof _repTabRangoCargado !== "undefined") _repTabRangoCargado.productos = null; // reintenta al reabrir la pestaña
+  const tbody = document.getElementById("repProductosTabla");
+  const estado = document.getElementById("repProductosEstado");
+  if (estado) estado.textContent = "";
+  if (!tbody) return;
+  if (_repProductosDatosActuales.length && _repProductosMeta) {
+    // Se mantienen los datos anteriores en pantalla, solo se avisa
+    toast(mensaje + " — se siguen mostrando los datos anteriores", "error");
+    return;
+  }
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">
+    <div class="text-muted mb-2">⚠️ ${escapeHtml(mensaje)}</div>
+    <button class="btn btn-outline-primary btn-sm" onclick="cargarReporteProductos(true)">Reintentar</button>
+  </td></tr>`;
+}
+
+/** Aplica los datos (del backend o de la caché de sesión) y arma los filtros */
+function _aplicar_cargarReporteProductos(data) {
+  sincronizarRangoReportes(data.desde, data.hasta);
+  _repProductosDatosActuales = (data.productos || []).map(p => ({
+    ...p,
+    CODIGO: String(p.CODIGO ?? ""),
+    CATEGORIA: p.CATEGORIA || "Sin categoría",
+    VENDIDOS: Number(p.VENDIDOS || 0),
+    INGRESOS: Number(p.INGRESOS || 0),
+    _busqueda: normalizarBusquedaPOS([p.PRODUCTO, p.CODIGO, p.CATEGORIA, p.ALIAS, p.CODIGO_CAJA].join(" "))
+  }));
+
+  // Productos del catálogo que NO se vendieron en el período: no van en el
+  // ranking, pero el buscador los encuentra igual (antes "no aparecían").
+  // El backend nuevo los manda en data.sinVentas; con uno viejo se usa el
+  // catálogo que ya esté cargado en el panel.
+  const vendidos = new Set(_repProductosDatosActuales.map(p => p.CODIGO));
+  let sinVentas = [];
+  if (Array.isArray(data.sinVentas)) {
+    sinVentas = data.sinVentas.map(r => ({ CODIGO: String(r[0] ?? ""), PRODUCTO: r[1] || "", CATEGORIA: r[2] || "Sin categoría", STOCK: r[3], ALIAS: r[4] || "", CODIGO_CAJA: r[5] || "" }));
+  } else if (typeof productosAdminGlobal !== "undefined" && Array.isArray(productosAdminGlobal)) {
+    sinVentas = productosAdminGlobal.map(p => ({ CODIGO: String(p.CODIGO ?? ""), PRODUCTO: p.PRODUCTO || "", CATEGORIA: p.CATEGORIA || "Sin categoría", STOCK: p.STOCK, ALIAS: p.ALIAS || "", CODIGO_CAJA: p.CODIGO_CAJA || "" }));
+  }
+  _repProductosSinVentas = sinVentas
+    .filter(p => p.CODIGO && !vendidos.has(p.CODIGO))
+    .map(p => ({
+      ...p, VENDIDOS: 0, INGRESOS: 0, VENDIDOS_ANTERIOR: 0, INGRESOS_ANTERIOR: 0, OPERACIONES: 0,
+      EN_CATALOGO: true, SIN_VENTAS: true, DIAS: {},
+      _busqueda: normalizarBusquedaPOS([p.PRODUCTO, p.CODIGO, p.CATEGORIA, p.ALIAS, p.CODIGO_CAJA].join(" "))
+    }));
+
+  // Totales: los manda el backend nuevo; con uno viejo se calculan acá
+  const totales = data.totales || {
+    unidades: _repProductosDatosActuales.reduce((s, p) => s + p.VENDIDOS, 0),
+    ingresos: _repProductosDatosActuales.reduce((s, p) => s + p.INGRESOS, 0),
+    productos: _repProductosDatosActuales.length
+  };
+  _repProductosMeta = {
+    _rango: data._rango, desde: data.desde, hasta: data.hasta,
+    anterior: data.anterior || null, totales, totalesAnterior: data.totalesAnterior || null,
+    generado: data.generado || null, conComparacion: !!data.anterior,
+    porDia: data.porDia || null
+  };
+  if (_repProductoSel && !_repProductosDatosActuales.some(p => p.CODIGO === _repProductoSel)) _repProductoSel = null;
+
+  // Categorías presentes en el período (respeta la elegida si sigue existiendo)
+  const selCat = document.getElementById("repProductosCategoria");
+  if (selCat) {
+    const actual = selCat.value;
+    const cats = [...new Set(_repProductosDatosActuales.map(p => p.CATEGORIA))].sort((a, b) => a.localeCompare(b, "es"));
+    selCat.innerHTML = `<option value="">Todas las categorías</option>` +
+      cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    selCat.value = cats.includes(actual) ? actual : "";
+  }
+
+  const periodo = document.getElementById("repProductosPeriodo");
+  if (periodo) {
+    periodo.textContent = `${_fmtFechaCorta(data.desde)} al ${_fmtFechaCorta(data.hasta)}` +
+      (data.anterior ? ` · comparado con ${_fmtFechaCorta(data.anterior.desde)} al ${_fmtFechaCorta(data.anterior.hasta)}` : "");
+  }
+  const estado = document.getElementById("repProductosEstado");
+  if (estado) {
+    const hora = data.generado ? new Date(data.generado) : new Date();
+    estado.textContent = "Datos de las " + hora.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  _renderKpisReporteProductos();
+  renderReporteProductos();
+}
+
+function _renderKpisReporteProductos() {
+  const cont = document.getElementById("repProductosKpis");
+  const m = _repProductosMeta;
+  if (!cont || !m) return;
+  const t = m.totales, a = m.totalesAnterior;
+  const comp = (act, ant) => {
+    if (!a) return "";
+    const v = _repVariacion(act, ant);
+    return `<div class="sub"><span class="rep-tend ${v.clase}">${v.texto}</span> vs. período anterior</div>`;
+  };
+  // Concentración: cuánto de los ingresos explican los 10 primeros
+  const top10 = [..._repProductosDatosActuales].sort((x, y) => y.INGRESOS - x.INGRESOS).slice(0, 10)
+    .reduce((s, p) => s + p.INGRESOS, 0);
+  const pctTop10 = t.ingresos ? Math.round(top10 / t.ingresos * 100) : 0;
+
+  cont.innerHTML = `
+    <div class="rep-prod-kpi"><div class="lbl">Unidades vendidas</div><div class="val">${_fmtNum(t.unidades)}</div>${comp(t.unidades, a && a.unidades)}</div>
+    <div class="rep-prod-kpi"><div class="lbl">Ingresos por productos</div><div class="val">${_fmtPlata(t.ingresos)}</div>${comp(t.ingresos, a && a.ingresos)}</div>
+    <div class="rep-prod-kpi"><div class="lbl">Productos distintos vendidos</div><div class="val">${_fmtNum(t.productos)}</div>${comp(t.productos, a && a.productos)}</div>
+    <div class="rep-prod-kpi"><div class="lbl">Peso del Top 10</div><div class="val">${pctTop10}%</div><div class="sub">de los ingresos del período</div></div>`;
+}
+
+/** Lista filtrada y ordenada según buscador, categoría y orden (sin el Top N) */
+function _repProductosFiltrados() {
+  const texto = normalizarBusquedaPOS((document.getElementById("repProductosBuscador") || {}).value || "");
+  const categoria = (document.getElementById("repProductosCategoria") || {}).value || "";
+  const orden = (document.getElementById("repProductosOrden") || {}).value || "unidades";
+
+  const consulta = (document.getElementById("repProductosBuscador") || {}).value || "";
+  const base = texto ? _repProductosDatosActuales.concat(_repProductosSinVentas) : _repProductosDatosActuales;
+  let lista = base.filter(p =>
+    (!categoria || p.CATEGORIA === categoria) && (!texto || coincideBusquedaReportes(p._busqueda, consulta)));
+
+  const varUnid = p => _repVariacion(p.VENDIDOS, p.VENDIDOS_ANTERIOR).valor;
+  const stockNum = p => (p.STOCK === null || p.STOCK === undefined || p.STOCK === "") ? Infinity : Number(p.STOCK);
+  const comparadores = {
+    unidades: (x, y) => (y.VENDIDOS - x.VENDIDOS) || (y.INGRESOS - x.INGRESOS),
+    ingresos: (x, y) => (y.INGRESOS - x.INGRESOS) || (y.VENDIDOS - x.VENDIDOS),
+    suba: (x, y) => (varUnid(y) - varUnid(x)) || (y.VENDIDOS - x.VENDIDOS),
+    baja: (x, y) => (varUnid(x) - varUnid(y)) || (y.VENDIDOS - x.VENDIDOS),
+    stock: (x, y) => (stockNum(x) - stockNum(y)) || (y.VENDIDOS - x.VENDIDOS)
+  };
+  return lista.sort(comparadores[orden] || comparadores.unidades);
+}
+
+/** Renderiza la tabla (los parámetros viejos se ignoran: todo sale de los controles) */
+function renderReporteProductos() {
+  const tbody = document.getElementById("repProductosTabla");
+  const pie = document.getElementById("repProductosPie");
+  if (!tbody) return;
+
+  const buscando = !!normalizarBusquedaPOS((document.getElementById("repProductosBuscador") || {}).value || "");
+  if (!_repProductosDatosActuales.length && !buscando) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Sin ventas de productos en el período elegido</td></tr>`;
+    if (pie) pie.textContent = "";
+    const g = document.getElementById("repProdGraficos");
+    if (g) g.style.display = "none";
+    return;
+  }
+
+  const filtrados = _repProductosFiltrados();
+  if (!filtrados.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">${buscando
+      ? "Ningún producto del catálogo coincide con la búsqueda" + ((document.getElementById("repProductosCategoria") || {}).value ? " en esa categoría" : "")
+      : "Ningún producto coincide con los filtros"}</td></tr>`;
+    if (pie) pie.textContent = "";
+    _repDibujarGraficos(filtrados);
+    return;
+  }
+
+  // Buscando se muestran TODAS las coincidencias (con Top 10 quedaban productos afuera)
+  const lista = buscando ? filtrados : _limitarReporte(filtrados, "productos");
+  const maxUnid = Math.max(...lista.map(p => p.VENDIDOS), 1);
+  const totalIngresos = (_repProductosMeta && _repProductosMeta.totales.ingresos) || 0;
+  const conComparacion = _repProductosMeta && _repProductosMeta.conComparacion;
+
+  tbody.innerHTML = lista.map((p, i) => {
+    const anchoBarra = Math.max(2, Math.round(p.VENDIDOS / maxUnid * 100));
+    const pct = totalIngresos ? (p.INGRESOS / totalIngresos * 100) : 0;
+    const v = conComparacion ? _repVariacion(p.VENDIDOS, p.VENDIDOS_ANTERIOR) : { clase: "na", texto: "—" };
+    const tituloVar = conComparacion ? `Período anterior: ${_fmtNum(p.VENDIDOS_ANTERIOR)} u.` : "";
+
+    let stockHtml = `<span class="text-muted">—</span>`;
+    if (p.EN_CATALOGO === false) stockHtml = `<span class="text-muted" title="El producto ya no está en el catálogo">eliminado</span>`;
+    else if (p.STOCK !== null && p.STOCK !== undefined && p.STOCK !== "") {
+      const st = Number(p.STOCK);
+      // Stock bajo: no alcanza para repetir las ventas de este período
+      stockHtml = st < p.VENDIDOS
+        ? `<span class="rep-stock-bajo" title="Quedan menos unidades que las vendidas en el período">⚠ ${_fmtNum(st)}</span>`
+        : _fmtNum(st);
+    }
+
+    if (p.SIN_VENTAS) {
+      return `
+      <tr class="rep-sin-ventas">
+        <td class="rep-prod-rank">—</td>
+        <td>
+          <div class="rep-prod-nombre">${escapeHtml(p.PRODUCTO || "(sin nombre)")}</div>
+          <div class="rep-prod-meta"><span class="mono">${escapeHtml(p.CODIGO)}</span> · ${escapeHtml(p.CATEGORIA)}</div>
+        </td>
+        <td class="num" colspan="4"><span class="text-muted" style="font-size:12px;">Sin ventas en este período</span></td>
+        <td class="num d-none d-md-table-cell">${stockHtml}</td>
+      </tr>`;
+    }
+    const sel = p.CODIGO === _repProductoSel;
+    return `
+      <tr class="rep-fila${sel ? " rep-sel" : ""}" onclick="repSeleccionarProducto('${escapeJsAttr(p.CODIGO)}')" title="Ver la evolución de este producto">
+        <td class="rep-prod-rank">${i + 1}</td>
+        <td>
+          <div class="rep-prod-nombre">${escapeHtml(p.PRODUCTO || "(sin nombre)")}</div>
+          <div class="rep-prod-meta"><span class="mono">${escapeHtml(p.CODIGO)}</span> · ${escapeHtml(p.CATEGORIA)}${p.OPERACIONES ? ` · en ${_fmtNum(p.OPERACIONES)} venta${p.OPERACIONES === 1 ? "" : "s"}` : ""}</div>
+        </td>
+        <td class="num">
+          <div class="rep-prod-barra" title="${_fmtNum(p.VENDIDOS)} unidades">
+            <div class="track"><div class="fill" style="width:${anchoBarra}%;"></div></div>
+            <span>${_fmtNum(p.VENDIDOS)}</span>
+          </div>
+        </td>
+        <td class="num">${_fmtPlata(p.INGRESOS)}</td>
+        <td class="num d-none d-md-table-cell">${pct >= 0.1 ? pct.toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%" : "<0,1%"}</td>
+        <td class="num"><span class="rep-tend ${v.clase}" title="${escapeHtml(tituloVar)}">${v.texto}</span></td>
+        <td class="num d-none d-md-table-cell">${stockHtml}</td>
+      </tr>`;
+  }).join("");
+
+  if (pie) {
+    const conVentas = filtrados.filter(p => !p.SIN_VENTAS).length;
+    const partes = buscando
+      ? [`${_fmtNum(filtrados.length)} coincidencia${filtrados.length === 1 ? "" : "s"}: ${_fmtNum(conVentas)} con ventas y ${_fmtNum(filtrados.length - conVentas)} sin ventas en el período`]
+      : [`Mostrando ${_fmtNum(lista.length)} de ${_fmtNum(filtrados.length)} productos vendidos`];
+    if (!buscando && filtrados.length !== _repProductosDatosActuales.length) partes.push(`(${_fmtNum(_repProductosDatosActuales.length)} en total)`);
+    if (!conComparacion) partes.push("· la comparación con el período anterior aparece al actualizar el Code.gs");
+    pie.textContent = partes.join(" ");
+  }
+  _repDibujarGraficos(filtrados.filter(p => !p.SIN_VENTAS));
+}
+
+
+/* ---- Gráficos del reporte de productos (Chart.js, ya cargado en index.html) ----
+   Siguen los mismos filtros que la tabla. Un solo tono (azul) para el
+   período actual y gris para el anterior; la categoría o el producto
+   elegido se resalta y el resto queda más claro. */
+const _REP_AZUL = "#2563eb";
+const _REP_AZUL_CLARO = "rgba(37,99,235,.28)";
+const _REP_GRIS = "#b8c1cf";
+const _REP_GRILLA = "#eef1f6";
+const _REP_TEXTO = "#6b7585";
+let _repCharts = {};
+let _repProductoSel = null; // código del producto elegido para el gráfico diario
+
+const _fmtCompacto = n => {
+  const v = Math.abs(Number(n || 0));
+  if (v >= 1e6) return (n / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " M";
+  if (v >= 1e3) return (n / 1e3).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " mil";
+  return Number(n || 0).toLocaleString("es-AR");
+};
+const _recortar = (t, n) => { t = String(t || ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+
+function _repOpcionesBase() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 250 },
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: "#0b1633", padding: 10, cornerRadius: 8, titleFont: { weight: "600" }, displayColors: true, boxPadding: 4 }
+    }
+  };
+}
+
+function _repDibujarGraficos(filtrados) {
+  const cont = document.getElementById("repProdGraficos");
+  if (!cont) return;
+  if (typeof Chart === "undefined") { cont.style.display = "none"; return; } // sin internet la 1ª vez no carga la librería
+  cont.style.display = "";
+  _repDibujarGraficoTop(filtrados);
+  _repDibujarGraficoCategorias();
+  _repDibujarGraficoDias();
+}
+
+/* -- 1. Top 10: barras horizontales, período actual vs. anterior -- */
+function _repDibujarGraficoTop(filtrados) {
+  const canvas = document.getElementById("repGrafTop");
+  if (!canvas) return;
+  if (_repCharts.top) _repCharts.top.destroy();
+
+  const orden = (document.getElementById("repProductosOrden") || {}).value || "unidades";
+  const porIngresos = orden === "ingresos";
+  const valor = p => porIngresos ? p.INGRESOS : p.VENDIDOS;
+  const valorAnt = p => porIngresos ? Number(p.INGRESOS_ANTERIOR || 0) : Number(p.VENDIDOS_ANTERIOR || 0);
+  const top = [...filtrados].sort((a, b) => valor(b) - valor(a)).slice(0, 10);
+  const conComparacion = _repProductosMeta && _repProductosMeta.conComparacion;
+  const fmt = porIngresos ? _fmtPlata : (n => _fmtNum(n) + " u.");
+
+  const titulo = document.getElementById("repGrafTopTitulo");
+  if (titulo) titulo.textContent = `Top ${top.length} por ${porIngresos ? "ingresos" : "unidades"}` + (conComparacion ? " — este período vs. el anterior" : "");
+
+  const resaltar = p => !_repProductoSel || p.CODIGO === _repProductoSel;
+  const datasets = [{
+    label: "Este período",
+    data: top.map(valor),
+    backgroundColor: top.map(p => resaltar(p) ? _REP_AZUL : _REP_AZUL_CLARO),
+    borderRadius: 4, borderSkipped: "start", barPercentage: .85, categoryPercentage: .75
+  }];
+  if (conComparacion) datasets.push({
+    label: "Período anterior",
+    data: top.map(valorAnt),
+    backgroundColor: _REP_GRIS,
+    borderRadius: 4, borderSkipped: "start", barPercentage: .85, categoryPercentage: .75
+  });
+
+  const op = _repOpcionesBase();
+  op.indexAxis = "y";
+  op.plugins.legend = { display: conComparacion, position: "bottom", labels: {
+    boxWidth: 10, boxHeight: 10, font: { size: 11 }, color: _REP_TEXTO,
+    // La leyenda usa siempre el azul pleno (las barras pueden estar aclaradas por la selección)
+    generateLabels: ch => ch.data.datasets.map((ds, i) => ({
+      text: ds.label, datasetIndex: i, hidden: !ch.isDatasetVisible(i),
+      fillStyle: i === 0 ? _REP_AZUL : _REP_GRIS, strokeStyle: i === 0 ? _REP_AZUL : _REP_GRIS, lineWidth: 0
+    }))
+  } };
+  op.plugins.tooltip.callbacks = {
+    title: items => top[items[0].dataIndex].PRODUCTO,
+    label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`
+  };
+  op.scales = {
+    x: { beginAtZero: true, grid: { color: _REP_GRILLA }, border: { display: false }, ticks: { color: _REP_TEXTO, font: { size: 11 }, callback: v => porIngresos ? "$" + _fmtCompacto(v) : _fmtCompacto(v) } },
+    y: { grid: { display: false }, border: { display: false }, ticks: { color: "#334155", font: { size: 11.5 }, callback: (v, i) => _recortar(top[i] && top[i].PRODUCTO, 26) } }
+  };
+  op.onClick = (evt, elementos) => { if (elementos.length) repSeleccionarProducto(top[elementos[0].index].CODIGO); };
+  op.onHover = (evt, elementos) => { evt.native.target.style.cursor = elementos.length ? "pointer" : "default"; };
+
+  _repCharts.top = new Chart(canvas, { type: "bar", data: { labels: top.map(p => p.CODIGO), datasets }, options: op });
+}
+
+/* -- 2. Ingresos por categoría: barras horizontales ordenadas (8 + "Otras") -- */
+function _repDibujarGraficoCategorias() {
+  const canvas = document.getElementById("repGrafCategorias");
+  if (!canvas) return;
+  if (_repCharts.cat) _repCharts.cat.destroy();
+
+  // Respeta el buscador pero NO la categoría (si no, siempre habría una sola barra)
+  const texto = normalizarBusquedaPOS((document.getElementById("repProductosBuscador") || {}).value || "");
+  const catSel = (document.getElementById("repProductosCategoria") || {}).value || "";
+  const sumas = {};
+  _repProductosDatosActuales.forEach(p => {
+    if (texto && !p._busqueda.includes(texto)) return;
+    sumas[p.CATEGORIA] = (sumas[p.CATEGORIA] || 0) + p.INGRESOS;
+  });
+  let filas = Object.entries(sumas).sort((a, b) => b[1] - a[1]);
+  if (filas.length > 9) {
+    const otras = filas.slice(8).reduce((s, f) => s + f[1], 0);
+    filas = filas.slice(0, 8).concat([["Otras", otras]]);
+  }
+  const total = filas.reduce((s, f) => s + f[1], 0);
+
+  const op = _repOpcionesBase();
+  op.indexAxis = "y";
+  op.plugins.tooltip.callbacks = {
+    label: ctx => ` ${_fmtPlata(ctx.raw)} (${total ? (ctx.raw / total * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) : 0}%)`
+  };
+  op.scales = {
+    x: { beginAtZero: true, grid: { color: _REP_GRILLA }, border: { display: false }, ticks: { color: _REP_TEXTO, font: { size: 11 }, callback: v => "$" + _fmtCompacto(v) } },
+    y: { grid: { display: false }, border: { display: false }, ticks: { color: "#334155", font: { size: 11.5 }, callback: (v, i) => _recortar(filas[i] && filas[i][0], 20) } }
+  };
+  op.onClick = (evt, elementos) => {
+    if (!elementos.length) return;
+    const cat = filas[elementos[0].index][0];
+    if (cat === "Otras") return;
+    const sel = document.getElementById("repProductosCategoria");
+    if (sel) { sel.value = sel.value === cat ? "" : cat; renderReporteProductos(); }
+  };
+  op.onHover = (evt, elementos) => {
+    const ok = elementos.length && filas[elementos[0].index][0] !== "Otras";
+    evt.native.target.style.cursor = ok ? "pointer" : "default";
+  };
+
+  _repCharts.cat = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: filas.map(f => f[0]),
+      datasets: [{
+        label: "Ingresos",
+        data: filas.map(f => f[1]),
+        backgroundColor: filas.map(f => (!catSel || f[0] === catSel) ? _REP_AZUL : _REP_AZUL_CLARO),
+        borderRadius: 4, borderSkipped: "start", barPercentage: .8
+      }]
+    },
+    options: op
+  });
+}
+
+/* -- 3. Evolución por día (o por semana si el período es largo) -- */
+function _repDibujarGraficoDias() {
+  const canvas = document.getElementById("repGrafDias");
+  const aviso = document.getElementById("repGrafDiasAviso");
+  const chip = document.getElementById("repGrafDiasChip");
+  const titulo = document.getElementById("repGrafDiasTitulo");
+  if (!canvas) return;
+  if (_repCharts.dias) { _repCharts.dias.destroy(); _repCharts.dias = null; }
+
+  const meta = _repProductosMeta;
+  const serieBase = meta && meta.porDia;
+  if (!serieBase || !serieBase.length) {
+    canvas.parentElement.style.display = "none";
+    if (aviso) { aviso.style.display = "block"; aviso.textContent = "Este gráfico aparece al publicar el Code.gs nuevo (necesita las ventas día por día)."; }
+    return;
+  }
+  canvas.parentElement.style.display = "";
+  if (aviso) aviso.style.display = "none";
+
+  const metrica = (document.getElementById("repGrafDiasMetrica") || {}).value || "unidades";
+  const idx = metrica === "ingresos" ? 1 : 0;
+  const catSel = (document.getElementById("repProductosCategoria") || {}).value || "";
+  const prod = _repProductoSel ? _repProductosDatosActuales.find(p => p.CODIGO === _repProductoSel) : null;
+
+  // Qué se grafica: un producto, una categoría o el total
+  let valores, etiqueta;
+  if (prod) {
+    valores = serieBase.map(d => { const par = (prod.DIAS || {})[d.fecha]; return par ? Number(Array.isArray(par) ? par[idx] : (idx ? 0 : par)) : 0; });
+    etiqueta = prod.PRODUCTO;
+  } else if (catSel) {
+    const enCat = _repProductosDatosActuales.filter(p => p.CATEGORIA === catSel);
+    valores = serieBase.map(d => enCat.reduce((s, p) => { const par = (p.DIAS || {})[d.fecha]; return s + (par ? Number(Array.isArray(par) ? par[idx] : (idx ? 0 : par)) : 0); }, 0));
+    etiqueta = catSel;
+  } else {
+    valores = serieBase.map(d => Number(idx ? d.ingresos : d.unidades) || 0);
+    etiqueta = "Todos los productos";
+  }
+
+  if (chip) {
+    if (prod) {
+      chip.style.display = "inline-flex";
+      chip.innerHTML = `<span>${escapeHtml(prod.PRODUCTO)}</span><button type="button" title="Ver todos" onclick="repSeleccionarProducto(null)">✕</button>`;
+    } else chip.style.display = "none";
+  }
+
+  // Más de 2 meses: por semana (lunes a domingo), si no se vuelve ilegible
+  let etiquetas = serieBase.map(d => d.fecha);
+  let porSemana = false;
+  if (serieBase.length > 62) {
+    porSemana = true;
+    const semanas = [];
+    serieBase.forEach((d, i) => {
+      const f = new Date(d.fecha + "T12:00:00");
+      const lunes = new Date(f); lunes.setDate(f.getDate() - ((f.getDay() + 6) % 7));
+      const clave = lunes.toISOString().slice(0, 10);
+      const ult = semanas[semanas.length - 1];
+      if (ult && ult.clave === clave) ult.valor += valores[i];
+      else semanas.push({ clave, valor: valores[i] });
+    });
+    etiquetas = semanas.map(s => s.clave);
+    valores = semanas.map(s => s.valor);
+  }
+
+  if (titulo) titulo.textContent = `${metrica === "ingresos" ? "Ingresos" : "Unidades vendidas"} por ${porSemana ? "semana" : "día"} — ${etiqueta}`;
+
+  const fmt = metrica === "ingresos" ? _fmtPlata : (n => _fmtNum(n) + " u.");
+  const fmtEje = f => _fmtFechaCorta(f).replace(/\/\d{2}$/, ""); // "3/10"
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, 0, 220);
+  grad.addColorStop(0, "rgba(37,99,235,.18)");
+  grad.addColorStop(1, "rgba(37,99,235,0)");
+
+  const op = _repOpcionesBase();
+  op.interaction = { mode: "index", intersect: false };
+  op.plugins.tooltip.callbacks = {
+    title: items => (porSemana ? "Semana del " : "") + _fmtFechaCorta(etiquetas[items[0].dataIndex]),
+    label: c => ` ${fmt(c.raw)}`
+  };
+  op.scales = {
+    x: { grid: { display: false }, border: { color: _REP_GRILLA }, ticks: { color: _REP_TEXTO, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: (v, i) => fmtEje(etiquetas[i]) } },
+    y: { beginAtZero: true, grid: { color: _REP_GRILLA }, border: { display: false }, ticks: { color: _REP_TEXTO, font: { size: 11 }, maxTicksLimit: 5, precision: 0, callback: v => metrica === "ingresos" ? "$" + _fmtCompacto(v) : _fmtCompacto(v) } }
+  };
+
+  _repCharts.dias = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: etiqueta, data: valores,
+        borderColor: _REP_AZUL, borderWidth: 2, backgroundColor: grad, fill: true,
+        tension: .3, cubicInterpolationMode: "monotone", pointRadius: valores.length <= 31 ? 2.5 : 0, pointHoverRadius: 5,
+        pointBackgroundColor: _REP_AZUL, pointBorderColor: "#fff", pointBorderWidth: 1.5
+      }]
+    },
+    options: op
+  });
+}
+
+/** Elige (o suelta) un producto: se resalta en la tabla y en el Top 10, y el gráfico diario muestra solo ese */
+function repSeleccionarProducto(codigo) {
+  _repProductoSel = (codigo === null || codigo === undefined || String(codigo) === _repProductoSel) ? null : String(codigo);
+  renderReporteProductos();
+  if (_repProductoSel) document.getElementById("repGrafDias")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/** Llamado por el buscador (oninput) */
+function filtrarReporteProductos() {
+  renderReporteProductos();
+}
+
+/** Filas para exportar: TODO lo filtrado (no solo el Top N visible) */
+function _repProductosFilasExport() {
+  const total = (_repProductosMeta && _repProductosMeta.totales.ingresos) || 0;
+  return _repProductosFiltrados().map((p, i) => ({
+    "#": i + 1,
+    "Código": p.CODIGO,
+    "Producto": p.PRODUCTO,
+    "Categoría": p.CATEGORIA,
+    "Unidades": p.VENDIDOS,
+    "Ingresos": Math.round(p.INGRESOS),
+    "% ingresos": total ? Math.round(p.INGRESOS / total * 1000) / 10 : 0,
+    "Unidades período anterior": p.VENDIDOS_ANTERIOR ?? "",
+    "Variación": _repVariacion(p.VENDIDOS, p.VENDIDOS_ANTERIOR).texto.replace(/[▲▼●=]\s?/g, "").trim(),
+    "Stock actual": (p.STOCK === null || p.STOCK === undefined) ? "" : p.STOCK
+  }));
+}
+
+function exportarReporteProductosCSV() {
+  const filas = _repProductosFilasExport();
+  if (!filas.length) { toast("No hay datos para exportar", "error"); return; }
+  const cols = Object.keys(filas[0]);
+  const celda = v => {
+    const t = typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "");
+    return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  // ";" y BOM: Excel en español lo abre directo en columnas y con acentos
+  const csv = "﻿" + [cols.join(";"), ...filas.map(f => cols.map(c => celda(f[c])).join(";"))].join("\r\n");
+  const m = _repProductosMeta || {};
+  descargarArchivo(`Productos_mas_vendidos_${m.desde || ""}_a_${m.hasta || ""}.csv`, csv, "text/csv;charset=utf-8");
+}
+
+function exportarReporteProductosPDF() {
+  try {
+    const filas = _repProductosFilasExport();
+    if (!filas.length) { toast("No hay datos para exportar", "error"); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const m = _repProductosMeta || {};
+    const t = m.totales || {};
+    const nombreLocal = (obtenerConfigNegocio().nombre || "Reporte").toString();
+
+    doc.setFontSize(14);
+    doc.text(`${nombreLocal} — Productos más vendidos`, 30, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(110, 110, 110);
+    doc.text(`Período: ${_fmtFechaCorta(m.desde)} al ${_fmtFechaCorta(m.hasta)}  ·  ${_fmtNum(t.unidades)} unidades  ·  ${_fmtPlata(t.ingresos)}  ·  Generado: ${new Date().toLocaleString("es-AR")}`, 30, 46);
+
+    const cols = ["#", "Código", "Producto", "Categoría", "Unidades", "Ingresos", "% ingresos", "Variación", "Stock actual"];
+    doc.autoTable({
+      head: [cols],
+      body: filas.map(f => cols.map(c =>
+        c === "Ingresos" ? _fmtPlata(f[c]) :
+        c === "% ingresos" ? String(f[c]).replace(".", ",") + "%" :
+        c === "Unidades" ? _fmtNum(f[c]) : String(f[c] ?? ""))),
+      startY: 58,
+      theme: "grid",
+      styles: { fontSize: 8.5, cellPadding: 4 },
+      headStyles: { fillColor: [18, 32, 71], textColor: [255, 255, 255] },
+      columnStyles: { 0: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" }, 8: { halign: "right" } }
+    });
+    doc.save(`Productos_mas_vendidos_${m.desde || ""}_a_${m.hasta || ""}.pdf`);
+  } catch (error) {
+    console.error("Error al exportar productos a PDF:", error);
+    toast("No se pudo generar el PDF", "error");
+  }
 }
 
 /* ---- Reporte 3: Ventas por categoría ---- */
-async function cargarReporteCategorias() {
+async function cargarReporteCategorias(datosPrevios) {
   const _ck_repCategorias = "reporteVentasPorCategoria" + obtenerRangoReportes();
-  const _cd_repCategorias = _getCacheReporte(_ck_repCategorias);
+  const _cd_repCategorias = null; // (estos reportes no se cachean por separado: vienen todos juntos de reportesVentas)
   if (_cd_repCategorias) { _aplicar_cargarReporteCategorias(_cd_repCategorias); return; }
   const tbody = document.getElementById("repCategoriasTabla");
 
   try {
-    const response = await fetchAPI(API_URL + "?action=reporteVentasPorCategoria" + obtenerRangoReportes());
-    const data = await response.json();
+    const data = datosPrevios || await _leerRespuestaJSON(await fetchAPI(API_URL + "?action=reporteVentasPorCategoria" + obtenerRangoReportes(), {}, _REP_OPC_FETCH));
     if (!data.success) return;
 
     sincronizarRangoReportes(data.desde, data.hasta);
@@ -9278,7 +10651,7 @@ async function cargarReporteCategorias() {
 
   } catch (error) {
     console.error("Error al cargar reporte de ventas por categoría:", error);
-    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))}</td></tr>`;
   }
 }
 
@@ -9302,12 +10675,11 @@ function renderReporteCategorias() {
 }
 
 /* ---- Reporte 4: Formas de pago ---- */
-async function cargarReporteFormasPago() {
+async function cargarReporteFormasPago(datosPrevios) {
   const tbody = document.getElementById("repFormasPagoTabla");
 
   try {
-    const response = await fetchAPI(API_URL + "?action=reporteFormasPago" + obtenerRangoReportes());
-    const data = await response.json();
+    const data = datosPrevios || await _leerRespuestaJSON(await fetchAPI(API_URL + "?action=reporteFormasPago" + obtenerRangoReportes(), {}, _REP_OPC_FETCH));
     if (!data.success) return;
 
     sincronizarRangoReportes(data.desde, data.hasta);
@@ -9316,7 +10688,7 @@ async function cargarReporteFormasPago() {
 
   } catch (error) {
     console.error("Error al cargar reporte de formas de pago:", error);
-    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))}</td></tr>`;
   }
 }
 
@@ -9340,15 +10712,14 @@ function renderReporteFormasPago() {
 }
 
 /* ---- Reporte 5: Historial de cierres de caja ---- */
-async function cargarReporteCierres() {
+async function cargarReporteCierres(datosPrevios) {
   const _ck_repCierres = "reporteCierres" + obtenerRangoReportes();
-  const _cd_repCierres = _getCacheReporte(_ck_repCierres);
+  const _cd_repCierres = null; // (estos reportes no se cachean por separado: vienen todos juntos de reportesVentas)
   if (_cd_repCierres) { _aplicar_cargarReporteCierres(_cd_repCierres); return; }
   const tbody = document.getElementById("repCierresTabla");
 
   try {
-    const response = await fetchAPI(API_URL + "?action=reporteCierresCaja" + obtenerRangoReportes());
-    const data = await response.json();
+    const data = datosPrevios || await _leerRespuestaJSON(await fetchAPI(API_URL + "?action=reporteCierresCaja" + obtenerRangoReportes(), {}, _REP_OPC_FETCH));
     if (!data.success) return;
 
     sincronizarRangoReportes(data.desde, data.hasta);
@@ -9357,7 +10728,7 @@ async function cargarReporteCierres() {
 
   } catch (error) {
     console.error("Error al cargar reporte de cierres de caja:", error);
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))}</td></tr>`;
   }
 }
 
@@ -9389,15 +10760,14 @@ function renderReporteCierres() {
 }
 
 /* ---- Reporte 6: Clientes que más compran ---- */
-async function cargarReporteClientes() {
+async function cargarReporteClientes(datosPrevios) {
   const _ck_repClientes = "reporteClientes" + obtenerRangoReportes();
-  const _cd_repClientes = _getCacheReporte(_ck_repClientes);
+  const _cd_repClientes = null; // (estos reportes no se cachean por separado: vienen todos juntos de reportesVentas)
   if (_cd_repClientes) { _aplicar_cargarReporteClientes(_cd_repClientes); return; }
   const tbody = document.getElementById("repClientesTabla");
 
   try {
-    const response = await fetchAPI(API_URL + "?action=reporteClientes" + obtenerRangoReportes());
-    const data = await response.json();
+    const data = datosPrevios || await _leerRespuestaJSON(await fetchAPI(API_URL + "?action=reporteClientes" + obtenerRangoReportes(), {}, _REP_OPC_FETCH));
     if (!data.success) return;
 
     sincronizarRangoReportes(data.desde, data.hasta);
@@ -9406,7 +10776,7 @@ async function cargarReporteClientes() {
 
   } catch (error) {
     console.error("Error al cargar reporte de clientes:", error);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))}</td></tr>`;
   }
 }
 
@@ -9492,13 +10862,9 @@ let _rcCharts = {}; // instancias de Chart.js activas, para poder destruirlas an
  *  con qué venta diaria promedio se calcula, no para cuántos días se compra. */
 let _rcDiasCobertura = 30;
 
+/** Compras usa el mismo período que el resto de Reportes */
 function _rcRangoFechas() {
-  const desde = document.getElementById("rcDesde").value;
-  const hasta = document.getElementById("rcHasta").value;
-  let qs = "";
-  if (desde) qs += "&desde=" + encodeURIComponent(desde);
-  if (hasta) qs += "&hasta=" + encodeURIComponent(hasta);
-  return qs;
+  return obtenerRangoReportes();
 }
 
 function _rcDiasDelRango(desdeStr, hastaStr) {
@@ -9508,37 +10874,39 @@ function _rcDiasDelRango(desdeStr, hastaStr) {
   return dias > 0 ? dias : 30;
 }
 
-async function cargarReporteCompras() {
+async function cargarReporteCompras(forzar) {
   const tbody = document.getElementById("rcSemaforoTabla");
+  if (tbody && !_rcProductosActuales.length) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Cargando...</td></tr>`;
   try {
-    // 1) Asegurar que tenemos el catálogo completo (con STOCK y CATEGORIA) en memoria
-    if (!productosAdminGlobal || productosAdminGlobal.length === 0) {
-      await cargarProductos(); // función existente que llena productosAdminGlobal
-    }
+    // 1) Productos vendidos del período — la MISMA respuesta que usa la
+    //    pestaña Productos (se pide una sola vez y queda en caché)
+    const data = await _obtenerReporteProductosVendidos(forzar);
+    if (!data || !data.success) { toast((data && data.message) || "No se pudo cargar el reporte de compras", "error"); return; }
 
-    // 2) Pedir productos vendidos del rango elegido
-    const qs = _rcRangoFechas();
-    const response = await fetchAPI(API_URL + "?action=reporteProductosVendidos" + qs);
-    const data = await response.json();
-    if (!data.success) { toast("No se pudo cargar el reporte de compras", "error"); return; }
-
-    sincronizarRangoReportesCompras(data.desde, data.hasta);
+    sincronizarRangoReportes(data.desde, data.hasta);
     const dias = _rcDiasDelRango(data.desde, data.hasta);
 
-    // 3) Cruzar cada producto vendido con su stock/categoría actual
+    // 2) Stock y categoría: el backend nuevo ya los manda en cada producto.
+    //    Con un backend viejo se cruzan con el catálogo (que hay que cargar).
+    const backendTraeStock = (data.productos || []).some(v => v.STOCK !== undefined);
     const stockPorCodigo = {};
-    productosAdminGlobal.forEach(p => { stockPorCodigo[String(p.CODIGO)] = p; });
+    if (!backendTraeStock) {
+      if (!productosAdminGlobal || productosAdminGlobal.length === 0) await cargarProductos();
+      (productosAdminGlobal || []).forEach(p => { stockPorCodigo[String(p.CODIGO)] = p; });
+    }
 
     const productos = (data.productos || []).map(v => {
-      const info = stockPorCodigo[String(v.CODIGO)] || {};
-      return {
-        codigo:    v.CODIGO,
+      const info = backendTraeStock ? { STOCK: v.STOCK, CATEGORIA: v.CATEGORIA, ALIAS: v.ALIAS, CODIGO_CAJA: v.CODIGO_CAJA } : (stockPorCodigo[String(v.CODIGO)] || {});
+      const p = {
+        codigo:    String(v.CODIGO ?? ""),
         nombre:    v.PRODUCTO,
         categoria: info.CATEGORIA || "Sin categoría",
         vendidos:  Number(v.VENDIDOS || 0),
         ingresos:  Number(v.INGRESOS || 0),
-        stock:     info.STOCK !== undefined ? Number(info.STOCK) : 0,
+        stock:     (info.STOCK !== undefined && info.STOCK !== null && info.STOCK !== "") ? Number(info.STOCK) : 0,
       };
+      p._busqueda = normalizarBusquedaPOS([p.nombre, p.codigo, p.categoria, info.ALIAS, info.CODIGO_CAJA].join(" "));
+      return p;
     });
 
     // 4) Pedir la tendencia diaria por categoría (endpoint nuevo — ver nota al final
@@ -9550,8 +10918,9 @@ async function cargarReporteCompras() {
 
   } catch (error) {
     console.error("Error al cargar reporte de compras:", error);
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">Error al cargar el reporte</td></tr>`;
-    toast("Error de conexión al cargar el reporte de compras", "error");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">${escapeHtml(_repMensajeError(error))} <button class="btn btn-outline-primary btn-sm ms-2" onclick="cargarReporteCompras(true)">Reintentar</button></td></tr>`;
+    toast(_repMensajeError(error), "error");
+    _repTabRangoCargado.compras = null;
   }
 }
 
@@ -9572,7 +10941,7 @@ async function _rcCargarTendenciaPorCategoria(desde, hasta) {
     const params = new URLSearchParams({ action: "reporteVentasDiariasPorCategoria" });
     if (desde) params.set("desde", desde);
     if (hasta) params.set("hasta", hasta);
-    const response = await fetchAPI(API_URL + "?" + params.toString());
+    const response = await fetchAPI(API_URL + "?" + params.toString(), {}, _REP_OPC_FETCH);
     const data = await response.json();
     if (data && data.success && data.dias) return data;
     return null;
@@ -9599,10 +10968,7 @@ async function _rcCargarVentasDelRango(desde, hasta) {
 }
 
 function sincronizarRangoReportesCompras(desde, hasta) {
-  const inputDesde = document.getElementById("rcDesde");
-  const inputHasta = document.getElementById("rcHasta");
-  if (inputDesde && !inputDesde.value) inputDesde.value = desde;
-  if (inputHasta && !inputHasta.value) inputHasta.value = hasta;
+  sincronizarRangoReportes(desde, hasta);
 }
 
 function _rcVentaDiaria(p, dias) { return p.vendidos / dias; }
@@ -9873,7 +11239,7 @@ function _rcRedibujarTendencia() {
       aviso.style.display = "block";
       aviso.textContent = "⚠️ Tu backend todavía no tiene el desglose diario por categoría — mostrando el total general. Pedime el código de Apps Script para agregarlo.";
     }
-    _rcCargarVentasDelRango(document.getElementById("rcDesde").value, document.getElementById("rcHasta").value)
+    _rcCargarVentasDelRango(document.getElementById("repDesde").value, document.getElementById("repHasta").value)
       .then(ventasDelRango => {
         const porDia = {};
         (ventasDelRango || []).forEach(v => {
@@ -9940,7 +11306,7 @@ function _rcAplicarFiltrosTabla() {
 
   const filtroEstado = document.getElementById("rcFiltroEstado")?.value || "todos";
   const filtroCantidad = document.getElementById("rcFiltroCantidad")?.value || "10";
-  const busqueda = (document.getElementById("rcBuscarProducto")?.value || "").trim().toLowerCase();
+  const busqueda = document.getElementById("rcBuscarProducto")?.value || "";
 
   // Sin stock se marca oscuro para distinguirlo de un rojo "crítico" pero
   // todavía con algo de stock — son dos urgencias distintas de un vistazo.
@@ -9952,13 +11318,12 @@ function _rcAplicarFiltrosTabla() {
   };
 
   let filtrados = productos.filter(p => filtroEstado === "todos" || _rcEstado(p, dias) === filtroEstado);
-  if (busqueda) {
-    filtrados = filtrados.filter(p =>
-      String(p.nombre || "").toLowerCase().includes(busqueda) ||
-      String(p.codigo || "").toLowerCase().includes(busqueda));
+  if (busqueda.trim()) {
+    filtrados = filtrados.filter(p => coincideBusquedaReportes(p._busqueda || normalizarBusquedaPOS(p.nombre + " " + p.codigo), busqueda));
   }
   let ordenados = filtrados.sort((a,b)=> _rcCobertura(a, dias) - _rcCobertura(b, dias));
-  if (filtroCantidad !== "todos") ordenados = ordenados.slice(0, Number(filtroCantidad));
+  // Buscando, se muestran TODAS las coincidencias (el Top 10/20 escondía resultados)
+  if (filtroCantidad !== "todos" && !busqueda.trim()) ordenados = ordenados.slice(0, Number(filtroCantidad));
 
   if (ordenados.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Ningún producto en ese estado</td></tr>`;
@@ -10792,6 +12157,11 @@ function imprimirQROffline() {
 
 let estadoLicenciaActual = { activada: false, modoLimitado: true };
 
+// Servidor de licencias de VeekPOS — fijo: el usuario solo carga correo y clave.
+// (main.js tiene la misma URL; se manda también desde acá por si la app
+// todavía tiene un main.js viejo que lee la URL guardada en la PC.)
+const URL_SERVIDOR_LICENCIAS = "https://script.google.com/macros/s/AKfycbygrGvC481UoNPEfCGgY29TW-CU9L0n4lNO0qKLA5IBVI8eSTkjKZyghIlyLbnB4xRi/exec";
+
 async function aplicarEstadoLicencia() {
   if (typeof window.veekpos === "undefined" || !window.veekpos.obtenerEstadoLicencia) return;
   try {
@@ -10805,9 +12175,6 @@ async function aplicarEstadoLicencia() {
   if (!estadoLicenciaActual.activada) {
     if (pantallaActivacion) pantallaActivacion.classList.add("show");
     if (banner) banner.style.display = "none";
-    const urlGuardada = await window.veekpos.obtenerUrlServidorLicencia?.() || "";
-    const inputUrl = document.getElementById("licenseScreenUrlServidor");
-    if (inputUrl && urlGuardada && !inputUrl.value) inputUrl.value = urlGuardada;
     return;
   }
 
@@ -10834,61 +12201,175 @@ function actualizarBloqueosPorLicencia() {
 }
 
 async function activarLicenciaForm() {
-  const urlServidor = document.getElementById("licenseScreenUrlServidor").value.trim();
   const email = document.getElementById("licenseScreenEmail").value.trim();
   const pin = document.getElementById("licenseScreenPin").value.trim();
   const errorBox = document.getElementById("licenseScreenError");
   if (errorBox) errorBox.style.display = "none";
-  if (!urlServidor || !email || !pin) {
-    if (errorBox) { errorBox.style.display = "block"; errorBox.textContent = "Completá la URL, el email y el PIN."; }
+  if (!email || !pin) {
+    if (errorBox) { errorBox.style.display = "block"; errorBox.textContent = "Completá el correo y la clave."; }
     return;
   }
   const btn = document.getElementById("licenseScreenBtn");
   const textoOriginal = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = "Activando...";
   try {
-    await window.veekpos.fijarUrlServidorLicencia(urlServidor);
+    await window.veekpos.fijarUrlServidorLicencia?.(URL_SERVIDOR_LICENCIAS);
     const resultado = await window.veekpos.activarLicencia(email, pin);
     if (!resultado.success) {
       if (errorBox) { errorBox.style.display = "block"; errorBox.textContent = resultado.message || "No se pudo activar la licencia"; }
       return;
     }
     toast("Licencia activada correctamente", "success");
+    const cancelar = document.getElementById("licenseScreenCancelar");
+    if (cancelar) cancelar.style.display = "none";
     await aplicarEstadoLicencia();
+    mostrarEstadoLicenciaEnConfig();
   } catch (error) {
     if (errorBox) { errorBox.style.display = "block"; errorBox.textContent = "Error: " + String(error.message || error); }
   } finally { btn.disabled = false; btn.innerHTML = textoOriginal; }
 }
 
-async function guardarUrlServidorLicencia() {
-  const url = (document.getElementById("cfgLicenciaUrlServidor")?.value || "").trim();
-  if (!url) { toast("Ingresá la URL del servidor", "error"); return; }
-  try { await window.veekpos?.fijarUrlServidorLicencia?.(url); toast("URL guardada", "success"); }
-  catch (e) { toast("Error al guardar", "error"); }
-}
-
 async function validarLicenciaAhoraBtn() {
-  const btn = event?.target;
+  const btn = document.getElementById("btnVerificarLicencia");
   const orig = btn ? btn.innerHTML : "";
-  if (btn) { btn.disabled = true; btn.innerHTML = "Validando..."; }
+  if (btn) { btn.disabled = true; btn.innerHTML = "Verificando..."; }
   try {
+    await window.veekpos?.fijarUrlServidorLicencia?.(URL_SERVIDOR_LICENCIAS);
     estadoLicenciaActual = await window.veekpos?.validarLicenciaAhora?.() || estadoLicenciaActual;
     await aplicarEstadoLicencia();
+    mostrarEstadoLicenciaEnConfig();
     toast(estadoLicenciaActual.modoLimitado ? "No vigente: " + (estadoLicenciaActual.motivo||"") : "Licencia válida", estadoLicenciaActual.modoLimitado ? "error" : "success");
-  } catch(e) { toast("Error al validar", "error"); }
+  } catch(e) { toast("Error al verificar la licencia", "error"); }
   finally { if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
+}
+
+/** Fecha "2027-07-24" (o ISO completa) → Date local, sin correrse un día por zona horaria */
+function _fechaLicencia(valor) {
+  if (!valor) return null;
+  const m = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(valor);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** "24 de julio de 2027 (295 días)" */
+function _textoVencimientoLicencia(valor) {
+  const d = _fechaLicencia(valor);
+  if (!d) return valor ? escapeHtml(String(valor)) : "—";
+  // Mismo criterio que VeekIQ: días que quedan contando el día del vencimiento
+  const finDelDia = new Date(d); finDelDia.setHours(23, 59, 59, 999);
+  const dias = Math.ceil((finDelDia - Date.now()) / 86400000);
+  const fecha = d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+  const vencidaHace = 1 - dias;
+  const resto = dias > 1 ? `${dias} días` : dias === 1 ? "último día" : `vencida hace ${vencidaHace} día${vencidaHace === 1 ? "" : "s"}`;
+  const color = dias <= 0 ? "var(--red-500)" : dias <= 15 ? "#b45309" : "inherit";
+  return `${escapeHtml(fecha)} <span style="color:${color};">(${resto})</span>`;
+}
+
+/** "3/10/26, 10:11 a. m." */
+function _textoUltimaVerificacionLicencia(valor) {
+  const d = _fechaLicencia(valor);
+  if (!d) return "—";
+  return escapeHtml(d.toLocaleString("es-AR", { day: "numeric", month: "numeric", year: "2-digit", hour: "numeric", minute: "2-digit", hour12: true }));
 }
 
 async function mostrarEstadoLicenciaEnConfig() {
   const box = document.getElementById("licenciaEstadoBox");
-  const inputUrl = document.getElementById("cfgLicenciaUrlServidor");
-  if (inputUrl && !inputUrl.value) inputUrl.value = await window.veekpos?.obtenerUrlServidorLicencia?.() || "";
+  const badge = document.getElementById("licenciaBadge");
+  const idBox = document.getElementById("licenciaIdInstalacion");
+  const acciones = document.getElementById("licenciaAcciones");
   if (!box) return;
-  const e = estadoLicenciaActual;
-  if (!e.activada) { box.innerHTML = `<span style="color:var(--red-500)">⚠️ Sin licencia activada.</span>`; return; }
-  if (e.modoLimitado) { box.innerHTML = `<div style="color:var(--red-500);font-weight:600">⚠️ Modo limitado — ${escapeHtml(e.motivo||"")}</div>`; return; }
-  box.innerHTML = `<div style="color:var(--green-600);font-weight:600">✓ Licencia activa</div>
-    <div class="text-muted" style="font-size:12.5px">Email: ${escapeHtml(e.email||"—")} · Vence: ${escapeHtml(e.fechaVencimiento||"—")}</div>`;
+
+  // Datos frescos (la última verificación pudo cambiar en segundo plano)
+  try { if (window.veekpos?.obtenerEstadoLicencia) estadoLicenciaActual = await window.veekpos.obtenerEstadoLicencia(); } catch (e) {}
+  const e = estadoLicenciaActual || {};
+
+  const fijarBadge = (texto, clase) => { if (badge) { badge.textContent = texto; badge.className = "licencia-badge " + clase; } };
+
+  if (typeof window.veekpos === "undefined") {
+    fijarBadge("web", "");
+    box.innerHTML = `<div class="text-muted" style="font-size:12.5px;">La licencia se administra desde la app de escritorio.</div>`;
+    if (acciones) acciones.style.display = "none";
+    if (idBox) idBox.textContent = "";
+    return;
+  }
+  if (acciones) acciones.style.display = "flex";
+
+  // Caja cliente de la red local: no tiene licencia propia
+  if (e.activada && !e.email && e.fechaVencimiento === undefined) {
+    fijarBadge(e.modoLimitado ? "sin conexión" : "activa", e.modoLimitado ? "bad" : "ok");
+    box.innerHTML = `<div style="font-size:13px;">Esta caja usa la licencia de la <strong>caja servidor</strong>.</div>
+      ${e.modoLimitado ? `<div style="font-size:12.5px; color:var(--red-500); margin-top:4px;">⚠️ ${escapeHtml(e.motivo || "")}</div>` : ""}`;
+    if (acciones) acciones.style.display = "none";
+    if (idBox) idBox.textContent = "";
+    return;
+  }
+
+  if (!e.activada) {
+    fijarBadge("sin activar", "bad");
+    box.innerHTML = `<div style="font-size:13px; color:var(--red-500);">⚠️ Esta PC no tiene una licencia activada.</div>`;
+  } else {
+    if (!e.modoLimitado) fijarBadge("activa", "ok");
+    else if (e.rechazada) fijarBadge(/venc/i.test(e.motivo || "") ? "vencida" : "suspendida", "bad");
+    else fijarBadge("sin verificar", "warn");
+
+    box.innerHTML = `
+      <div class="licencia-datos">
+        <span class="lbl">Correo</span><span>${escapeHtml(e.email || "—")}</span>
+        <span class="lbl">Vence</span><span>${_textoVencimientoLicencia(e.fechaVencimiento)}</span>
+        <span class="lbl">Última verificación</span><span>${_textoUltimaVerificacionLicencia(e.ultimaValidacionOk)}</span>
+      </div>
+      ${e.modoLimitado ? `<div style="font-size:12.5px; color:var(--red-500); margin-top:8px;">⚠️ ${escapeHtml(e.motivo || "Licencia no vigente")}</div>` : ""}`;
+  }
+
+  const btnQuitar = document.getElementById("btnQuitarLicencia");
+  // Con un main.js/preload.js viejos no existe quitarLicenciaDeEstaPC: no se muestra el botón
+  if (btnQuitar) btnQuitar.style.display = (e.activada && typeof window.veekpos.quitarLicenciaDeEstaPC === "function") ? "inline-flex" : "none";
+  const btnCambiar = document.getElementById("btnCambiarLicencia");
+  if (btnCambiar) btnCambiar.textContent = e.activada ? "Cambiar licencia…" : "Activar licencia…";
+  if (idBox) idBox.textContent = e.idInstalacion ? "ID de instalación: VEEKPOS-" + String(e.idInstalacion).toUpperCase() : "";
+}
+
+/** Abre la pantalla de activación para cargar otro correo y clave, con opción de cancelar */
+async function cambiarLicencia() {
+  const pantalla = document.getElementById("licenseScreenBackdrop");
+  if (!pantalla) return;
+  const email = document.getElementById("licenseScreenEmail");
+  if (email) email.value = "";
+  const pin = document.getElementById("licenseScreenPin");
+  if (pin) pin.value = "";
+  const err = document.getElementById("licenseScreenError");
+  if (err) err.style.display = "none";
+  const cancelar = document.getElementById("licenseScreenCancelar");
+  if (cancelar) cancelar.style.display = estadoLicenciaActual.activada ? "block" : "none";
+  pantalla.classList.add("show");
+  setTimeout(() => email?.focus(), 50);
+}
+
+function cancelarCambioLicencia() {
+  if (!estadoLicenciaActual.activada) return; // sin licencia no se puede salir de la pantalla
+  document.getElementById("licenseScreenBackdrop")?.classList.remove("show");
+  const cancelar = document.getElementById("licenseScreenCancelar");
+  if (cancelar) cancelar.style.display = "none";
+}
+
+function quitarLicenciaDeEstaPC() {
+  confirmarAccion(
+    "¿Quitar la licencia de esta PC? VeekPOS va a pedir de nuevo el correo y la clave para seguir usándose acá. Tus datos (ventas, productos, clientes) no se tocan.",
+    async () => {
+      try {
+        const r = await window.veekpos?.quitarLicenciaDeEstaPC?.();
+        if (!r || !r.success) { toast((r && r.message) || "No se pudo quitar la licencia (actualizá main.js y preload.js)", "error"); return; }
+        toast("Licencia quitada de esta PC", "success");
+        const cancelar = document.getElementById("licenseScreenCancelar");
+        if (cancelar) cancelar.style.display = "none";
+        await aplicarEstadoLicencia();
+        mostrarEstadoLicenciaEnConfig();
+      } catch (e) {
+        toast("No se pudo quitar la licencia", "error");
+      }
+    },
+    "🔑 Quitar licencia de esta PC"
+  );
 }
 
 /* =========================================================
@@ -11614,35 +13095,23 @@ async function consultarCobroMercadoPagoPolling() {
         const { subtotal, total, itemsSnapshot, recibido } = mpVentaEnCurso;
         const etiquetaDescuento = obtenerEtiquetaDescuentoPOS(subtotal);
 
-        // Guardar en backend — recién ahora que el pago está confirmado
+        // Guardar — recién ahora que el pago está confirmado. Mismo
+        // camino que una venta normal (local-primero en escritorio; en la
+        // web POST + cola). Antes, si este POST fallaba, la venta cobrada
+        // por QR se perdía: no se encolaba en ningún lado.
         let ventaId = "VEN-" + Date.now().toString().slice(-6);
         const clienteVentaIdMP = "CVL-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-        try {
-          // Por POST, con el carrito en el body — igual que el resto de
-          // las ventas, para no toparse con el límite de tamaño de URL
-          // en carritos grandes, y con timeout para no quedar colgado.
-          const res = await fetchAPI(
-            API_URL,
-            {
-              method: "POST",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: JSON.stringify({
-                action: "guardarVenta",
-                total: total,
-                formaPago: "TRANSFERENCIA",
-                observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
-                carrito: itemsSnapshot,
-                clienteVentaId: clienteVentaIdMP
-              })
-            },
-            { timeoutMs: 15000 }
-          );
-          const data = await res.json();
-          if (data.success && data.ventaId) ventaId = data.ventaId;
-        } catch(e) {
-          console.error("Error guardando venta MP en backend:", e);
-          toast("⚠️ Pago confirmado pero no se pudo guardar en el servidor", "error");
-        }
+        const guardadoMP = await registrarVentaCobrada({
+          clienteVentaId: clienteVentaIdMP,
+          ventaIdTemp: ventaId,
+          total, subtotal,
+          descuento: subtotal - total,
+          formaPago: "TRANSFERENCIA",
+          vendedor: sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "",
+          observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
+          carrito: itemsSnapshot
+        });
+        if (guardadoMP && guardadoMP.ventaId) ventaId = guardadoMP.ventaId;
 
         // Mostrar recibo con el ID real
         ultimaVentaImprimible = {
@@ -12285,9 +13754,13 @@ function quitarItemCarrito(idx) {
 }
 
 function vaciarCarritoBoleta() {
-  if (ipCarritoBoleta.length && !confirm("¿Vaciar todos los productos cargados en esta boleta?")) return;
-  ipCarritoBoleta = [];
-  renderCarritoBoleta();
+  if (!ipCarritoBoleta.length) return;
+  // confirmarAccion (modal propio) en vez de confirm() nativo, que en Electron deja el foco roto
+  confirmarAccion(
+    "¿Vaciar todos los productos cargados en esta boleta?",
+    () => { ipCarritoBoleta = []; renderCarritoBoleta(); },
+    "🗑️ Vaciar boleta"
+  );
 }
 
 /* =====================================================================
@@ -13752,7 +15225,7 @@ function renderTablaProveedores(lista) {
         </div>
       </div>
       <div class="pedido-card-controls">
-        <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalBoletasProveedor('${escapeHtml(p.PROVEEDOR).replace(/'/g, "\\'")}')">Ver boletas</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="abrirModalBoletasProveedor('${escapeJsAttr(p.PROVEEDOR)}')">Ver boletas</button>
       </div>
     </div>`;
   }).join("");
@@ -13835,7 +15308,7 @@ function cerrarModalBoletasProveedor() {
 const PERMISOS_POR_ROL = {
   admin: null, // null = acceso a todas las secciones
   vendedor: ["dashboard", "pos", "ventasPOS", "cierreCaja", "movimientosCaja", "pedidos", "clientes"],
-  deposito: ["dashboard", "productos", "ingresoProductos", "proveedores", "reportesCompras"]
+  deposito: ["dashboard", "productos", "ingresoProductos", "proveedores", "reportes"] // en Reportes solo ve "Compras y reposición"
 };
 
 function obtenerRolActual() {
@@ -13857,6 +15330,11 @@ function aplicarPermisosPorRol() {
   if (nombre) {
     const label = document.getElementById("sidebarLabelSub");
     if (label) label.textContent = nombre + (rol !== "admin" ? " · " + rol : "");
+  }
+
+  // Depósito: dentro de Reportes solo la pestaña de compras/reposición
+  if (rol === "deposito") {
+    document.querySelectorAll('#repTabs .rep-tab[data-tab="ventas"], #repTabs .rep-tab[data-tab="productos"]').forEach(b => b.style.display = "none");
   }
 
   if (!permitidas) return; // admin: ve todo, no se toca el menú
@@ -13992,17 +15470,21 @@ async function guardarUsuarioForm() {
   }
 }
 
-async function eliminarUsuarioClick(usuarioId, nombre) {
-  if (!confirm(`¿Eliminar el usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
-
-  try {
-    const res = await fetchAPI(API_URL, { method: "POST", body: JSON.stringify({ action: "eliminarUsuario", usuarioId }) });
-    const data = await res.json();
-    if (!data.success) { toast(data.message || "No se pudo eliminar el usuario", "error"); return; }
-    toast("Usuario eliminado", "success");
-    cargarUsuarios();
-  } catch (error) {
-    console.error("Error al eliminar usuario:", error);
-    toast("Error de conexión al eliminar el usuario", "error");
-  }
+function eliminarUsuarioClick(usuarioId, nombre) {
+  confirmarAccion(
+    `¿Eliminar el usuario "${nombre}"? Esta acción no se puede deshacer.`,
+    async () => {
+      try {
+        const res = await fetchAPI(API_URL, { method: "POST", body: JSON.stringify({ action: "eliminarUsuario", usuarioId }) });
+        const data = await res.json();
+        if (!data.success) { toast(data.message || "No se pudo eliminar el usuario", "error"); return; }
+        toast("Usuario eliminado", "success");
+        cargarUsuarios();
+      } catch (error) {
+        console.error("Error al eliminar usuario:", error);
+        toast("Error de conexión al eliminar el usuario", "error");
+      }
+    },
+    "🗑️ Eliminar usuario"
+  );
 }

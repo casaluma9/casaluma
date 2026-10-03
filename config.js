@@ -18,6 +18,7 @@
  */
 
 let API_URL_BASE = "";
+let API_URL_LECTURA_BASE = ""; // Worker de Cloudflare (solo lecturas del catálogo); si falta, se lee de API_URL
 
 // Valores de respaldo, usados únicamente si falla la conexión con
 // Sheets (sin internet, la API caída, etc.) — así ninguna página
@@ -62,15 +63,42 @@ let CONFIG_NEGOCIO = { ...CONFIG_NEGOCIO_RESPALDO };
 async function resolverApiUrlBase(){
   if(API_URL_BASE) return API_URL_BASE;
   try{
-    const res = await fetch("config.json?_=" + Date.now(), { cache: "no-store" });
+    // "no-cache" revalida con el servidor (barato: 304) pero deja que el CDN
+    // y el navegador lo sirvan sin golpear el origen en cada visita.
+    // Antes se usaba ?_=Date.now(), que anulaba todo cache con mucho tráfico.
+    const res = await fetch(((typeof window!=="undefined" && window.CONFIG_BASE) || "") + "config.json", { cache: "no-cache" });
     if(res.ok){
       const cfg = await res.json();
       if(cfg.apiUrl) API_URL_BASE = cfg.apiUrl;
+      if(cfg.apiUrlLectura) API_URL_LECTURA_BASE = cfg.apiUrlLectura;
     }
   }catch(error){
     console.error("No se pudo leer config.json para obtener la API URL:", error);
   }
   return API_URL_BASE;
+}
+
+/**
+ * Normaliza una URL para que termine en exactamente una "/" (saca
+ * espacios y cualquier cantidad de barras finales, y agrega una sola).
+ * Devuelve "" si no hay valor, para no convertir un campo vacío en "/".
+ * Se usa para el campo "URL del catálogo" de Sheets, que se carga a
+ * mano y puede o no traer la barra final.
+ */
+/**
+ * Devuelve la URL solo si es http(s); si no (javascript:, data:, etc.)
+ * devuelve "". Se usa para cualquier link/imagen que venga de Sheets,
+ * que es un dato editable y no debe poder inyectar esquemas peligrosos.
+ */
+function urlSegura(url){
+  const u = String(url || "").trim();
+  return /^https?:\/\//i.test(u) ? u : "";
+}
+
+function normalizarUrlConBarraFinal(url){
+  const limpia = String(url || "").trim();
+  if(!limpia) return "";
+  return limpia.replace(/\/+$/, "") + "/";
 }
 
 // Cachea en una sola Promise la llamada a "?action=configuracionNegocio":
@@ -83,8 +111,20 @@ let _configuracionNegocioPromise = null;
 
 async function obtenerConfiguracionNegocioCruda(apiUrl){
   if(!_configuracionNegocioPromise){
-    _configuracionNegocioPromise = fetch(apiUrl + "?action=configuracionNegocio")
-      .then(res => res.json());
+    const lectura = API_URL_LECTURA_BASE || apiUrl;
+    _configuracionNegocioPromise = fetch(lectura + "?action=configuracionNegocio")
+      .then(res => { if(!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .catch(err => {
+        // Si el Worker falla, se reintenta directo contra Apps Script.
+        if(lectura === apiUrl) throw err;
+        return fetch(apiUrl + "?action=configuracionNegocio").then(res => res.json());
+      })
+      .catch(err => {
+        // No dejar una promesa fallida cacheada para siempre: el próximo
+        // intento vuelve a pedirla.
+        _configuracionNegocioPromise = null;
+        throw err;
+      });
   }
   return _configuracionNegocioPromise;
 }
@@ -98,6 +138,7 @@ async function obtenerConfiguracionNegocioCruda(apiUrl){
  */
 async function cargarConfigNegocio(){
   const apiUrl = await resolverApiUrlBase();
+  CONFIG_NEGOCIO.API_URL_LECTURA = API_URL_LECTURA_BASE || apiUrl;
   CONFIG_NEGOCIO.API_URL = apiUrl; // disponible ya mismo, sin esperar a Sheets
 
   if(!apiUrl){
@@ -113,14 +154,21 @@ async function cargarConfigNegocio(){
 
     CONFIG_NEGOCIO = {
       API_URL: apiUrl,
+      API_URL_LECTURA: API_URL_LECTURA_BASE || apiUrl,
       NOMBRE_NEGOCIO: cfg.nombre || CONFIG_NEGOCIO_RESPALDO.NOMBRE_NEGOCIO,
       NOMBRE_CORTO: cfg.nombreCorto || CONFIG_NEGOCIO_RESPALDO.NOMBRE_CORTO,
       TEMA: cfg.tema || CONFIG_NEGOCIO_RESPALDO.TEMA,
 
-      URL_SITIO: cfg.urlCatalogo || CONFIG_NEGOCIO_RESPALDO.URL_SITIO,
-      WHATSAPP_NUMERO: cfg.beneficioWhatsappNumero || CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO,
-      WHATSAPP_ICONO_URL: cfg.whatsappIconoUrl || CONFIG_NEGOCIO_RESPALDO.WHATSAPP_ICONO_URL,
-      ICONO_URL: cfg.iconoUrl || CONFIG_NEGOCIO_RESPALDO.ICONO_URL,
+      // Se normaliza acá para que dé igual cómo haya quedado cargado
+      // el campo "URL del catálogo" en Sheets (con o sin barra final,
+      // con espacios de más, etc.): si hay valor, siempre termina en
+      // exactamente una "/". De esto dependen el canonical, og:url,
+      // schema.url, y (indirectamente, vía app.js) las URLs canónicas
+      // de producto.
+      URL_SITIO: normalizarUrlConBarraFinal(cfg.urlCatalogo) || CONFIG_NEGOCIO_RESPALDO.URL_SITIO,
+      WHATSAPP_NUMERO: String(cfg.beneficioWhatsappNumero || "").replace(/[^\d]/g, "") || CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO,
+      WHATSAPP_ICONO_URL: urlSegura(cfg.whatsappIconoUrl) || CONFIG_NEGOCIO_RESPALDO.WHATSAPP_ICONO_URL,
+      ICONO_URL: (urlSegura(cfg.iconoUrl) || (cfg.iconoUrl && !/^[a-z]+:/i.test(String(cfg.iconoUrl).trim()) ? String(cfg.iconoUrl).trim() : "")) || CONFIG_NEGOCIO_RESPALDO.ICONO_URL,
 
       SEO_TITULO: cfg.seoTitulo || CONFIG_NEGOCIO_RESPALDO.SEO_TITULO,
       SEO_DESCRIPCION: cfg.seoDescripcion || CONFIG_NEGOCIO_RESPALDO.SEO_DESCRIPCION,

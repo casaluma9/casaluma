@@ -30,6 +30,9 @@ function normalizarTextoTransporte(texto){
 // este catálogo no tiene forma de saber a qué backend pertenece, así
 // que no debe intentar hablar con el de otra instalación.
 let API_URL = "";
+// Solo para LECTURAS del catálogo (Worker de Cloudflare con caché). Los pedidos y
+// todo lo que escribe siguen yendo a API_URL (Apps Script).
+let API_URL_LECTURA = "";
 
 /**
  * Reemplazo de fetch() para las llamadas al backend, con timeout
@@ -78,6 +81,7 @@ async function cargarConfigCliente() {
   }
   if (typeof CONFIG_NEGOCIO !== "undefined" && CONFIG_NEGOCIO.API_URL) {
     API_URL = CONFIG_NEGOCIO.API_URL;
+    API_URL_LECTURA = CONFIG_NEGOCIO.API_URL_LECTURA || CONFIG_NEGOCIO.API_URL;
   } else {
     console.error("No se pudo obtener la API URL (falta config.js o config.json) — este catálogo no puede conectarse a ningún backend.");
   }
@@ -94,10 +98,34 @@ const PLACEHOLDER_IMG = "data:image/svg+xml;base64," + btoa(
     "</svg>"
 );
 
+/**
+ * Lee el carrito guardado en el navegador de forma defensiva: el
+ * localStorage lo puede editar cualquiera (o quedar corrupto de una
+ * versión anterior), así que se valida cada ítem. Un JSON roto ya no
+ * deja la página en blanco. Igual, el servidor debe recalcular
+ * precios y stock al guardar el pedido — esto es solo higiene local.
+ */
+function leerCarritoGuardado(){
+    try{
+        const crudo = JSON.parse(localStorage.getItem("carrito") || "[]");
+        if(!Array.isArray(crudo)) return [];
+        return crudo
+            .filter(it => it && typeof it === "object" && it.CODIGO !== undefined)
+            .map(it => ({
+                ...it,
+                cantidad: Math.max(1, Math.min(100000, parseInt(it.cantidad, 10) || 1)),
+                PRECIO: Math.max(0, Number(it.PRECIO) || 0)
+            }))
+            .slice(0, 300);
+    }catch(e){
+        return [];
+    }
+}
+
 const estado = {
     productos: [],
     productosVisibles: [],
-    carrito: JSON.parse(localStorage.getItem("carrito")) || [],
+    carrito: leerCarritoGuardado(),
     busqueda: "",
     categoria: "",
     precioMin: null,
@@ -138,6 +166,19 @@ function escapeHtml(str){
 
 function formatearPrecio(valor){
     return Number(valor || 0).toLocaleString("es-AR");
+}
+
+/** Solo permite http(s); cualquier otro esquema (javascript:, data:) se descarta */
+function urlHttpSegura(url){
+    const u = String(url || "").trim();
+    return /^https?:\/\//i.test(u) ? u : "";
+}
+
+/** Minúsculas y sin acentos, para buscar "camion" y encontrar "Camión" */
+function normalizarBusqueda(texto){
+    return String(texto || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function obtenerEstadoStock(stock){
@@ -204,16 +245,90 @@ function mostrarSkeleton(n){
     document.getElementById("sin-resultados").classList.add("d-none");
 }
 
+/**
+ * Las imágenes subidas desde el panel se sirven desde
+ * lh3.googleusercontent.com/d/ID en su tamaño ORIGINAL (fotos de varios
+ * MB). En el celular, bajar decenas de esas por datos móviles es lo que
+ * más tarda. Google permite pedir la misma imagen ya redimensionada
+ * agregando "=wANCHO" — se aplica solo a esas URLs; cualquier otra URL
+ * (o una que ya tenga tamaño) se devuelve igual.
+ */
+function imgOptimizada(url, ancho){
+    let u = String(url || "");
+    if(u.indexOf("lh3.googleusercontent.com/d/") === -1) return u;
+    u = u.replace(/=w\d+$/, ""); // si ya venía redimensionada (ej. desde el Quick View), se parte de la original
+    if(u.indexOf("=") !== -1) return u; // ya tiene otro parámetro de tamaño propio
+    return u + "=w" + ancho;
+}
+
+const CLAVE_CACHE_CATALOGO = "catalogo_cache_v1";
+
+function leerCatalogoLocal(){
+    try{
+        const c = JSON.parse(localStorage.getItem(CLAVE_CACHE_CATALOGO) || "null");
+        return c && Array.isArray(c.productos) && c.productos.length ? c.productos : null;
+    }catch(e){ return null; }
+}
+
+function guardarCatalogoLocal(productos){
+    try{ localStorage.setItem(CLAVE_CACHE_CATALOGO, JSON.stringify({ t: Date.now(), productos })); }
+    catch(e){ /* sin espacio o modo privado: se ignora */ }
+}
+
 async function cargarProductos(){
 
-    mostrarSkeleton();
+    // Si ya visitó antes, se muestra al instante el último catálogo
+    // guardado y se actualiza en segundo plano (así no espera al servidor).
+    const previo = leerCatalogoLocal();
+    if(previo){
+        procesarProductos(previo);
+        // Ya hay algo para mostrar: se quita la pantalla de carga al instante
+        const catRapido = document.getElementById("loadingCat");
+        if(catRapido){
+            catRapido.style.opacity = "0";
+            setTimeout(() => catRapido.remove(), 500);
+        }
+    }else{
+        mostrarSkeleton();
+    }
 
     try{
 
-        const res = await fetchAPI(API_URL + "?action=productos");
+        // Apps Script en frío puede tardar más de 10 s; cortar antes solo
+        // descartaba una respuesta que estaba por llegar. 30 s y 1 reintento.
+        const res = await fetchAPI(API_URL_LECTURA + "?action=productos", {}, { timeoutMs: 30000, reintentos: 2 });
         const data = await res.json();
 
-        const productosConStock = (data.productos || [])
+        if(!data || data.success === false || !Array.isArray(data.productos)){
+            throw new Error("Respuesta inválida del catálogo");
+        }
+
+        guardarCatalogoLocal(data.productos);
+        procesarProductos(data.productos);
+
+    }catch(err){
+
+        console.error(err);
+
+        if(!previo){
+            document.getElementById("productos").innerHTML = "";
+            mostrarToast("No pudimos cargar el catálogo. Revisá tu conexión y volvé a intentar.", "error");
+        }
+
+    } finally {
+
+        // Ocultar el loading cat al terminar — con o sin error
+        const cat = document.getElementById("loadingCat");
+        if(cat){
+            cat.style.opacity = "0";
+            setTimeout(() => cat.remove(), 500);
+        }
+    }
+}
+
+function procesarProductos(listaProductos){
+
+        const productosConStock = (listaProductos || [])
             .filter(p => Number(String(p.STOCK).trim()) > 0);
 
         // Los productos nuevos se agregan siempre al final de la hoja
@@ -226,7 +341,12 @@ async function cargarProductos(){
         );
 
         estado.productos = productosConStock
-        .map(p => ({ ...p, _esNuevo: codigosNuevos.has(String(p.CODIGO)) }))
+        .map(p => ({
+            ...p,
+            _esNuevo: codigosNuevos.has(String(p.CODIGO)),
+            // Índice de búsqueda precalculado una sola vez (nombre, código, categoría)
+            _busqueda: normalizarBusqueda([p.PRODUCTO, p.CODIGO, p.CATEGORIA, p.SUBCATEGORIA].join(" "))
+        }))
         .sort((a,b)=>{
 
             const esDestacadaA = String(a.DESTACADO || "").trim().toUpperCase() === "SI";
@@ -244,24 +364,6 @@ async function cargarProductos(){
 
         renderChips();
         aplicarFiltros();
-
-    }catch(err){
-
-        console.error(err);
-
-        document.getElementById("productos").innerHTML = "";
-
-        mostrarToast("No pudimos cargar el catálogo. Revisá tu conexión y volvé a intentar.", "error");
-
-    } finally {
-
-        // Ocultar el loading cat al terminar — con o sin error
-        const cat = document.getElementById("loadingCat");
-        if(cat){
-            cat.style.opacity = "0";
-            setTimeout(() => cat.remove(), 500);
-        }
-    }
 }
 
 /* =========================================================
@@ -358,9 +460,8 @@ function aplicarFiltros(){
     }
 
     if(estado.busqueda){
-        lista = lista.filter(p =>
-            String(p.PRODUCTO || "").toLowerCase().includes(estado.busqueda)
-        );
+        const terminos = normalizarBusqueda(estado.busqueda).split(/\s+/).filter(Boolean);
+        lista = lista.filter(p => terminos.every(t => (p._busqueda || "").includes(t)));
     }
 
     if(estado.precioMin !== null){
@@ -489,7 +590,7 @@ function mostrarProductos(lista){
         const codigo = escapeHtml(p.CODIGO);
         const nombre = escapeHtml(p.PRODUCTO);
         const categoria = escapeHtml(p.CATEGORIA);
-        const imagen = p.IMAGEN || "";
+        const imagen = escapeHtml(imgOptimizada(urlHttpSegura(p.IMAGEN), 480));
 
         const stock = obtenerEstadoStock(p.STOCK);
 
@@ -509,6 +610,7 @@ function mostrarProductos(lista){
                         src="${imagen}"
                         alt="${nombre}"
                         loading="lazy"
+                        decoding="async"
                         onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
                 </div>
 
@@ -706,7 +808,7 @@ function renderGaleriaQuickView(producto){
 
         const item = galeria[index] || { url: producto.IMAGEN || "", color: "" };
 
-        img.src = item.url;
+        img.src = imgOptimizada(item.url, 900);
         img.alt = producto.PRODUCTO || "";
         img.onerror = function(){ this.onerror = null; this.src = PLACEHOLDER_IMG; };
 
@@ -734,7 +836,7 @@ function renderGaleriaQuickView(producto){
                 data-index="${i}"
                 aria-label="${item.color ? "Ver color " + escapeHtml(item.color) : "Ver imagen " + (i + 1)}"
                 title="${escapeHtml(item.color || "")}">
-                <img src="${item.url}" alt="${escapeHtml(item.color || producto.PRODUCTO || "")}" loading="lazy"
+                <img src="${escapeHtml(urlHttpSegura(item.url))}" alt="${escapeHtml(item.color || producto.PRODUCTO || "")}" loading="lazy"
                     onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
             </button>
         `).join("");
@@ -875,9 +977,10 @@ function renderRelacionados(producto){
             data-code="${escapeHtml(p.CODIGO)}"
             aria-label="Ver ${escapeHtml(p.PRODUCTO)}">
             <img
-                src="${p.IMAGEN || ""}"
+                src="${escapeHtml(imgOptimizada(urlHttpSegura(p.IMAGEN), 240))}"
                 alt="${escapeHtml(p.PRODUCTO)}"
                 loading="lazy"
+                decoding="async"
                 onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
             <span class="qv-relacionado-nombre">${escapeHtml(p.PRODUCTO)}</span>
             <span class="qv-relacionado-precio">$${formatearPrecio(p.PRECIO)}</span>
@@ -1115,7 +1218,7 @@ function abrirProductoDesdeURL(){
 document.getElementById("qv-agregar").addEventListener("click", function(){
 
     const cantidad = parseInt(document.getElementById("qv-cantidad").value) || 1;
-    const imagenActual = document.getElementById("qv-imagen").src;
+    const imagenActual = String(document.getElementById("qv-imagen").src || "").replace(/=w\d+$/, ""); // se guarda la URL original, no la redimensionada del visor
 
     agregarAlCarrito(qvProductoActual, cantidad, qvColorSeleccionado, imagenActual);
 
@@ -1181,7 +1284,7 @@ function agregarAlCarrito(producto, cantidad, color, imagenSeleccionada){
     // carrito aparte (mismo CODIGO, pero distinta característica) —
     // así el color elegido queda claro en el pedido.
     const existente = estado.carrito.find(p =>
-        String(p.CODIGO) === String(producto.CODIGO) && String(p.COLOR || "") === color
+        String(p.CODIGO) === String(producto.CODIGO) && String(p.COLOR || "") === color && !p._esCaja
     );
     const yaEnCarritoDeEsteCodigo = estado.carrito
         .filter(p => String(p.CODIGO) === String(producto.CODIGO))
@@ -1346,9 +1449,9 @@ function actualizarBarraMinimo(totalPrecio){
     });
 }
 
-function cambiarCantidad(codigo, cambio, color){
+function cambiarCantidad(codigo, cambio, color, caja){
 
-    const item = estado.carrito.find(p => String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || ""));
+    const item = estado.carrito.find(p => String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || "") && !!p._esCaja === !!caja);
     if(!item) return;
 
     const nuevaCantidad = item.cantidad + cambio;
@@ -1373,9 +1476,9 @@ function cambiarCantidad(codigo, cambio, color){
     abrirCarrito();
 }
 
-function actualizarCantidadManual(codigo, cantidad, color){
+function actualizarCantidadManual(codigo, cantidad, color, caja){
 
-    const item = estado.carrito.find(p => String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || ""));
+    const item = estado.carrito.find(p => String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || "") && !!p._esCaja === !!caja);
     if(!item) return;
 
     cantidad = parseInt(cantidad);
@@ -1397,10 +1500,10 @@ function actualizarCantidadManual(codigo, cantidad, color){
     abrirCarrito();
 }
 
-function eliminarProducto(codigo, color){
+function eliminarProducto(codigo, color, caja){
 
     estado.carrito = estado.carrito.filter(p =>
-        !(String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || ""))
+        !(String(p.CODIGO) === String(codigo) && String(p.COLOR || "") === String(color || "") && !!p._esCaja === !!caja)
     );
 
     guardarCarrito();
@@ -1464,12 +1567,24 @@ function sincronizarCarritoConStockActual(){
         const precioAnterior = Number(item.PRECIO) || 0;
         const precioCajaAnterior = Number(item.PRECIO_CAJA) || 0;
 
-        item.PRECIO = actual.PRECIO;
-        item.STOCK = stockActual;
-        if(item._esCaja) item.PRECIO_CAJA = actual.PRECIO_CAJA;
-
-        const precioCambio = Number(actual.PRECIO) !== precioAnterior ||
-            (item._esCaja && Number(actual.PRECIO_CAJA) !== precioCajaAnterior);
+        let precioCambio;
+        if(item._esCaja){
+            const uds = Number(actual.UNIDADES_POR_CAJA) || 0;
+            const pCaja = Number(actual.PRECIO_CAJA) || 0;
+            if(uds <= 0 || pCaja <= 0){
+                huboAjustes = true;
+                avisos.push(`"${item.PRODUCTO}" ya no se vende por caja y se quitó del carrito`);
+                return;
+            }
+            item.PRECIO = pCaja / uds;
+            item.STOCK = stockActual;
+            item.PRECIO_CAJA = pCaja;
+            precioCambio = pCaja !== precioCajaAnterior;
+        }else{
+            item.PRECIO = actual.PRECIO;
+            item.STOCK = stockActual;
+            precioCambio = Number(actual.PRECIO) !== precioAnterior;
+        }
 
         if(precioCambio){
             huboAjustes = true;
@@ -1522,15 +1637,16 @@ function abrirCarrito(){
             total += subtotal;
 
             html += `
-            <div class="cart-item-row" data-code="${escapeHtml(item.CODIGO)}" data-color="${escapeHtml(item.COLOR || "")}">
+            <div class="cart-item-row" data-code="${escapeHtml(item.CODIGO)}" data-color="${escapeHtml(item.COLOR || "")}" data-caja="${item._esCaja ? "1" : ""}">
 
                 <div class="cart-item-main">
 
                     <img
                         class="cart-item-thumb"
-                        src="${item.IMAGEN || ""}"
+                        src="${escapeHtml(imgOptimizada(urlHttpSegura(item.IMAGEN), 160))}"
                         alt="${escapeHtml(item.PRODUCTO)}"
                         loading="lazy"
+                        decoding="async"
                         onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
 
                     <div class="cart-item-info">
@@ -1609,10 +1725,11 @@ document.getElementById("cart-items").addEventListener("click", function(e){
 
     const codigo = row.dataset.code;
     const color = row.dataset.color;
+    const caja = row.dataset.caja === "1";
 
-    if(btn.dataset.action === "eliminar") eliminarProducto(codigo, color);
-    if(btn.dataset.action === "menos") cambiarCantidad(codigo, -1, color);
-    if(btn.dataset.action === "mas") cambiarCantidad(codigo, 1, color);
+    if(btn.dataset.action === "eliminar") eliminarProducto(codigo, color, caja);
+    if(btn.dataset.action === "menos") cambiarCantidad(codigo, -1, color, caja);
+    if(btn.dataset.action === "mas") cambiarCantidad(codigo, 1, color, caja);
 });
 
 document.getElementById("cart-items").addEventListener("change", function(e){
@@ -1620,7 +1737,7 @@ document.getElementById("cart-items").addEventListener("change", function(e){
     if(e.target.dataset.actionInput === "cantidad"){
 
         const row = e.target.closest(".cart-item-row");
-        actualizarCantidadManual(row.dataset.code, e.target.value, row.dataset.color);
+        actualizarCantidadManual(row.dataset.code, e.target.value, row.dataset.color, row.dataset.caja === "1");
     }
 });
 
@@ -1748,12 +1865,9 @@ async function checkoutWhatsapp(){
     let total = 0;
     estado.carrito.forEach(item => { total += item.PRECIO * item.cantidad; });
 
-    if(total < 100000){
-        const falta2 = pedidoMinimo - total;
-        mostrarToast(`Te faltan $${formatearPrecio(falta2)} para llegar al pedido mínimo de $${formatearPrecio(pedidoMinimo)}.`, "error");
-        desactivarCargaCheckout();
-        return;
-    }
+    // El mínimo NO se bloquea acá con el valor local (puede estar viejo
+    // en caché y frenar pedidos válidos tras bajar el mínimo). La decisión
+    // final la toma el servidor con el valor vigente de la hoja.
 
     try{
 
@@ -1762,26 +1876,59 @@ async function checkoutWhatsapp(){
         // de URL de Safari/iOS y el pedido fallaba sin guardarse. Con el
         // carrito en el body, no hay ese límite. El backend (doPost) ya
         // espera exactamente este formato para action: "guardarPedido".
-        const response = await fetchAPI(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita que el navegador dispare un preflight CORS contra Apps Script
-            body: JSON.stringify({
-                action: "guardarPedido",
-                nombre,
-                empresa,
-                direccion,
-                localidad,
-                provincia,
-                codigoPostal,
-                telefono,
-                dni,
-                total,
-                carrito: estado.carrito
-            })
+        // idOperacion: identifica ESTE intento de pedido. Si la respuesta se
+        // pierde (timeout / mala señal) y se reintenta, el servidor devuelve
+        // el pedido ya guardado en vez de duplicarlo.
+        if(!estado.idOperacionPedido){
+            estado.idOperacionPedido = (window.crypto && crypto.randomUUID)
+                ? crypto.randomUUID().replace(/-/g, "")
+                : ("op" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+        }
+        const cuerpoPedido = JSON.stringify({
+            action: "guardarPedido",
+            idOperacion: estado.idOperacionPedido,
+            nombre,
+            empresa,
+            direccion,
+            localidad,
+            provincia,
+            codigoPostal,
+            telefono,
+            dni,
+            total,
+            carrito: estado.carrito
         });
-        const resultado = await response.json();
+
+        let resultado = null;
+        let ultimoError = null;
+        for(let intento = 1; intento <= 2 && !resultado; intento++){
+            try{
+                const response = await fetchAPI(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS contra Apps Script
+                    body: cuerpoPedido
+                }, { timeoutMs: 45000, reintentos: 0 });
+                resultado = await response.json();
+            }catch(errIntento){
+                ultimoError = errIntento;
+                console.warn("Intento " + intento + " de guardar pedido falló:", errIntento);
+            }
+        }
+        if(!resultado) throw ultimoError || new Error("Sin respuesta del servidor");
+
+        // Si el servidor informa un pedido mínimo distinto al que teníamos
+        // (config vieja en caché), se actualiza y se avisa.
+        if(resultado.pedidoMinimo !== undefined && !isNaN(Number(resultado.pedidoMinimo))){
+            pedidoMinimo = Number(resultado.pedidoMinimo);
+            try{
+                const previa = JSON.parse(localStorage.getItem(CLAVE_CACHE_CONFIG) || "null");
+                if(previa){ previa.pedidoMinimo = pedidoMinimo; localStorage.setItem(CLAVE_CACHE_CONFIG, JSON.stringify(previa)); }
+            }catch(e){}
+            if(typeof actualizarContador === "function") actualizarContador();
+        }
 
         if(!resultado.success){
+            if(resultado.pedidoMinimo === undefined) estado.idOperacionPedido = null; // error definitivo: el próximo intento es un pedido nuevo
             mostrarToast(resultado.message || "No se pudo guardar el pedido. Intentá de nuevo.", "error");
             desactivarCargaCheckout();
             return;
@@ -1816,6 +1963,7 @@ Subtotal: $${formatearPrecio(subtotal)}
 💰 TOTAL: $${formatearPrecio(total)}
 `;
 
+        estado.idOperacionPedido = null;
         estado.carrito = [];
         localStorage.removeItem("carrito");
         guardarCarrito();
@@ -1847,16 +1995,18 @@ Subtotal: $${formatearPrecio(subtotal)}
    VOLVER ARRIBA
 ========================================================= */
 
+let _scrollPendiente = false;
 window.addEventListener("scroll", function(){
 
-    const btn = document.getElementById("scroll-top-btn");
-
-    if(window.scrollY > 400){
-        btn.classList.remove("d-none");
-    }else{
-        btn.classList.add("d-none");
-    }
-});
+    // passive + una sola actualización por frame: no frena el scroll
+    if(_scrollPendiente) return;
+    _scrollPendiente = true;
+    requestAnimationFrame(function(){
+        _scrollPendiente = false;
+        const btn = document.getElementById("scroll-top-btn");
+        if(btn) btn.classList.toggle("d-none", window.scrollY <= 400);
+    });
+}, { passive: true });
 
 /* =========================================================
    SINCRONIZACIÓN AL VOLVER A LA PÁGINA
@@ -1864,7 +2014,7 @@ window.addEventListener("scroll", function(){
 
 window.addEventListener("pageshow", function(){
 
-    estado.carrito = JSON.parse(localStorage.getItem("carrito")) || [];
+    estado.carrito = leerCarritoGuardado();
 
     actualizarContador();
 });
@@ -1886,16 +2036,46 @@ window.addEventListener("resize", function(){
    admin, así ambos quedan siempre sincronizados.
 ========================================================= */
 
+const CLAVE_CACHE_CONFIG = "config_negocio_cache_v1";
+
 async function aplicarApariencia(){
+
+    // Si ya visitó antes, se aplica al instante la última config guardada
+    // (incluye el pedido mínimo) y luego se refresca desde el servidor.
+    try{
+        const previa = JSON.parse(localStorage.getItem(CLAVE_CACHE_CONFIG) || "null");
+        if(previa && typeof previa === "object") aplicarConfigApariencia(previa);
+    }catch(e){ /* caché ilegible: se ignora */ }
 
     try{
 
-        const res = await fetchAPI(API_URL + "?action=configuracionNegocio");
-        const data = await res.json();
+        // 30 s: Apps Script en frío puede pasar los 10 s; abortar antes
+        // dejaba la config (y el pedido mínimo) sin cargar.
+        // Reutiliza la misma promesa que config.js (una sola consulta por carga)
+        let data;
+        if(typeof obtenerConfiguracionNegocioCruda === "function"){
+            data = await obtenerConfiguracionNegocioCruda(API_URL);
+        }else{
+            const res = await fetchAPI(API_URL_LECTURA + "?action=configuracionNegocio", {}, { timeoutMs: 30000 });
+            data = await res.json();
+        }
 
         if(!data.success || !data.config) return;
 
-        const cfg = data.config;
+        try{ localStorage.setItem(CLAVE_CACHE_CONFIG, JSON.stringify(data.config)); }catch(e){}
+
+        aplicarConfigApariencia(data.config);
+
+    }catch(err){
+        // Si falla, la página sigue mostrando los valores fijos del HTML
+        // (o la última config guardada en este navegador).
+        console.error("No se pudo cargar la apariencia desde Sheets:", err);
+    }
+}
+
+function aplicarConfigApariencia(cfg){
+
+    try{
 
         // --- Tema de color ---
         const tema = (cfg.tema || "navy").toLowerCase();
@@ -1977,8 +2157,7 @@ async function aplicarApariencia(){
         aplicarBeneficios(cfg);
 
     }catch(err){
-        // Si falla, la página sigue mostrando los valores fijos del HTML.
-        console.error("No se pudo cargar la apariencia desde Sheets:", err);
+        console.error("No se pudo aplicar la apariencia:", err);
     }
 }
 
@@ -2022,7 +2201,9 @@ function aplicarBeneficios(cfg){
     }
 
     // --- Instagram ---
-    const instagramUrl = (cfg.beneficioInstagramUrl || "").trim();
+    const instagramRaw = (cfg.beneficioInstagramUrl || "").trim();
+    // Puede ser "@usuario" (solo texto, sin link) o una URL http(s); nunca javascript:
+    const instagramUrl = (/^[a-z][a-z0-9+.-]*:/i.test(instagramRaw) && !urlHttpSegura(instagramRaw)) ? "" : instagramRaw;
     const instagramEl = document.getElementById("beneficio-instagram");
     const instagramTextoEl = document.getElementById("beneficio-instagram-texto");
 
@@ -2266,7 +2447,7 @@ function renderBeneficioTextoLibre(idWrap, texto){
 
         wrap.innerHTML = `
             <a href="${escapeHtml(href)}" class="beneficio-item beneficio-link" target="_blank" rel="noopener">
-                <i class="bi ${escapeHtml(iconoClase)}"></i> <span>${escapeHtml(nombre)}</span>
+                <svg class="bi-icon"><use href="#${escapeHtml(iconoClase.replace(/^bi-/, "ic-"))}"></use></svg> <span>${escapeHtml(nombre)}</span>
             </a>
         `;
     } else {
@@ -2294,7 +2475,7 @@ async function descargarCatalogoPDF(){
 
     try{
 
-        const response = await fetchAPI(API_URL + "?action=catalogoPDFInfo");
+        const response = await fetchAPI(API_URL_LECTURA + "?action=catalogoPDFInfo");
         const data = await response.json();
 
         if(!data.success){
@@ -2384,8 +2565,11 @@ async function ejecutarConsultaPedido() {
   btn.textContent = "Consultando...";
 
   try {
-    const response = await fetch(
-      API_URL + "?action=consultarPedido&pedidoId=" + encodeURIComponent(pedidoId) + "&dni=" + encodeURIComponent(dni)
+    // Con timeout (fetchAPI). Va directo a Apps Script, NUNCA por el caché:
+    // son datos personales. Se limita en el servidor/Worker el número de intentos.
+    const response = await fetchAPI(
+      API_URL + "?action=consultarPedido&pedidoId=" + encodeURIComponent(pedidoId) + "&dni=" + encodeURIComponent(dni),
+      {}, { timeoutMs: 20000, reintentos: 1 }
     );
     const data = await response.json();
 
@@ -2404,24 +2588,24 @@ async function ejecutarConsultaPedido() {
 
     const itemsHtml = items.map(i =>
       `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee;font-size:13px;">
-        <span>${i.cantidad}x ${i.PRODUCTO}</span>
+        <span>${escapeHtml(i.cantidad)}x ${escapeHtml(i.PRODUCTO)}</span>
         <span style="font-weight:600;">${simbolo}${Number(i.subtotal || 0).toLocaleString("es-AR")}</span>
       </div>`
     ).join("");
 
-    const envioHtml = [pedido.DIRECCION, pedido.LOCALIDAD, pedido.PROVINCIA].filter(Boolean).join(", ");
+    const envioHtml = escapeHtml([pedido.DIRECCION, pedido.LOCALIDAD, pedido.PROVINCIA].filter(Boolean).join(", "));
 
     document.getElementById("consultaResultadoBody").innerHTML = `
       <div style="border-radius:12px;background:#f7f8fa;padding:16px;margin-bottom:12px;">
-        <div style="font-size:11px;font-weight:700;color:#6b7585;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">${pedido.PEDIDO_ID} · ${fecha}</div>
-        <div style="font-size:17px;font-weight:800;color:#0b1633;margin-bottom:8px;">${pedido.NOMBRE}</div>
+        <div style="font-size:11px;font-weight:700;color:#6b7585;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">${escapeHtml(pedido.PEDIDO_ID)} · ${escapeHtml(fecha)}</div>
+        <div style="font-size:17px;font-weight:800;color:#0b1633;margin-bottom:8px;">${escapeHtml(pedido.NOMBRE)}</div>
         <div style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${estado.bg};color:${estado.color};">
-          ${estado.texto}
+          ${escapeHtml(estado.texto)}
         </div>
       </div>
 
       ${envioHtml ? `<div style="font-size:13px;color:#6b7585;margin-bottom:4px;">📍 ${envioHtml}</div>` : ""}
-      ${pedido.EMPRESA ? `<div style="font-size:13px;color:#6b7585;margin-bottom:12px;">🚚 Transporte: ${pedido.EMPRESA}</div>` : `<div style="margin-bottom:12px;"></div>`}
+      ${pedido.EMPRESA ? `<div style="font-size:13px;color:#6b7585;margin-bottom:12px;">🚚 Transporte: ${escapeHtml(pedido.EMPRESA)}</div>` : `<div style="margin-bottom:12px;"></div>`}
 
       <div style="background:#fff;border-radius:10px;padding:12px;border:1px solid #e2e6ed;">
         <div style="font-size:12px;font-weight:700;color:#6b7585;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Resumen del pedido</div>
@@ -2467,6 +2651,7 @@ function esUrlDeVideo(url) {
 }
 
 function mostrarPopupPromo(url, tipo) {
+  url = urlHttpSegura(url);
   if (!url) return;
   const popup = document.getElementById("popupPromo");
   const img = document.getElementById("popupPromoImg");

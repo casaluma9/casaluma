@@ -5,5 +5,6 @@
   "whatsapp": "",
   "direccion": "",
   "version": "1.0",
-  "generadoEn": "2026-07-09"
+  "generadoEn": "2026-07-09",
+  "apiUrlLectura": "https://casaluma.lumacortez73.workers.dev/"
 }
