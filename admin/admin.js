@@ -1,5 +1,5 @@
 /* ===================================================================
-   JIREH ADMIN — app logic v2
+   VeekPOS — panel admin (app logic v2)
    • All original Apps Script API calls preserved
    • Thermal print (POS80 80mm) added
    • Dashboard POS summary added
@@ -228,7 +228,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  // En el navegador hace falta un token del backend (sesiones de antes de
+  // esta versión no lo tienen: se pide login de nuevo). En la app de
+  // escritorio se puede entrar sin token (login offline): el POS funciona
+  // y la cola espera a que haya sesión para subir.
+  if (window.VeekAuth && !VeekAuth.tieneSesion() && !(window.posOffline || window.veekpos)) {
+    sessionStorage.removeItem("admin");
+    window.location.href = "login.html";
+    return;
+  }
+
   aplicarPermisosPorRol();
+  mostrarAvisoPasswordDeFabrica();
 
   // Verificar licencia (solo en Electron con window.veekpos disponible)
   aplicarEstadoLicencia();
@@ -756,8 +767,8 @@ async function guardarCredencialesForm() {
     return;
   }
 
-  if (nuevaPassword.length < 4) {
-    toast("La nueva contraseña debe tener al menos 4 caracteres", "error");
+  if (nuevaPassword.length < 6) {
+    toast("La nueva contraseña debe tener al menos 6 caracteres", "error");
     return;
   }
 
@@ -770,7 +781,8 @@ async function guardarCredencialesForm() {
       action: "guardarCredencialesAdmin",
       passwordActual,
       nuevoUsuario,
-      nuevaPassword
+      nuevaPassword,
+      dispositivo: (window.posOffline || window.veekpos) ? "1" : ""
     });
     const response = await fetchAPI(API_URL + "?" + params.toString());
     const data = await response.json();
@@ -779,6 +791,12 @@ async function guardarCredencialesForm() {
       toast(data.message || "No se pudo cambiar el acceso", "error");
       return;
     }
+
+    // Cambiar la contraseña cierra las demás sesiones; esta sigue con el token nuevo.
+    if (data.token && window.VeekAuth) VeekAuth.guardarSesion(data, !!(window.posOffline || window.veekpos));
+    try { sessionStorage.removeItem("debeCambiarPassword"); } catch (e) {}
+    const avisoFabrica = document.getElementById("avisoPasswordFabrica");
+    if (avisoFabrica) avisoFabrica.remove();
 
     document.getElementById("credPasswordActual").value = "";
     document.getElementById("credNuevoUsuario").value = "";
@@ -1273,7 +1291,7 @@ async function guardarAparienciaForm() {
 /* ===================== BENEFICIOS DEL CATÁLOGO WEB (chips bajo el banner) ===================== */
 
 const BENEFICIOS_DEFAULT = {
-  beneficioWhatsappNumero: "5491140975795",
+  beneficioWhatsappNumero: "",
   beneficioInstagramUrl:   "",
   beneficioTelefono1:      "",
   beneficioTelefono2:      "",
@@ -1891,6 +1909,43 @@ function mostrarConfigTab(tabId, btnEl) {
   try { localStorage.setItem("veekpos_cfg_tab", tabId); } catch (e) {}
 }
 
+/**
+ * Oculta las pestañas de Configuración que no tienen ninguna tarjeta
+ * visible (ej.: en la versión web no hay Mercado Pago ni impresora, que
+ * son solo de la app de escritorio). Si la pestaña activa quedó oculta,
+ * se pasa a "Negocio".
+ */
+function actualizarPestanasConfigVisibles() {
+  document.querySelectorAll(".cfg-tab-pane").forEach(pane => {
+    const tab = pane.id.replace("cfgTab-", "");
+    const btn = document.querySelector(`.cfg-tab-btn[data-cfg-tab="${tab}"]`);
+    if (!btn) return;
+    const hayVisible = [...pane.children].some(c => getComputedStyle(c).display !== "none");
+    btn.style.display = hayVisible ? "" : "none";
+  });
+  const activo = document.querySelector(".cfg-tab-btn.active");
+  if (activo && activo.style.display === "none") mostrarConfigTab("negocio");
+}
+
+/** Atajos del Inicio: abre Productos ya filtrado (stock bajo, sin stock…) */
+function irAProductosFiltrados(estado) {
+  const sel = document.getElementById("filtroEstadoProducto");
+  const buscar = document.getElementById("buscarProducto");
+  const cat = document.getElementById("filtroCategoriaProductos");
+  if (buscar) buscar.value = "";
+  if (cat) cat.value = "";
+  if (sel) sel.value = estado;
+  mostrarSeccion("productos");
+  if (productosAdminGlobal && productosAdminGlobal.length) filtrarProductos();
+}
+
+/** Atajo del Inicio: ranking de más vendidos (Reportes → Productos) */
+function irAMasVendidos() {
+  if (obtenerRolActual() === "deposito") { toast("Tu usuario no tiene acceso a los reportes de ventas", "error"); return; }
+  _repTabActiva = "productos";
+  mostrarSeccion("reportes");
+}
+
 function mostrarSeccion(id) {
   // "Reportes de Compras" ahora es la pestaña "Compras y reposición" de Reportes
   if (id === "reportesCompras") { _repTabActiva = "compras"; id = "reportes"; }
@@ -1928,9 +1983,11 @@ function mostrarSeccion(id) {
   }
   if (id === "ventasPOS") cargarSiVencido("ventasPOS", cargarVentasPOSHistorial);
   if (id === "configuracion") {
-    let tabInicial = "general";
-    try { tabInicial = localStorage.getItem("veekpos_cfg_tab") || "general"; } catch (e) {}
-    if (!document.getElementById("cfgTab-" + tabInicial)) tabInicial = "general";
+    let tabInicial = "negocio";
+    try { tabInicial = localStorage.getItem("veekpos_cfg_tab") || "negocio"; } catch (e) {}
+    // Nombres de pestañas anteriores a la reorganización
+    tabInicial = ({ general: "negocio", productos: "pedidos", pagos: "sistema", hardware: "equipo", avanzado: "sistema" })[tabInicial] || tabInicial;
+    if (!document.getElementById("cfgTab-" + tabInicial)) tabInicial = "negocio";
     mostrarConfigTab(tabInicial);
 
     cargarConfigNegocioForm();
@@ -1986,6 +2043,8 @@ function mostrarSeccion(id) {
         if (typeof mostrarEstadoMercadoPagoEnConfig === "function") mostrarEstadoMercadoPagoEnConfig();
       }
     }
+    actualizarPestanasConfigVisibles();
+    setTimeout(actualizarPestanasConfigVisibles, 600); // la tarjeta de licencia se muestra async
   }
 
   if (id === "pos") {
@@ -2006,6 +2065,7 @@ function mostrarSeccion(id) {
     cargarResumenCierreCaja(selector ? selector.value : null);
   }
   if (id === "movimientosCaja") cargarMovimientosCajaHoy();
+  if (id === "cupones") cargarCupones();
   if (id === "reportes") {
     // Pasado el tiempo de caché de secciones, se vuelve a pedir todo al entrar
     cargarSiVencido("reportes", () => { Object.keys(_repTabRangoCargado).forEach(k => _repTabRangoCargado[k] = null); });
@@ -3490,7 +3550,7 @@ function imprimirNotaPedidoA4() {
 }
 
 /* ====================================================================
- * REMITO sobre formulario preimpreso (Jireh, 168x204mm, cod. 091)
+ * REMITO sobre formulario preimpreso (168x204mm, cod. 091)
  * Imprime SOLO los datos variables en la posición exacta del formulario.
  * Coordenadas en mm medidas desde la esquina superior izquierda de la hoja
  * A4 (la hoja del remito se carga como si fuera A4, pegada a la esquina).
@@ -4149,7 +4209,7 @@ async function guardarNuevoOrdenProductos(codigos) {
     if (!data.success) {
       toast(data.message || "No se pudo guardar el nuevo orden", "error");
       cargarProductos();
-      return;
+      return false;
     }
 
     // Reordenar en memoria (y en la caché local) según lo recién guardado,
@@ -4165,11 +4225,230 @@ async function guardarNuevoOrdenProductos(codigos) {
     } catch (e) {}
 
     toast("Orden guardado", "success");
+    return true;
   } catch (error) {
     console.error("Error al guardar el orden de productos:", error);
     toast("Error de conexión al guardar el orden", "error");
     cargarProductos();
+    return false;
   }
+}
+
+/* =====================================================================
+   ORDENAR CATÁLOGO — pantalla para elegir el orden de las categorías
+   y, dentro de cada una, el de sus productos (con fotos, arrastrando o
+   con botones). Al guardar se arma la lista completa: categoría 1 con
+   sus productos, categoría 2 con los suyos… y se manda al mismo
+   "reordenarProductos" de siempre (columna ORDEN). No hace falta tocar
+   el backend. La página pública muestra el cambio en pocos minutos.
+===================================================================== */
+const OC_SIN_CATEGORIA = "__sin_categoria__";
+let _oc = null;          // { cats:[clave], porCat:{clave:[codigo]}, prod:Map, sel, sucio }
+let _ocArrastre = null;  // elemento que se está arrastrando
+
+function _ocClaveCat(p) { return String(p.CATEGORIA || "").trim() || OC_SIN_CATEGORIA; }
+function _ocNombreCat(clave) { return clave === OC_SIN_CATEGORIA ? "Sin categoría" : clave; }
+
+async function abrirOrdenCatalogo() {
+  if (!productosAdminGlobal || !productosAdminGlobal.length) {
+    toast("Cargando productos...", "success");
+    await cargarProductos();
+  }
+  if (!productosAdminGlobal || !productosAdminGlobal.length) { toast("No hay productos para ordenar", "error"); return; }
+  const cats = [], porCat = {}, prod = new Map();
+  productosAdminGlobal.forEach(p => {   // ya viene ordenado por ORDEN
+    const clave = _ocClaveCat(p);
+    if (!porCat[clave]) { porCat[clave] = []; cats.push(clave); }
+    porCat[clave].push(String(p.CODIGO));
+    prod.set(String(p.CODIGO), p);
+  });
+  _oc = { cats, porCat, prod, sel: cats[0], sucio: false };
+  document.getElementById("ordenCatalogoBackdrop").classList.add("show");
+  _ocRender();
+}
+
+function cerrarOrdenCatalogo(forzar) {
+  // Modal propio (no confirm() nativo: en Electron deja el teclado sin foco)
+  if (!forzar && _oc && _oc.sucio) {
+    confirmarAccion("Hay cambios de orden sin guardar. ¿Cerrar igual y descartarlos?", () => cerrarOrdenCatalogo(true), "↕️ Cambios sin guardar");
+    return;
+  }
+  document.getElementById("ordenCatalogoBackdrop").classList.remove("show");
+  _oc = null;
+}
+
+function _ocMarcarSucio() {
+  _oc.sucio = true;
+  const est = document.getElementById("ocEstado");
+  est.textContent = "Cambios sin guardar";
+  est.classList.add("sucio");
+  document.getElementById("btnGuardarOrdenCatalogo").disabled = false;
+}
+
+function _ocRender() { _ocRenderCats(); _ocRenderProds(); }
+
+function _ocRenderCats() {
+  const ul = document.getElementById("ocCategorias");
+  const n = _oc.cats.length;
+  ul.innerHTML = _oc.cats.map((c, i) => `
+    <li class="oc-cat ${c === _oc.sel ? "activa" : ""}" draggable="true" data-cat="${escapeHtml(c)}" onclick="ocElegirCategoria(this.dataset.cat)">
+      <span class="oc-handle" title="Arrastrar">⠿</span>
+      <span class="oc-num">${i + 1}</span>
+      <span class="oc-nombre" title="${escapeHtml(_ocNombreCat(c))}">${escapeHtml(_ocNombreCat(c))}</span>
+      <span class="oc-cant">${_oc.porCat[c].length}</span>
+      <button type="button" class="oc-mini" title="Subir" ${i === 0 ? "disabled" : ""} onclick="event.stopPropagation(); ocMoverCategoria(${i}, -1)">▲</button>
+      <button type="button" class="oc-mini" title="Bajar" ${i === n - 1 ? "disabled" : ""} onclick="event.stopPropagation(); ocMoverCategoria(${i}, 1)">▼</button>
+    </li>`).join("");
+  ul.querySelectorAll(".oc-cat").forEach(li => _ocHacerArrastrable(li, "y", _ocFinArrastreCats));
+}
+
+function _ocRenderProds(destacar) {
+  document.getElementById("ocCatNombre").textContent = _ocNombreCat(_oc.sel);
+  const grid = document.getElementById("ocProductos");
+  const lista = _oc.porCat[_oc.sel] || [];
+  if (!lista.length) { grid.innerHTML = `<div class="oc-vacio">Esta categoría no tiene productos.</div>`; return; }
+  const n = lista.length;
+  grid.innerHTML = lista.map((cod, i) => {
+    const p = _oc.prod.get(cod) || {};
+    const img = String(p.IMAGEN || "").trim();
+    const oculto = String(p.PUBLICADO || "").toUpperCase() !== "SI";
+    return `
+      <div class="oc-card ${cod === destacar ? "recien-movido" : ""}" draggable="true" data-codigo="${escapeHtml(cod)}">
+        <span class="oc-pos" title="Escribir la posición" onclick="ocEditarPosicion(this, ${i})">${i + 1}</span>
+        ${oculto ? `<span class="oc-oculto" title="No se muestra en la página">Oculto</span>` : ""}
+        <div class="oc-foto">${img ? `<img src="${escapeHtml(img)}" alt="" loading="lazy" onerror="this.parentElement.textContent='🛒'">` : "🛒"}</div>
+        <div class="oc-nombre-prod" title="${escapeHtml(p.PRODUCTO || cod)}">${escapeHtml(p.PRODUCTO || cod)}</div>
+        <div class="oc-precio">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</div>
+        <div class="oc-acciones">
+          <button type="button" class="oc-mini" title="Al principio" ${i === 0 ? "disabled" : ""} onclick="ocMoverProducto(${i}, 0)">⤒</button>
+          <button type="button" class="oc-mini" title="Uno antes" ${i === 0 ? "disabled" : ""} onclick="ocMoverProducto(${i}, ${i - 1})">◀</button>
+          <button type="button" class="oc-mini" title="Uno después" ${i === n - 1 ? "disabled" : ""} onclick="ocMoverProducto(${i}, ${i + 1})">▶</button>
+          <button type="button" class="oc-mini" title="Al final" ${i === n - 1 ? "disabled" : ""} onclick="ocMoverProducto(${i}, ${n - 1})">⤓</button>
+        </div>
+      </div>`;
+  }).join("");
+  grid.querySelectorAll(".oc-card").forEach(card => _ocHacerArrastrable(card, "xy", _ocFinArrastreProds));
+  if (destacar) {
+    const el = grid.querySelector(`.oc-card[data-codigo="${cssEscape(destacar)}"]`);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+}
+
+function ocElegirCategoria(clave) {
+  if (!_oc || clave === _oc.sel) return;
+  _oc.sel = clave;
+  _ocRender();
+  document.getElementById("ocProductos").scrollTop = 0;
+}
+
+function ocMoverCategoria(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= _oc.cats.length) return;
+  const [c] = _oc.cats.splice(i, 1);
+  _oc.cats.splice(j, 0, c);
+  _ocMarcarSucio();
+  _ocRenderCats();
+}
+
+function ocMoverProducto(desde, hasta) {
+  const lista = _oc.porCat[_oc.sel];
+  hasta = Math.max(0, Math.min(lista.length - 1, hasta));
+  if (desde === hasta) return;
+  const [cod] = lista.splice(desde, 1);
+  lista.splice(hasta, 0, cod);
+  _ocMarcarSucio();
+  _ocRenderProds(cod);
+}
+
+/** Clic en el número: se convierte en un campo para escribir la posición (Enter para mover). */
+function ocEditarPosicion(badge, i) {
+  const n = _oc.porCat[_oc.sel].length;
+  const input = document.createElement("input");
+  input.type = "number"; input.min = 1; input.max = n; input.value = i + 1;
+  input.className = "oc-pos"; input.style.width = "56px"; input.style.border = "none"; input.style.outline = "2px solid var(--blue-500)";
+  let hecho = false;
+  const aplicar = () => {
+    if (hecho) return; hecho = true;
+    const destino = parseInt(input.value, 10);
+    if (isFinite(destino) && destino >= 1) ocMoverProducto(i, Math.min(destino, n) - 1);
+    else _ocRenderProds();
+  };
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); aplicar(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hecho = true; _ocRenderProds(); }
+  });
+  input.addEventListener("blur", aplicar);
+  input.addEventListener("mousedown", e => e.stopPropagation());
+  badge.replaceWith(input);
+  input.focus(); input.select();
+}
+
+function ocOrdenRapido(criterio) {
+  const lista = _oc.porCat[_oc.sel];
+  const p = c => _oc.prod.get(c) || {};
+  const cmp = {
+    nombre: (a, b) => String(p(a).PRODUCTO || "").localeCompare(String(p(b).PRODUCTO || ""), "es", { numeric: true, sensitivity: "base" }),
+    precioAsc: (a, b) => Number(p(a).PRECIO || 0) - Number(p(b).PRECIO || 0),
+    precioDesc: (a, b) => Number(p(b).PRECIO || 0) - Number(p(a).PRECIO || 0),
+    stock: (a, b) => Number(p(b).STOCK || 0) - Number(p(a).STOCK || 0)
+  }[criterio];
+  if (!cmp) return;
+  lista.sort(cmp);
+  _ocMarcarSucio();
+  _ocRenderProds();
+  toast("Ordenado — acordate de tocar Guardar orden", "success");
+}
+
+/* Arrastre (mouse): mueve el elemento en vivo y al soltar se lee el orden del DOM. */
+function _ocHacerArrastrable(el, eje, alTerminar) {
+  el.addEventListener("dragstart", ev => {
+    _ocArrastre = el;
+    el.classList.add("arrastrando");
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", el.dataset.codigo || el.dataset.cat || "");
+  });
+  el.addEventListener("dragover", ev => {
+    if (!_ocArrastre || _ocArrastre === el || _ocArrastre.parentNode !== el.parentNode) return;
+    ev.preventDefault();
+    const r = el.getBoundingClientRect();
+    const despues = eje === "y"
+      ? ev.clientY > r.top + r.height / 2
+      : (ev.clientY > r.bottom - r.height * 0.25) || (ev.clientY >= r.top && ev.clientX > r.left + r.width / 2);
+    if (despues) el.after(_ocArrastre); else el.before(_ocArrastre);
+  });
+  el.addEventListener("drop", ev => ev.preventDefault());
+  el.addEventListener("dragend", () => {
+    el.classList.remove("arrastrando");
+    if (_ocArrastre) { _ocArrastre = null; alTerminar(); }
+  });
+}
+
+function _ocFinArrastreCats() {
+  const nuevo = [...document.querySelectorAll("#ocCategorias .oc-cat")].map(li => li.dataset.cat);
+  if (nuevo.join("\n") !== _oc.cats.join("\n")) { _oc.cats = nuevo; _ocMarcarSucio(); }
+  _ocRenderCats();
+}
+
+function _ocFinArrastreProds() {
+  const nuevo = [...document.querySelectorAll("#ocProductos .oc-card")].map(c => c.dataset.codigo);
+  if (nuevo.join("\n") !== _oc.porCat[_oc.sel].join("\n")) { _oc.porCat[_oc.sel] = nuevo; _ocMarcarSucio(); }
+  _ocRenderProds();
+}
+
+async function guardarOrdenCatalogo() {
+  if (!_oc || !_oc.sucio) return;
+  const btn = document.getElementById("btnGuardarOrdenCatalogo");
+  btn.disabled = true; btn.textContent = "Guardando...";
+  const codigos = [];
+  _oc.cats.forEach(c => codigos.push(..._oc.porCat[c]));
+  const ok = await guardarNuevoOrdenProductos(codigos);
+  btn.textContent = "💾 Guardar orden";
+  if (!ok) { btn.disabled = false; return; }
+  _oc.sucio = false;
+  const est = document.getElementById("ocEstado");
+  est.textContent = "✓ Guardado — la página lo muestra en unos minutos";
+  est.classList.remove("sucio");
+  filtrarProductos();
 }
 
 /** Fills the category <select> filter with the distinct categories currently in use */
@@ -4213,6 +4492,8 @@ function filtrarProductos() {
 
   if (estado === "sin_imagen") {
     filtrados = filtrados.filter(p => !String(p.IMAGEN || "").trim());
+  } else if (estado === "stock_bajo") {
+    filtrados = filtrados.filter(p => { const st = Number(p.STOCK ?? 0); return st > 0 && st <= 5; });
   } else if (estado === "sin_stock") {
     filtrados = filtrados.filter(p => Number(p.STOCK ?? 0) <= 0);
   } else if (estado === "stock_negativo") {
@@ -4684,7 +4965,9 @@ async function subirImagenProductoRecortada(blob, inputEl, destino) {
 
     const urlInput = document.getElementById(destino.urlInputId);
     if (urlInput) urlInput.value = data.url;
-    if (statusEl) { statusEl.className = "pm-image-status success"; statusEl.textContent = `✓ Imagen subida (${pesoFinalKB}KB)`; }
+    // Ojo: esto solo confirma que la foto quedó en Drive. El producto
+    // recién la usa cuando se toca "Guardar" — se aclara en el mensaje.
+    if (statusEl) { statusEl.className = "pm-image-status success"; statusEl.textContent = `✓ Imagen subida (${pesoFinalKB}KB) — tocá Guardar para aplicarla al producto`; }
 
   } catch (error) {
     console.error("Error al subir imagen de producto:", error);
@@ -5224,7 +5507,7 @@ function actualizarPreviewBanner() {
 
   const tituloEl = document.getElementById("cfgBannerTitulo");
   const subtituloEl = document.getElementById("cfgBannerSubtitulo");
-  const titulo    = (tituloEl && tituloEl.value.trim())    || "Mayorista Jireh";
+  const titulo    = (tituloEl && tituloEl.value.trim())    || "Tu negocio";
   const subtitulo = (subtituloEl && subtituloEl.value.trim()) || "Catálogo Mayorista Online";
   ["bannerMockTituloD", "bannerMockTituloM"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = titulo; });
   ["bannerMockSubtituloD", "bannerMockSubtituloM"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = subtitulo; });
@@ -5241,6 +5524,77 @@ function poblarCategoriasDatalist() {
 }
 
 /** Saves the product form — creates a new product or updates an existing one */
+/* ===================== CÓDIGOS ÚNICOS DE PRODUCTO =====================
+   Mismas reglas que el backend (conflictoCodigoProducto en code.gs): un
+   código —de producto o de caja— identifica a UN solo producto; se compara
+   sin espacios y sin distinguir mayúsculas. Esto avisa al instante (y sin
+   internet en la app de escritorio); el backend lo vuelve a validar igual. */
+
+function normalizarCodigoProducto(c) {
+  return String(c === undefined || c === null ? "" : c).trim().toUpperCase();
+}
+
+/**
+ * Devuelve el mensaje de error si `codigo` o `codigoCaja` ya los usa OTRO
+ * producto, o null si están libres. `codigoOriginal` = producto que se
+ * está editando (vacío si es nuevo). Solo se revisa lo que cambió, igual
+ * que el backend. `listaExtra`: productos de otra fuente (caché local).
+ */
+function conflictoCodigoProductoLocal(codigo, codigoCaja, codigoOriginal, listaExtra) {
+  const listas = [
+    typeof productosAdminGlobal !== "undefined" ? productosAdminGlobal : [],
+    typeof productosPOS !== "undefined" ? productosPOS : [],
+    listaExtra || []
+  ];
+  const propio = normalizarCodigoProducto(codigoOriginal);
+  const otros = new Map();
+  let actual = null;
+  listas.forEach(lista => (lista || []).forEach(p => {
+    const c = normalizarCodigoProducto(p && p.CODIGO);
+    if (!c) return;
+    if (propio && c === propio) { if (!actual) actual = p; return; }
+    if (!otros.has(c)) otros.set(c, p);
+  }));
+
+  const n = normalizarCodigoProducto(codigo);
+  const nCaja = normalizarCodigoProducto(codigoCaja);
+  const revisar = (valor, esCaja) => {
+    const v = normalizarCodigoProducto(valor);
+    for (const p of otros.values()) {
+      const nombre = p.PRODUCTO ? `"${p.PRODUCTO}"` : "otro producto";
+      if (normalizarCodigoProducto(p.CODIGO) === v) return `${esCaja ? "El código de caja" : "El código"} "${String(valor).trim()}" ya pertenece a ${nombre}.`;
+      if (normalizarCodigoProducto(p.CODIGO_CAJA) === v) return `${esCaja ? "El código de caja" : "El código"} "${String(valor).trim()}" ya es el código de caja de ${nombre}.`;
+    }
+    return null;
+  };
+
+  if (n && n !== propio) { const m = revisar(codigo, false); if (m) return m; }
+  const cajaActual = normalizarCodigoProducto(actual && actual.CODIGO_CAJA);
+  if (nCaja && nCaja !== cajaActual) { const m = revisar(codigoCaja, true); if (m) return m; }
+  if (nCaja && nCaja === (n || propio)) return "El código de caja tiene que ser distinto del código del producto.";
+  return null;
+}
+window.conflictoCodigoProductoLocal = conflictoCodigoProductoLocal;
+
+/** Aviso al salir del campo código / código de caja del formulario de producto. */
+function avisarCodigoDuplicadoFormulario() {
+  const campoCodigo = document.getElementById("pmCodigo");
+  const campoCaja = document.getElementById("pmCodigoCaja");
+  const ventaPorCaja = document.getElementById("pmVentaPorCaja");
+  const msg = conflictoCodigoProductoLocal(
+    campoCodigo ? campoCodigo.value : "",
+    ventaPorCaja && ventaPorCaja.checked && campoCaja ? campoCaja.value : "",
+    (document.getElementById("pmCodigoOriginal") || {}).value || ""
+  );
+  [campoCodigo, campoCaja].forEach(c => c && c.classList.remove("is-invalid"));
+  if (msg) {
+    toast(msg, "error");
+    const culpable = /de caja/.test(msg.split(" ya ")[0]) || /distinto/.test(msg) ? campoCaja : campoCodigo;
+    if (culpable) culpable.classList.add("is-invalid");
+  }
+  return msg;
+}
+
 async function guardarProductoForm() {
   const codigoOriginal = document.getElementById("pmCodigoOriginal").value.trim();
   const codigo   = document.getElementById("pmCodigo").value.trim();
@@ -5267,6 +5621,9 @@ async function guardarProductoForm() {
     toast("Completá código, unidades y precio de la caja (o desactivá la venta por caja)", "error");
     return;
   }
+
+  // Códigos únicos (aviso inmediato; el backend lo vuelve a validar)
+  if (avisarCodigoDuplicadoFormulario()) return;
 
   const esEdicion = !!codigoOriginal;
   const btn = document.getElementById("btnGuardarProducto");
@@ -6909,8 +7266,9 @@ async function guardarEdicionRapidaPOS() {
   // Si cambiaron el código, chequeo local rápido para avisar antes de
   // mandarlo — el backend igual lo vuelve a validar (por si otra
   // persona creó ese código justo en el medio).
-  if (codigoNuevo !== codigoOriginal && productosPOS.some(p => String(p.CODIGO).trim() === codigoNuevo)) {
-    toast(`Ya existe otro producto con el código "${codigoNuevo}"`, "error");
+  const conflictoErp = conflictoCodigoProductoLocal(codigoNuevo, "", codigoOriginal);
+  if (conflictoErp) {
+    toast(conflictoErp, "error");
     return;
   }
 
@@ -9104,6 +9462,27 @@ function setupScannerListener() {
       return;
     }
 
+    // F6/F7/F8: forma de pago, funcionan también con el foco en el buscador
+    // (los números 1/2/3 solo sirven cuando no se está escribiendo).
+    if (e.key === "F6" || e.key === "F7" || e.key === "F8") {
+      const mapaF = { F6: "EFECTIVO", F7: "TRANSFERENCIA", F8: "TARJETA" };
+      const btnF = document.querySelector(`.pay-method-btn[data-val="${mapaF[e.key]}"]`);
+      if (btnF) { e.preventDefault(); elegirFormaPago(btnF, mapaF[e.key]); toast("Forma de pago: " + mapaF[e.key].toLowerCase(), "success"); }
+      return;
+    }
+
+    // F1: ayuda con todos los atajos
+    if (e.key === "F1") {
+      e.preventDefault();
+      mostrarAyudaAtajosPOS();
+      return;
+    }
+    // Esc con la ayuda abierta: solo la cierra (no vacía el ticket)
+    if (e.key === "Escape" && cerrarAyudaAtajosPOS()) {
+      e.preventDefault();
+      return;
+    }
+
     if (!isOurInput && (activeTag === "INPUT" || activeTag === "SELECT" || activeTag === "TEXTAREA")) return;
 
     // ---- Atajos que solo aplican cuando NO se está escribiendo en el buscador ----
@@ -9130,6 +9509,11 @@ function setupScannerListener() {
         const mapa = { "1": "EFECTIVO", "2": "TRANSFERENCIA", "3": "TARJETA" };
         const btn = document.querySelector(`.pay-method-btn[data-val="${mapa[e.key]}"]`);
         if (btn) { e.preventDefault(); elegirFormaPago(btn, mapa[e.key]); }
+        return;
+      }
+      if (e.key === "?") {
+        e.preventDefault();
+        mostrarAyudaAtajosPOS();
         return;
       }
       if (e.key === "Escape") {
@@ -12450,24 +12834,44 @@ async function generarCodeGs() {
   }
 }
 
+/**
+ * Arma el config.json del cliente — el ÚNICO archivo con datos propios
+ * de cada negocio en el sitio (ver config.json y scripts/aplicar-cliente.js).
+ */
+function instArmarConfigCliente(d) {
+  let sitioUrl = "";
+  try {
+    if (/^https?:/.test(location.protocol)) sitioUrl = location.href.replace(/admin\/[^]*$/, "");
+  } catch (e) {}
+  return {
+    _LEEME: "Único archivo con los datos de este cliente. Editalo y subilo: el resto del sitio se adapta solo (scripts/aplicar-cliente.js). Nombre, colores, banner y teléfonos visibles se cambian desde el panel → Configuración.",
+    empresa:       d.empresa,
+    nombreCorto:   d.empresa.split(/\s+/)[0] || d.empresa,
+    descripcion:   "Catálogo online de " + d.empresa + " con envíos a todo el país.",
+    sitioUrl:      sitioUrl,
+    apiUrl:        d.apiUrl || "PEGAR_URL_API_AQUI",
+    apiUrlLectura: "",
+    whatsapp:      d.whatsapp,
+    direccion:     d.direccion,
+    moneda:        d.moneda,
+    pais:          "Argentina",
+    colorTema:     "#0b1633",
+    googleVerificacion: "",
+    version:       d.version,
+    generadoEn:    d.fecha
+  };
+}
+
 /** Paso 3a: Genera y descarga config.json */
 function generarConfigJson() {
   const d = instValidar();
   if (!d) return;
 
-  const config = {
-    empresa:    d.empresa,
-    apiUrl:     d.apiUrl || "PEGAR_URL_API_AQUI",
-    moneda:     d.moneda,
-    whatsapp:   d.whatsapp,
-    direccion:  d.direccion,
-    version:    d.version,
-    generadoEn: d.fecha
-  };
+  const config = instArmarConfigCliente(d);
 
   const json = JSON.stringify(config, null, 2);
   descargarArchivo("config.json", json, "application/json");
-  toast("config.json descargado — colocalo en la raíz del catálogo y del panel admin", "success");
+  toast("config.json descargado — colocalo en la raíz del sitio (al lado de index.html)", "success");
 }
 
 /** Paso 3b: Genera ZIP del catálogo web completo con config del cliente */
@@ -12493,15 +12897,7 @@ async function generarCatalogoZip() {
     const zip = new JSZip();
 
     // Insertar config.json del cliente en el ZIP
-    const config = {
-      empresa:    d.empresa,
-      apiUrl:     d.apiUrl,
-      moneda:     d.moneda,
-      whatsapp:   d.whatsapp,
-      direccion:  d.direccion,
-      version:    d.version,
-      generadoEn: d.fecha
-    };
+    const config = instArmarConfigCliente(d);
     zip.file("config.json", JSON.stringify(config, null, 2));
 
     // Lista de archivos del catálogo (viven en veekPOS/catalogo/)
@@ -12518,7 +12914,7 @@ async function generarCatalogoZip() {
     ];
     const archivosBinarios = ["icon-192.png", "icon-512.png", "favicon.ico"];
 
-    const base = "../catalogo/";
+    const base = "../"; // el catálogo vive en la raíz del sitio (admin/ está adentro)
     let cargados = 0;
 
     // Cargar archivos de texto
@@ -13188,20 +13584,6 @@ function cancelarCobroMercadoPago() {
   toast("Cobro cancelado — el ticket sigue abierto", "info");
 }
 
-/** Ejecuta la migración de columna FORMA_PAGO en MOVIMIENTOS_CAJA */
-async function ejecutarMigracionFormaPago() {
-  const status = document.getElementById("migracionStatus");
-  if (status) status.textContent = "Migrando...";
-  try {
-    const res = await fetchAPI(API_URL + "?action=migrarColumnaFormaPago");
-    const data = await res.json();
-    if (status) status.textContent = data.message || (data.success ? "✓ OK" : "❌ Error");
-    toast(data.message || "Migración completada", data.success ? "success" : "error");
-  } catch(e) {
-    if (status) status.textContent = "Error de conexión";
-    toast("Error al ejecutar migración", "error");
-  }
-}
 
 /* ===================================================================
    INGRESO DE PRODUCTOS — recepción de mercadería con proveedor
@@ -13289,7 +13671,7 @@ async function tcActualizarAutomatico(silencioso) {
   const ctrl = new AbortController();
   const corte = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(TC_API + encodeURIComponent(tipo), { signal: ctrl.signal });
+    const res = await fetch(TC_API + encodeURIComponent(tipo), { signal: ctrl.signal, cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const d = await res.json();
     const venta = Number(d.venta);
@@ -13329,12 +13711,12 @@ function tcTipoConfigurado() {
   return TC_TIPOS[t] ? t : "oficial";
 }
 
-/** Atajo desde la barra: abre Configuración > Productos y Pedidos, donde se elige el tipo de dólar */
+/** Atajo desde la barra: abre Configuración > Negocio, donde se elige el tipo de dólar */
 function tcIrAConfiguracion() {
   mostrarSeccion("configuracion");
   setTimeout(() => {
-    const btn = document.querySelector('.cfg-tab-btn[data-cfg-tab="productos"]');
-    if (btn) mostrarConfigTab("productos", btn);
+    const btn = document.querySelector('.cfg-tab-btn[data-cfg-tab="negocio"]');
+    if (btn) mostrarConfigTab("negocio", btn);
   }, 60);
 }
 
@@ -13342,37 +13724,76 @@ function tcIrAConfiguracion() {
 async function dolarMostrarValoresHoy() {
   const el = document.getElementById("cfgDolarHoy");
   if (!el) return;
+  const ctrl = new AbortController();
+  const corte = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(TC_API.replace(/\/$/, ""));
+    const res = await fetch(TC_API.replace(/\/$/, ""), { signal: ctrl.signal, cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const lista = await res.json();
+    clearTimeout(corte);
     const partes = Object.keys(TC_TIPOS).map(casa => {
       const d = (Array.isArray(lista) ? lista : []).find(x => x.casa === casa);
       return d && Number(d.venta) > 0 ? `${TC_TIPOS[casa]} $${Number(d.venta).toLocaleString("es-AR")}` : null;
     }).filter(Boolean);
     el.textContent = partes.length ? "Valor de venta hoy: " + partes.join(" · ") : "";
   } catch (e) {
+    clearTimeout(corte);
     el.textContent = "";      // sin conexión: el selector funciona igual
   }
 }
 
-/* ---------- Burbuja con los 4 dólares principales (solo en POS y Dashboard, y solo con internet) ---------- */
+/* ---------- Burbuja con los 4 dólares principales (solo en POS y Dashboard) ----------
+   Se actualiza al entrar a POS/Dashboard si pasaron más de 10 minutos, cada
+   10 minutos mientras estás ahí, y al volver internet. Muestra la hora de la
+   COTIZACIÓN (no la de la consulta): fines de semana y feriados el oficial no
+   se mueve, y antes decía "Dólar hoy · 00:57" con el valor del viernes.
+   Si una actualización falla, se siguen mostrando los últimos valores marcados
+   como "sin actualizar" (antes la burbuja desaparecía). */
 const DB_TIPOS = ["oficial", "blue", "bolsa", "tarjeta"];
 const DB_LS_MIN = "vpos_dolar_burbuja_min";
-let dbDatos = null;            // { oficial: 1535, ... } o null si no hay datos
+const DB_REFRESCO_MS = 10 * 60 * 1000;
+let dbDatos = null;            // { valores:{oficial:1540,...}, fechas:{oficial:Date,...}, consultado:ms, desactualizado:bool }
 let dbSeccion = "";
 let dbTimer = null;
+let dbPidiendo = false;
+
+/** "hoy 15:56" / "ayer 18:55" / "vie 18:55" / "02/10 18:55" */
+function _dbFechaCorta(f) {
+  if (!(f instanceof Date) || isNaN(f)) return "";
+  const hora = f.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const dia = new Date(f); dia.setHours(0, 0, 0, 0);
+  const dif = Math.round((hoy - dia) / 86400000);
+  if (dif === 0) return "hoy " + hora;
+  if (dif === 1) return "ayer " + hora;
+  if (dif > 1 && dif < 7) return f.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "") + " " + hora;
+  return f.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) + " " + hora;
+}
 
 function dolarBurbujaRender() {
   const el = document.getElementById("dolarBurbuja");
   if (!el) return;
-  const visible = (dbSeccion === "pos" || dbSeccion === "dashboard") && navigator.onLine !== false && !!dbDatos;
+  const visible = (dbSeccion === "pos" || dbSeccion === "dashboard") && !!dbDatos;
   el.classList.toggle("visible", visible);
   if (!visible) return;
-  document.getElementById("dbFilas").innerHTML = DB_TIPOS.filter(t => dbDatos[t] > 0).map(t =>
-    `<div class="db-fila"><span>${TC_TIPOS[t]}</span><b>$${Number(dbDatos[t]).toLocaleString("es-AR")}</b></div>`).join("");
+
+  const fechas = DB_TIPOS.map(t => dbDatos.fechas[t]).filter(f => f instanceof Date && !isNaN(f));
+  const masNueva = fechas.length ? new Date(Math.max(...fechas)) : null;
+  document.getElementById("dbFilas").innerHTML = DB_TIPOS.filter(t => dbDatos.valores[t] > 0).map(t => {
+    const f = dbDatos.fechas[t];
+    const tit = f ? `Venta · cotización de ${f.toLocaleString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "Venta";
+    return `<div class="db-fila" title="${escapeHtml(tit)}"><span>${TC_TIPOS[t]}</span><b>$${Number(dbDatos.valores[t]).toLocaleString("es-AR", { maximumFractionDigits: 2 })}</b></div>`;
+  }).join("");
+
   const h = document.getElementById("dbHora");
-  if (h && dbDatos._hora) h.textContent = dbDatos._hora;
+  if (h) {
+    const sinRed = navigator.onLine === false || dbDatos.desactualizado;
+    h.textContent = sinRed ? "sin actualizar" : (masNueva ? _dbFechaCorta(masNueva) : "");
+    h.style.color = sinRed ? "var(--amber-600, #b45309)" : "";
+  }
+  el.title = "Cotización del dólar (valor de venta, DolarApi). Consultado a las " +
+    new Date(dbDatos.consultado).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + ". Tocá para minimizar";
+
   let min = false;
   try { min = localStorage.getItem(DB_LS_MIN) === "1"; } catch (e) {}
   el.classList.toggle("min", min);
@@ -13387,26 +13808,32 @@ function dolarBurbujaAlternar() {
 }
 
 async function dolarBurbujaActualizar() {
+  if (dbPidiendo) return;
   if (navigator.onLine === false) { dolarBurbujaRender(); return; }
+  dbPidiendo = true;
   const ctrl = new AbortController();
   const corte = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(TC_API.replace(/\/$/, ""), { signal: ctrl.signal });
+    const res = await fetch(TC_API.replace(/\/$/, ""), { signal: ctrl.signal, cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const lista = await res.json();
-    const datos = {};
+    const valores = {}, fechas = {};
     DB_TIPOS.forEach(t => {
       const d = (Array.isArray(lista) ? lista : []).find(x => x.casa === t);
-      if (d && Number(d.venta) > 0) datos[t] = Number(d.venta);
+      if (d && Number(d.venta) > 0) {
+        valores[t] = Number(d.venta);
+        const f = d.fechaActualizacion ? new Date(d.fechaActualizacion) : null;
+        fechas[t] = f && !isNaN(f) ? f : null;
+      }
     });
-    if (Object.keys(datos).length) {
-      datos._hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-      dbDatos = datos;
-    }
+    if (!Object.keys(valores).length) throw new Error("respuesta sin cotizaciones");
+    dbDatos = { valores, fechas, consultado: Date.now(), desactualizado: false };
   } catch (e) {
-    dbDatos = null;            // sin datos confiables: la burbuja se esconde
+    console.warn("Cotización del dólar:", e);
+    if (dbDatos) dbDatos.desactualizado = true;   // se quedan los últimos valores, marcados como viejos
   } finally {
     clearTimeout(corte);
+    dbPidiendo = false;
     dolarBurbujaRender();
   }
 }
@@ -13415,12 +13842,14 @@ async function dolarBurbujaActualizar() {
 function dolarBurbujaAlCambiarSeccion(id) {
   dbSeccion = id;
   if (!dbTimer) {
-    dbTimer = setInterval(() => { if (dbSeccion === "pos" || dbSeccion === "dashboard") dolarBurbujaActualizar(); }, 10 * 60 * 1000);
-    window.addEventListener("online", dolarBurbujaActualizar);
+    dbTimer = setInterval(() => { if (dbSeccion === "pos" || dbSeccion === "dashboard") dolarBurbujaActualizar(); }, DB_REFRESCO_MS);
+    window.addEventListener("online", () => { if (dbSeccion === "pos" || dbSeccion === "dashboard") dolarBurbujaActualizar(); });
     window.addEventListener("offline", dolarBurbujaRender);
   }
   if (id === "pos" || id === "dashboard") {
-    if (!dbDatos) dolarBurbujaActualizar(); else dolarBurbujaRender();
+    const vencido = !dbDatos || dbDatos.desactualizado || (Date.now() - dbDatos.consultado) > DB_REFRESCO_MS;
+    dolarBurbujaRender();
+    if (vencido) dolarBurbujaActualizar();
   } else dolarBurbujaRender();
 }
 
@@ -15305,6 +15734,106 @@ function cerrarModalBoletasProveedor() {
    guardado, se asume "admin" (acceso total), igual que siempre.
 =================================================================== */
 
+/* ===================== AYUDA DE ATAJOS DEL POS =====================
+   F1 o "?" abren el mismo panel que el botón "⌨️ Atajos" del POS. */
+
+function mostrarAyudaAtajosPOS() {
+  const fondo = document.getElementById("shortcutsHelpBackdrop");
+  if (!fondo) return;
+  if (fondo.classList.contains("show")) { cerrarAyudaAtajosPOS(); return; }
+  fondo.classList.add("show");
+}
+
+/** Cierra la ayuda si estaba abierta. Devuelve true si la cerró. */
+function cerrarAyudaAtajosPOS() {
+  const fondo = document.getElementById("shortcutsHelpBackdrop");
+  if (!fondo || !fondo.classList.contains("show")) return false;
+  fondo.classList.remove("show");
+  const input = document.getElementById("posBusqueda");
+  if (input) input.focus();
+  return true;
+}
+
+/* ===================== ESTILO DEL PANEL (por computadora) =====================
+   Se guarda en el navegador / app de ESTA caja (localStorage), no en la
+   planilla: cada caja elige el suyo. El color del negocio (Catálogo Web →
+   Color del sitio) se sigue aplicando encima. Ver estilos/estilos.css. */
+
+const ESTILOS_PANEL = [
+  { id: "clasico",   nombre: "Clásico",            desc: "El de siempre." },
+  { id: "mostrador", nombre: "Mostrador claro",    desc: "Claro y amplio, con botones y buscador grandes." },
+  { id: "turno",     nombre: "Turno largo",        desc: "Oscuro, cansa menos la vista. El total se ve como el visor de una caja." },
+  { id: "recibo",    nombre: "Escáner y recibo",   desc: "Productos en lista, para escanear rápido. El ticket parece un recibo impreso." },
+  { id: "centro",    nombre: "Ticket al centro",   desc: "El ticket ocupa la parte principal; los productos quedan al costado." },
+  { id: "pizarron",  nombre: "Pizarrón de almacén",desc: "Pizarra verde con precios a tiza y el ticket en papel madera." },
+  { id: "minimal",   nombre: "Minimalista",        desc: "Blanco y gris, mucho aire y un solo color para lo importante." },
+  { id: "contraste", nombre: "Alto contraste",     desc: "Letras grandes, bordes marcados y foco amarillo. Colores fijos." },
+  { id: "celeste",   nombre: "Celeste y blanco",   desc: "Colores fijos celeste y dorado. El ticket va en una barra abajo." },
+  { id: "degrade",   nombre: "Degradé",            desc: "Oscuro con degradé en los colores del negocio." }
+];
+const ESTILOS_OSCUROS = { turno: true, pizarron: true, degrade: true };
+
+function obtenerEstiloPanel() {
+  try { return localStorage.getItem("veekEstiloPanel") || "clasico"; } catch (e) { return "clasico"; }
+}
+
+function aplicarEstiloPanel(id) {
+  if (!ESTILOS_PANEL.some(e => e.id === id)) id = "clasico";
+  const r = document.documentElement;
+  r.setAttribute("data-estilo", id);
+  if (ESTILOS_OSCUROS[id]) { r.setAttribute("data-oscuro", ""); r.setAttribute("data-bs-theme", "dark"); }
+  else { r.removeAttribute("data-oscuro"); r.removeAttribute("data-bs-theme"); }
+}
+
+function elegirEstiloPanel(id) {
+  aplicarEstiloPanel(id);
+  try { localStorage.setItem("veekEstiloPanel", id); } catch (e) {}
+  renderSelectorEstilosPanel();
+  const nombre = (ESTILOS_PANEL.find(e => e.id === id) || {}).nombre || id;
+  toast(`Estilo "${nombre}" aplicado en esta computadora`, "success");
+}
+
+function renderSelectorEstilosPanel() {
+  const cont = document.getElementById("selectorEstilosPanel");
+  if (!cont) return;
+  const actual = obtenerEstiloPanel();
+  cont.innerHTML = ESTILOS_PANEL.map(e => `
+    <button type="button" class="estilo-opcion" aria-pressed="${e.id === actual}" onclick="elegirEstiloPanel('${e.id}')">
+      <img src="estilos/vista-${e.id}.jpg" alt="" loading="lazy">
+      <b>${escapeHtml(e.nombre)}${e.id === actual ? " ✓" : ""}</b>
+      <small>${escapeHtml(e.desc)}</small>
+    </button>`).join("");
+}
+document.addEventListener("DOMContentLoaded", renderSelectorEstilosPanel);
+
+/**
+ * Si el admin entró con la contraseña que viene de fábrica, se le avisa
+ * arriba de todo hasta que la cambie (cualquiera que conozca VeekPOS la
+ * conoce). Lo marca login.html con "debeCambiarPassword".
+ */
+function mostrarAvisoPasswordDeFabrica() {
+  let debe = false;
+  try { debe = sessionStorage.getItem("debeCambiarPassword") === "1"; } catch (e) {}
+  if (!debe || document.getElementById("avisoPasswordFabrica")) return;
+  const div = document.createElement("div");
+  div.id = "avisoPasswordFabrica";
+  div.setAttribute("role", "alert");
+  div.style.cssText = "position:sticky;top:0;z-index:1040;background:#b91c1c;color:#fff;padding:10px 16px;margin:-4px 0 16px;" +
+    "border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font-weight:600";
+  div.innerHTML = '<span>⚠️ Estás usando la contraseña de fábrica. Cualquiera que la conozca puede entrar a tu panel.</span>' +
+    '<button type="button" class="btn btn-sm btn-light fw-bold">Cambiarla ahora</button>';
+  div.querySelector("button").onclick = () => {
+    mostrarSeccion("usuarios");
+    if (typeof cargarUsuarios === "function") cargarUsuarios();
+    setTimeout(() => {
+      const campo = document.getElementById("credPasswordActual");
+      if (campo) { campo.scrollIntoView({ behavior: "smooth", block: "center" }); campo.focus(); }
+    }, 200);
+  };
+  // Dentro del área de contenido (no tapa la barra lateral)
+  (document.querySelector(".content") || document.body).prepend(div);
+}
+
 const PERMISOS_POR_ROL = {
   admin: null, // null = acceso a todas las secciones
   vendedor: ["dashboard", "pos", "ventasPOS", "cierreCaja", "movimientosCaja", "pedidos", "clientes"],
@@ -15342,6 +15871,15 @@ function aplicarPermisosPorRol() {
   document.querySelectorAll("#navLinks a[data-target], #bottomNavLinks a[data-target]").forEach(a => {
     const target = a.getAttribute("data-target");
     if (!permitidas.includes(target)) a.style.display = "none";
+  });
+
+  // Títulos de grupo del menú que quedaron sin ninguna opción visible: se ocultan
+  document.querySelectorAll("#navLinks .nav-grupo").forEach(g => {
+    let hayVisible = false;
+    for (let el = g.nextElementSibling; el && !el.classList.contains("nav-grupo"); el = el.nextElementSibling) {
+      if (el.tagName === "A" && el.style.display !== "none") { hayVisible = true; break; }
+    }
+    g.classList.toggle("vacio", !hayVisible);
   });
 
   // El rol vendedor ve la sección Pedidos y Movimientos de Caja, pero
@@ -15446,8 +15984,8 @@ async function guardarUsuarioForm() {
 
   try {
     const body = usuarioId
-      ? { action: "editarUsuario", usuarioId, nombre, username, password, rol, activo }
-      : { action: "crearUsuario", nombre, username, password, rol };
+      ? { action: "editarUsuario", usuarioId, nombre, username, password, rolNuevo: rol, activo }
+      : { action: "crearUsuario", nombre, username, password, rolNuevo: rol };
 
     const res = await fetchAPI(API_URL, { method: "POST", body: JSON.stringify(body) });
     const data = await res.json();
@@ -15487,4 +16025,227 @@ function eliminarUsuarioClick(usuarioId, nombre) {
     },
     "🗑️ Eliminar usuario"
   );
+}
+
+
+/* =====================================================================
+   ONDA AL HACER CLIC — en botones, menú y pestañas. Solo visual; si la
+   computadora pide "reducir movimiento", no se agrega.
+===================================================================== */
+(function () {
+  if (typeof window === "undefined" || !window.matchMedia) return;
+  const reducir = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const SELECTOR = ".btn, .sidebar a, .bottom-nav a, .cfg-tab-btn, .rep-tab, .pos-action-btn, .cat-chip";
+  document.addEventListener("pointerdown", ev => {
+    if (reducir.matches || ev.button !== 0) return;
+    const el = ev.target.closest(SELECTOR);
+    if (!el || el.disabled || el.classList.contains("disabled")) return;
+    // La onda se dibuja en una capa aparte encima del elemento (no dentro
+    // de él), así no se mezcla con el contenido de botones que guardan y
+    // restauran su texto (ej. "Guardando..." → "Guardar").
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const capa = document.createElement("div");
+    capa.className = "onda-capa";
+    capa.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border-radius:${cs.borderRadius};color:${cs.color}`;
+    const tam = Math.max(r.width, r.height);
+    const onda = document.createElement("span");
+    onda.className = "onda-clic";
+    onda.style.width = onda.style.height = tam + "px";
+    onda.style.left = (ev.clientX - r.left - tam / 2) + "px";
+    onda.style.top = (ev.clientY - r.top - tam / 2) + "px";
+    capa.appendChild(onda);
+    document.body.appendChild(capa);
+    setTimeout(() => capa.remove(), 600);
+  }, { passive: true });
+})();
+
+
+/* =====================================================================
+   CUPONES — descuentos con código para el catálogo web.
+   Cada cupón: % o monto fijo, cupo de usos, vencimiento y compra mínima
+   opcionales. Cada DNI/CUIT lo puede usar una vez (lo controla el
+   backend al guardar el pedido, dentro del mismo lock).
+===================================================================== */
+let cuponesGlobal = [];
+
+function _textoDescuentoCupon(c) {
+  return c.tipo === "MONTO" ? "$" + Number(c.valor).toLocaleString("es-AR") : c.valor + "%";
+}
+
+function _estadoCupon(c) {
+  if (!c.activo) return { txt: "Pausado", cls: "bg-secondary" };
+  if (c.vencido) return { txt: "Vencido", cls: "bg-secondary" };
+  if (c.programado) return { txt: "Programado", cls: "bg-info text-dark" };
+  if (c.usosMax > 0 && c.usos >= c.usosMax) return { txt: "Agotado", cls: "bg-danger" };
+  return { txt: "Activo", cls: "bg-success" };
+}
+
+async function cargarCupones() {
+  const tbody = document.getElementById("tablaCupones");
+  if (!tbody) return;
+  try {
+    const res = await fetchAPI(API_URL + "?action=cupones");
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || "No se pudieron cargar los cupones");
+    cuponesGlobal = data.cupones || [];
+    renderCupones();
+  } catch (e) {
+    console.error("Cupones:", e);
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${escapeHtml(e.message || "Error de conexión")}</td></tr>`;
+  }
+}
+
+function renderCupones() {
+  const tbody = document.getElementById("tablaCupones");
+  if (!cuponesGlobal.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5">Todavía no hay cupones.<br><button class="btn btn-success btn-sm mt-2" onclick="abrirModalCupon()">+ Crear el primero</button></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cuponesGlobal.map(c => {
+    const est = _estadoCupon(c);
+    const pct = c.usosMax > 0 ? Math.min(100, Math.round(c.usos * 100 / c.usosMax)) : 0;
+    const cod = escapeJsAttr(c.codigo);
+    return `<tr>
+      <td><div class="cup-codigo">${escapeHtml(c.codigo)}</div>${c.nota ? `<div class="cup-nota">${escapeHtml(c.nota)}</div>` : ""}</td>
+      <td><strong>${_textoDescuentoCupon(c)}</strong></td>
+      <td><div class="cup-usos ${c.usos >= c.usosMax ? "lleno" : ""}">${c.usos} / ${c.usosMax} <span class="text-muted" style="font-size:12px;">· quedan ${Math.max(0, c.usosMax - c.usos)}</span>
+        <div class="barra"><span style="width:${pct}%"></span></div></div></td>
+      <td>${_textoVigenciaCupon(c)}</td>
+      <td>${c.minimo > 0 ? "$" + Number(c.minimo).toLocaleString("es-AR") : '<span class="text-muted">—</span>'}</td>
+      <td><span class="badge ${est.cls}">${est.txt}</span></td>
+      <td class="cup-acciones">
+        <button class="btn btn-outline-secondary" title="Copiar código" onclick="copiarCodigoCupon('${cod}')">📋</button>
+        <button class="btn btn-outline-secondary" title="${c.activo ? "Pausar" : "Activar"}" onclick="alternarCupon('${cod}')">${c.activo ? "⏸" : "▶"}</button>
+        <button class="btn btn-outline-primary" title="Editar" onclick="abrirModalCupon('${cod}')">✏️</button>
+        <button class="btn btn-outline-danger" title="Eliminar" onclick="eliminarCuponClick('${cod}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+const _fechaCorta = (iso) => iso ? iso.split("-").reverse().join("/") : "";
+
+function _textoVigenciaCupon(c) {
+  if (!c.desde && !c.vence) return '<span class="text-muted">Siempre</span>';
+  const partes = [];
+  if (c.desde) partes.push(`<span class="${c.programado ? "text-primary fw-semibold" : ""}">desde ${escapeHtml(_fechaCorta(c.desde))}</span>`);
+  if (c.vence) partes.push(`<span class="${c.vencido ? "text-danger" : ""}">hasta ${escapeHtml(_fechaCorta(c.vence))}</span>`);
+  return partes.join("<br>");
+}
+
+function abrirModalCupon(codigo) {
+  const c = codigo ? cuponesGlobal.find(x => x.codigo === codigo) : null;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ""; };
+  document.getElementById("cuponModalTitulo").textContent = c ? "🎟️ Editar cupón " + c.codigo : "🎟️ Nuevo cupón";
+  set("cupCodigoOriginal", c ? c.codigo : "");
+  set("cupCodigo", c ? c.codigo : "");
+  set("cupTipo", c ? c.tipo : "PORCENTAJE");
+  set("cupValor", c ? c.valor : "");
+  set("cupUsosMax", c ? c.usosMax : "");
+  set("cupVence", c ? c.vence : "");
+  set("cupDesde", c ? c.desde : "");
+  set("cupMinimo", c && c.minimo ? c.minimo : "");
+  set("cupNota", c ? c.nota : "");
+  document.getElementById("cupActivo").checked = c ? !!c.activo : true;
+  // un cupón ya usado no puede cambiar de código (el historial lo referencia)
+  document.getElementById("cupCodigo").disabled = !!(c && c.usos > 0);
+  document.getElementById("cupUsosInfo").textContent = c && c.usos > 0
+    ? `Ya se usó ${c.usos} ${c.usos === 1 ? "vez" : "veces"}. Podés ampliar el cupo.`
+    : "Se descuenta uno por cada pedido que lo use.";
+  actualizarAyudaCupon();
+  document.getElementById("cuponModalBackdrop").classList.add("show");
+  setTimeout(() => document.getElementById(c ? "cupValor" : "cupCodigo")?.focus(), 80);
+}
+
+function cerrarModalCupon() {
+  document.getElementById("cuponModalBackdrop").classList.remove("show");
+}
+
+/** Resumen en palabras de lo que va a hacer el cupón (ayuda a no equivocarse). */
+function actualizarAyudaCupon() {
+  const tipo = document.getElementById("cupTipo").value;
+  document.getElementById("cupValorLabel").textContent = tipo === "MONTO" ? "Monto a descontar ($) *" : "Porcentaje *";
+  const v = Number(document.getElementById("cupValor").value);
+  const r = document.getElementById("cupResumen");
+  if (!v) { r.textContent = ""; return; }
+  const ej = 100000;
+  const desc = tipo === "MONTO" ? Math.min(v, ej) : Math.round(ej * v / 100);
+  const desde = document.getElementById("cupDesde")?.value, vence = document.getElementById("cupVence")?.value;
+  const vig = desde && vence ? ` Vale del ${_fechaCorta(desde)} al ${_fechaCorta(vence)}.`
+            : desde ? ` Empieza a valer el ${_fechaCorta(desde)}.`
+            : vence ? ` Vale hasta el ${_fechaCorta(vence)}.` : "";
+  r.textContent = `Ejemplo: en un pedido de $${ej.toLocaleString("es-AR")}, descuenta $${desc.toLocaleString("es-AR")} y el cliente paga $${(ej - desc).toLocaleString("es-AR")}.` + vig;
+}
+
+async function guardarCuponForm() {
+  const val = id => document.getElementById(id).value.trim();
+  const datos = {
+    action: "guardarCupon",
+    codigoOriginal: val("cupCodigoOriginal"),
+    codigo: val("cupCodigo"),
+    tipo: val("cupTipo"),
+    valor: val("cupValor"),
+    usosMax: val("cupUsosMax"),
+    vence: val("cupVence"),
+    desde: val("cupDesde"),
+    minimo: val("cupMinimo") || 0,
+    nota: val("cupNota"),
+    activo: document.getElementById("cupActivo").checked
+  };
+  if (datos.codigo.length < 3) { toast("El código tiene que tener al menos 3 caracteres", "error"); return; }
+  if (!(Number(datos.valor) > 0)) { toast("Poné cuánto descuenta el cupón", "error"); return; }
+  if (!(Number(datos.usosMax) >= 1)) { toast("Poné la cantidad de usos (1 o más)", "error"); return; }
+  if (datos.desde && datos.vence && datos.desde > datos.vence) { toast("La fecha de inicio no puede ser posterior al vencimiento", "error"); return; }
+  const btn = document.getElementById("btnGuardarCupon");
+  btn.disabled = true; btn.textContent = "Guardando...";
+  try {
+    const res = await fetchAPI(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(datos) }, { timeoutMs: 20000 });
+    const data = await res.json();
+    if (!data.success) { toast(data.message || "No se pudo guardar el cupón", "error"); return; }
+    toast(`Cupón ${data.codigo} guardado`, "success");
+    cerrarModalCupon();
+    cargarCupones();
+  } catch (e) {
+    toast("Error de conexión al guardar el cupón", "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "💾 Guardar cupón";
+  }
+}
+
+async function alternarCupon(codigo) {
+  const c = cuponesGlobal.find(x => x.codigo === codigo);
+  if (!c) return;
+  try {
+    const res = await fetchAPI(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({
+      action: "guardarCupon", codigoOriginal: c.codigo, codigo: c.codigo, tipo: c.tipo, valor: c.valor, usosMax: c.usosMax,
+      vence: c.vence, desde: c.desde, minimo: c.minimo, nota: c.nota, activo: !c.activo }) }, { timeoutMs: 20000 });
+    const data = await res.json();
+    if (!data.success) { toast(data.message || "No se pudo cambiar el cupón", "error"); return; }
+    toast(c.activo ? `Cupón ${codigo} pausado` : `Cupón ${codigo} activado`, "success");
+    cargarCupones();
+  } catch (e) { toast("Error de conexión", "error"); }
+}
+
+async function eliminarCuponClick(codigo) {
+  const c = cuponesGlobal.find(x => x.codigo === codigo);
+  const extra = c && c.usos > 0 ? ` Ya se usó ${c.usos} ${c.usos === 1 ? "vez" : "veces"}; los pedidos que lo usaron no cambian.` : "";
+  // Modal propio (no confirm() nativo: en Electron deja el teclado sin foco)
+  confirmarAccion(`¿Eliminar el cupón ${codigo}?${extra}`, () => _eliminarCuponConfirmado(codigo), "🗑️ Eliminar cupón");
+}
+
+async function _eliminarCuponConfirmado(codigo) {
+  try {
+    const res = await fetchAPI(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "eliminarCupon", codigo }) }, { timeoutMs: 20000 });
+    const data = await res.json();
+    if (!data.success) { toast(data.message || "No se pudo eliminar", "error"); return; }
+    toast(`Cupón ${codigo} eliminado`, "success");
+    cargarCupones();
+  } catch (e) { toast("Error de conexión", "error"); }
+}
+
+function copiarCodigoCupon(codigo) {
+  try {
+    navigator.clipboard.writeText(codigo).then(() => toast(`Código ${codigo} copiado`, "success"), () => toast(codigo, "success"));
+  } catch (e) { toast(codigo, "success"); }
 }

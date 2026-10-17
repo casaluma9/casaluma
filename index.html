@@ -3,38 +3,37 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.workers.dev; frame-src https://www.google.com https://maps.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https://cdn.jsdelivr.net https://script.google.com https://script.googleusercontent.com https://*.workers.dev; frame-src https://www.google.com https://maps.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
     <!-- ===== SEO BÁSICO =====
-         Los textos de acá abajo son solo un placeholder de respaldo por si
-         falla la carga de la configuración (ver aplicarApariencia() en
-         app.js), que los reemplaza con los datos reales de la hoja
-         CONFIGURACION apenas carga la página. Nunca debe quedar un nombre
-         de cliente puntual hardcodeado acá. -->
-    <title>Catálogo Mayorista | Envíos a todo el país</title>
-    <meta name="description" content="Catálogo mayorista online. Comprá con envíos a todo el país. Precios mayoristas, grandes cantidades y variedad de productos.">
+         NO editar a mano: estos valores los escribe scripts/aplicar-cliente.js
+         a partir de config.json (el archivo con los datos del cliente), para
+         que Google y WhatsApp los lean sin ejecutar JavaScript. Después,
+         aplicarApariencia() (app.js) los ajusta con lo cargado en el panel. -->
+    <title>Jireh Mayorista | Catálogo online</title>
+    <meta name="description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
     <meta name="keywords" content="mayorista, compra mayorista, artículos mayoristas, envíos todo el país">
     <meta name="robots" content="index, follow">
-    <meta name="author" content="">
+    <meta name="author" content="CASA LUMA">
     <link rel="canonical" href="https://casaluma9.github.io/casaluma/">
 
     <!-- ===== OPEN GRAPH (WhatsApp, Facebook, LinkedIn) ===== -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://casaluma9.github.io/casaluma/">
-    <meta property="og:title" content="Catálogo Mayorista">
-    <meta property="og:description" content="Catálogo mayorista online con envíos a todo el país. Consultá precios y hacé tu pedido directamente por WhatsApp.">
+    <meta property="og:title" content="CASA LUMA">
+    <meta property="og:description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
     <meta property="og:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
     <meta property="og:locale" content="es_AR">
-    <meta property="og:site_name" content="">
+    <meta property="og:site_name" content="CASA LUMA">
 
     <!-- ===== TWITTER / X CARD ===== -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Catálogo Mayorista">
-    <meta name="twitter:description" content="Catálogo mayorista online con envíos a todo el país.">
+    <meta name="twitter:title" content="CASA LUMA">
+    <meta name="twitter:description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
     <meta name="twitter:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
 
     <!-- ===== SCHEMA.ORG — datos estructurados para Google =====
@@ -44,9 +43,9 @@
     {
       "@context": "https://schema.org",
       "@type": "Store",
-      "name": "",
+      "name": "CASA LUMA",
       "description": "Catálogo mayorista con envíos a todo el país.",
-      "url": "",
+      "url": "https://casaluma9.github.io/casaluma/",
       "logo": "icon-512.png",
       "image": "icon-512.png",
       "priceRange": "$$",
@@ -88,6 +87,8 @@
     <link rel="stylesheet" href="css/style.css">
 
     <!-- Datos del negocio (nombre, WhatsApp, SEO, etc.) — editar en config.js -->
+    <!-- Catálogo: productos + configuración en un solo pedido al Worker (ver config.js) -->
+    <script>window.VEEK_PEDIR_INICIO = true;</script>
     <script src="config.js"></script>
 </head>
 
@@ -556,7 +557,31 @@
                             class="form-control mb-2"
                             placeholder="DNI o CUIT *">
 
+                        <!-- Cupón de descuento -->
+                        <div class="cupon-box" id="cupon-box">
+                            <div class="cupon-form" id="cupon-form">
+                                <input type="text" id="cupon-input" class="form-control" placeholder="¿Tenés un cupón de descuento?"
+                                       autocomplete="off" autocapitalize="characters" maxlength="30"
+                                       onkeydown="if(event.key==='Enter'){event.preventDefault();aplicarCupon();}">
+                                <button type="button" class="btn btn-outline-dark" id="cupon-aplicar" onclick="aplicarCupon()">Aplicar</button>
+                            </div>
+                            <div class="cupon-aplicado d-none" id="cupon-aplicado">
+                                <span>🎟️ <strong id="cupon-codigo"></strong> <span id="cupon-detalle"></span></span>
+                                <button type="button" class="cupon-quitar" onclick="quitarCupon()">Quitar</button>
+                            </div>
+                            <div class="cupon-msg" id="cupon-msg" aria-live="polite"></div>
+                        </div>
+
                         <hr>
+
+                        <div class="cart-sub-row d-none" id="cart-subtotal-row">
+                            <span>Subtotal</span>
+                            <span>$<span id="cart-subtotal">0</span></span>
+                        </div>
+                        <div class="cart-sub-row cart-desc-row d-none" id="cart-descuento-row">
+                            <span id="cart-descuento-label">Descuento</span>
+                            <span>−$<span id="cart-descuento">0</span></span>
+                        </div>
 
                         <div class="cart-total-row">
                             <span>Total</span>

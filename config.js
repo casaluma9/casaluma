@@ -71,6 +71,17 @@ async function resolverApiUrlBase(){
       const cfg = await res.json();
       if(cfg.apiUrl) API_URL_BASE = cfg.apiUrl;
       if(cfg.apiUrlLectura) API_URL_LECTURA_BASE = cfg.apiUrlLectura;
+      // config.json es el archivo de datos del cliente: sus valores pasan
+      // a ser el respaldo si Sheets no responde (nombre, WhatsApp, URL...).
+      if(cfg.empresa){ CONFIG_NEGOCIO_RESPALDO.NOMBRE_NEGOCIO = cfg.empresa; CONFIG_NEGOCIO_RESPALDO.SEO_TITULO = cfg.empresa; }
+      if(cfg.nombreCorto) CONFIG_NEGOCIO_RESPALDO.NOMBRE_CORTO = cfg.nombreCorto;
+      if(cfg.descripcion) CONFIG_NEGOCIO_RESPALDO.SEO_DESCRIPCION = cfg.descripcion;
+      if(cfg.whatsapp) CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO = String(cfg.whatsapp).replace(/[^\d]/g, "");
+      if(cfg.sitioUrl) CONFIG_NEGOCIO_RESPALDO.URL_SITIO = normalizarUrlConBarraFinal(cfg.sitioUrl);
+      CONFIG_NEGOCIO = { ...CONFIG_NEGOCIO_RESPALDO, ...CONFIG_NEGOCIO, NOMBRE_NEGOCIO: CONFIG_NEGOCIO_RESPALDO.NOMBRE_NEGOCIO,
+        NOMBRE_CORTO: CONFIG_NEGOCIO_RESPALDO.NOMBRE_CORTO, WHATSAPP_NUMERO: CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO,
+        URL_SITIO: CONFIG_NEGOCIO_RESPALDO.URL_SITIO, SEO_TITULO: CONFIG_NEGOCIO_RESPALDO.SEO_TITULO,
+        SEO_DESCRIPCION: CONFIG_NEGOCIO_RESPALDO.SEO_DESCRIPCION };
     }
   }catch(error){
     console.error("No se pudo leer config.json para obtener la API URL:", error);
@@ -109,15 +120,36 @@ function normalizarUrlConBarraFinal(url){
 // las siguientes reciben la misma Promise ya en vuelo (o resuelta).
 let _configuracionNegocioPromise = null;
 
+/* "inicio": productos + configuración en UN solo pedido al Worker (la mitad
+   de pedidos por visita — el plan gratis de Cloudflare cuenta pedidos).
+   Solo lo usa la página del catálogo (app.js pone VEEK_PEDIR_INICIO = true):
+   las demás páginas no necesitan bajar todos los productos. Si no hay Worker,
+   o es una versión vieja sin "inicio", devuelve null y todo sigue como antes. */
+let _inicioCatalogoPromise = null;
+function obtenerInicioCatalogo(){
+  if(typeof window === "undefined" || !window.VEEK_PEDIR_INICIO || !API_URL_LECTURA_BASE) return Promise.resolve(null);
+  if(!_inicioCatalogoPromise){
+    _inicioCatalogoPromise = fetch(API_URL_LECTURA_BASE + "?action=inicio")
+      .then(res => res.ok ? res.json() : null)
+      .then(d => (d && d.success && d.productos && d.configuracionNegocio) ? d : null)
+      .catch(() => null);
+  }
+  return _inicioCatalogoPromise;
+}
+
 async function obtenerConfiguracionNegocioCruda(apiUrl){
   if(!_configuracionNegocioPromise){
     const lectura = API_URL_LECTURA_BASE || apiUrl;
-    _configuracionNegocioPromise = fetch(lectura + "?action=configuracionNegocio")
+    _configuracionNegocioPromise = obtenerInicioCatalogo()
+      .then(ini => {
+        if(ini) return ini.configuracionNegocio;
+        return fetch(lectura + "?action=configuracionNegocio")
       .then(res => { if(!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
       .catch(err => {
         // Si el Worker falla, se reintenta directo contra Apps Script.
         if(lectura === apiUrl) throw err;
         return fetch(apiUrl + "?action=configuracionNegocio").then(res => res.json());
+      });
       })
       .catch(err => {
         // No dejar una promesa fallida cacheada para siempre: el próximo

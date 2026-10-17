@@ -75,6 +75,10 @@ async function fetchAPI(url, opciones = {}, config = {}) {
   throw ultimoError;
 }
 
+// Esta página sí necesita productos + configuración: se piden juntos al
+// Worker en un solo pedido (ver obtenerInicioCatalogo en config.js).
+if (typeof window !== "undefined") window.VEEK_PEDIR_INICIO = true;
+
 async function cargarConfigCliente() {
   if (typeof cargarConfigNegocio === "function") {
     await cargarConfigNegocio(); // de config.js — resuelve config.json y trae el resto de Sheets
@@ -130,13 +134,15 @@ const estado = {
     categoria: "",
     precioMin: null,
     precioMax: null,
-    orden: "relevancia"
+    orden: "relevancia",
+    cupon: null          // { codigo, tipo, valor, minimo, etiqueta } — se valida en el servidor al enviar
 };
 
 // Número de WhatsApp usado por el botón flotante y por el checkout.
 // Se sobreescribe con el valor de Sheets en aplicarApariencia(); este
 // es solo el valor por defecto mientras carga o si falla la conexión.
-let whatsappNumero = "5491140975795";
+// (El respaldo sale de config.json → "whatsapp", el archivo del cliente.)
+let whatsappNumero = "";
 
 // Promesa de la carga de configuración (se asigna más abajo, al llamar
 // aplicarApariencia()). checkoutWhatsapp() la espera antes de armar el
@@ -296,8 +302,13 @@ async function cargarProductos(){
 
         // Apps Script en frío puede tardar más de 10 s; cortar antes solo
         // descartaba una respuesta que estaba por llegar. 30 s y 1 reintento.
-        const res = await fetchAPI(API_URL_LECTURA + "?action=productos", {}, { timeoutMs: 30000, reintentos: 2 });
-        const data = await res.json();
+        // Primero, lo que ya trajo el pedido combinado "inicio" (si hay Worker).
+        const inicio = typeof obtenerInicioCatalogo === "function" ? await obtenerInicioCatalogo() : null;
+        let data = inicio && inicio.productos && Array.isArray(inicio.productos.productos) ? inicio.productos : null;
+        if(!data){
+            const res = await fetchAPI(API_URL_LECTURA + "?action=productos", {}, { timeoutMs: 30000, reintentos: 2 });
+            data = await res.json();
+        }
 
         if(!data || data.success === false || !Array.isArray(data.productos)){
             throw new Error("Respuesta inválida del catálogo");
@@ -1399,7 +1410,8 @@ function actualizarContador(){
         mcb.classList.add("d-none");
     }
 
-    actualizarBarraMinimo(totalPrecio);
+    // El mínimo se mide con el total que de verdad paga (con cupón)
+    actualizarBarraMinimo(totalPrecio - descuentoDelCupon(totalPrecio), totalPrecio);
 }
 
 /**
@@ -1408,7 +1420,8 @@ function actualizarContador(){
  * carrito. Se oculta sola cuando ya se llegó al mínimo o cuando el
  * carrito está vacío, para no ocupar espacio innecesariamente.
  */
-function actualizarBarraMinimo(totalPrecio){
+function actualizarBarraMinimo(totalPrecio, subtotalSinCupon){
+    const hayCupon = subtotalSinCupon !== undefined && subtotalSinCupon > totalPrecio;
 
     const cont = document.getElementById("minimo-progress");
     if(!cont) return;
@@ -1435,8 +1448,9 @@ function actualizarBarraMinimo(totalPrecio){
 
         cont.classList.remove("minimo-progress-completo");
         fill.style.width = porcentaje + "%";
-        texto.innerHTML =
-            `🛒 Te faltan <b>$${formatearPrecio(falta)}</b> para llegar al pedido mínimo de $${formatearPrecio(pedidoMinimo)}`;
+        texto.innerHTML = hayCupon
+            ? `🛒 Con tu cupón te faltan <b>$${formatearPrecio(falta)}</b> para el pedido mínimo de $${formatearPrecio(pedidoMinimo)}`
+            : `🛒 Te faltan <b>$${formatearPrecio(falta)}</b> para llegar al pedido mínimo de $${formatearPrecio(pedidoMinimo)}`;
     }
 
     cont.classList.remove("d-none");
@@ -1692,13 +1706,17 @@ function abrirCarrito(){
         cont.innerHTML = html;
     }
 
-    document.getElementById("cart-total").innerText = formatearPrecio(total);
+    pintarTotalesConCupon(total);
 
     const avisoMinimo = document.getElementById("cart-minimo-aviso");
+    // El mínimo se compara con el total final (después del cupón)
+    const totalFinal = total - descuentoDelCupon(total);
     if(avisoMinimo){
-        if(total > 0 && total < pedidoMinimo){
-            const falta = pedidoMinimo - total;
-            avisoMinimo.textContent = `⚠️ Te faltan $${formatearPrecio(falta)} para el pedido mínimo de $${formatearPrecio(pedidoMinimo)}`;
+        if(totalFinal > 0 && totalFinal < pedidoMinimo){
+            const falta = pedidoMinimo - totalFinal;
+            avisoMinimo.textContent = totalFinal < total
+                ? `⚠️ Con el cupón tu total es $${formatearPrecio(totalFinal)}: te faltan $${formatearPrecio(falta)} para el pedido mínimo de $${formatearPrecio(pedidoMinimo)}`
+                : `⚠️ Te faltan $${formatearPrecio(falta)} para el pedido mínimo de $${formatearPrecio(pedidoMinimo)}`;
             avisoMinimo.classList.remove("d-none");
         }else{
             avisoMinimo.classList.add("d-none");
@@ -1712,6 +1730,125 @@ function abrirCarrito(){
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
 
     modal.show();
+
+    if(estado.carrito.length > 0) prepararServidorParaPedido();
+}
+
+/**
+ * Mientras el cliente completa sus datos, despierta el servidor y le pide
+ * que deje listo en caché lo que el pedido necesita. Así "Enviar pedido"
+ * responde más rápido. No espera respuesta ni muestra nada; como mucho
+ * una vez cada 4 minutos. Va directo a Apps Script (no usa el Worker).
+ */
+let _ultimoPreparePedido = 0;
+function prepararServidorParaPedido(){
+    const ahora = Date.now();
+    if(!API_URL || ahora - _ultimoPreparePedido < 4 * 60 * 1000) return;
+    _ultimoPreparePedido = ahora;
+    try{
+        fetch(API_URL + (API_URL.indexOf("?") === -1 ? "?" : "&") + "action=prepararPedido", { cache: "no-store" })
+            .catch(()=>{ /* es solo un adelanto: si falla, el pedido funciona igual */ });
+    }catch(e){}
+}
+
+// Al empezar a completar los datos (si el carrito quedó abierto un rato)
+document.getElementById("cartModal")?.addEventListener("focusin", function(){
+    if(estado.carrito.length > 0) prepararServidorParaPedido();
+});
+
+/* =========================================================
+   CUPÓN DE DESCUENTO
+   El carrito pregunta al servidor si el código sirve (validarCupon) y
+   muestra el descuento. Al enviar, el servidor lo vuelve a validar y
+   descuenta el uso junto con el pedido — acá es solo para mostrar.
+========================================================= */
+
+function descuentoDelCupon(subtotal){
+    const c = estado.cupon;
+    if(!c || !(subtotal > 0)) return 0;
+    if(c.minimo > 0 && subtotal < c.minimo) return 0;
+    let d = c.tipo === "MONTO" ? c.valor : subtotal * c.valor / 100;
+    d = Math.min(Math.max(d, 0), subtotal);
+    return Math.round(d * 100) / 100;
+}
+
+function mostrarMensajeCupon(texto, tipo){
+    const el = document.getElementById("cupon-msg");
+    if(!el) return;
+    el.textContent = texto || "";
+    el.className = "cupon-msg" + (tipo ? " " + tipo : "");
+}
+
+/** Subtotal, descuento y total del carrito (lo llama abrirCarrito). */
+function pintarTotalesConCupon(subtotal){
+    const c = estado.cupon;
+    const desc = descuentoDelCupon(subtotal);
+    const total = Math.round((subtotal - desc) * 100) / 100;
+    document.getElementById("cart-total").innerText = formatearPrecio(total);
+
+    const filaSub = document.getElementById("cart-subtotal-row");
+    const filaDesc = document.getElementById("cart-descuento-row");
+    const form = document.getElementById("cupon-form");
+    const aplicado = document.getElementById("cupon-aplicado");
+    if(!filaSub || !filaDesc) return;
+
+    filaSub.classList.toggle("d-none", !c);
+    filaDesc.classList.toggle("d-none", !(c && desc > 0));
+    form.classList.toggle("d-none", !!c);
+    aplicado.classList.toggle("d-none", !c);
+    document.getElementById("cart-subtotal").innerText = formatearPrecio(subtotal);
+
+    if(c){
+        document.getElementById("cupon-codigo").textContent = c.codigo;
+        document.getElementById("cupon-detalle").textContent = c.tipo === "MONTO" ? "(−$" + formatearPrecio(c.valor) + ")" : "(" + c.valor + "% off)";
+        document.getElementById("cart-descuento-label").textContent = "Cupón " + c.codigo;
+        document.getElementById("cart-descuento").innerText = formatearPrecio(desc);
+        if(c.minimo > 0 && subtotal < c.minimo){
+            mostrarMensajeCupon(`Este cupón es para compras desde $${formatearPrecio(c.minimo)} — te faltan $${formatearPrecio(c.minimo - subtotal)}.`, "info");
+        }else if(desc > 0){
+            mostrarMensajeCupon(`¡Listo! Ahorrás $${formatearPrecio(desc)}.`, "info");
+        }
+    }
+}
+
+async function aplicarCupon(){
+    const input = document.getElementById("cupon-input");
+    const codigo = String(input.value || "").trim().toUpperCase().replace(/\s+/g, "");
+    if(!codigo){ mostrarMensajeCupon("Escribí el código del cupón.", "error"); input.focus(); return; }
+    let subtotal = 0;
+    estado.carrito.forEach(item => { subtotal += item.PRECIO * item.cantidad; });
+    if(!(subtotal > 0)){ mostrarMensajeCupon("Agregá productos al carrito antes de aplicar el cupón.", "error"); return; }
+
+    const btn = document.getElementById("cupon-aplicar");
+    btn.disabled = true; btn.textContent = "…";
+    mostrarMensajeCupon("Verificando el cupón…", "info");
+    try{
+        const dni = (document.getElementById("clienteDni")?.value || "").trim();
+        const url = API_URL + (API_URL.indexOf("?") === -1 ? "?" : "&") +
+            "action=validarCupon&codigo=" + encodeURIComponent(codigo) + "&subtotal=" + encodeURIComponent(subtotal) +
+            (dni ? "&dni=" + encodeURIComponent(dni) : "");
+        const r = await fetchAPI(url, { cache: "no-store" }, { timeoutMs: 30000 });
+        const data = await r.json();
+        if(!data.success){
+            mostrarMensajeCupon(data.message || "Ese cupón no es válido.", "error");
+            return;
+        }
+        estado.cupon = { codigo: data.codigo, tipo: data.tipo, valor: Number(data.valor) || 0, minimo: Number(data.minimo) || 0, etiqueta: data.etiqueta || "" };
+        input.value = "";
+        abrirCarrito();
+        if(typeof actualizarContador === "function") actualizarContador();
+    }catch(e){
+        mostrarMensajeCupon("No pudimos verificar el cupón (revisá tu conexión) y probá de nuevo.", "error");
+    }finally{
+        btn.disabled = false; btn.textContent = "Aplicar";
+    }
+}
+
+function quitarCupon(){
+    estado.cupon = null;
+    mostrarMensajeCupon("");
+    abrirCarrito();
+    if(typeof actualizarContador === "function") actualizarContador();
 }
 
 /* Delegación de eventos dentro del carrito */
@@ -1808,13 +1945,9 @@ async function checkoutWhatsapp(){
     if(enviandoPedido) return;
     activarCargaCheckout();
 
-    // Espera a que termine de cargar la configuración del negocio (de donde
-    // sale whatsappNumero), por si el cliente hizo clic muy rápido y esa
-    // carga todavía estaba en curso. Si ya terminó, esto no demora nada.
-    // Si falla, igual sigue: whatsappNumero ya tiene el valor de respaldo.
-    if(apariencaCargadaPromise){
-        try{ await apariencaCargadaPromise; }catch(e){ /* whatsappNumero ya tiene el valor de respaldo */ }
-    }
+    // La configuración del negocio (de donde sale whatsappNumero) ya NO se
+    // espera acá: el pedido se manda en paralelo y recién antes de abrir
+    // WhatsApp se espera esa carga (normalmente ya terminó para entonces).
 
     const nombre = document.getElementById("clienteNombre").value.trim();
     const empresa = document.getElementById("clienteEmpresa").value.trim();
@@ -1864,6 +1997,10 @@ async function checkoutWhatsapp(){
 
     let total = 0;
     estado.carrito.forEach(item => { total += item.PRECIO * item.cantidad; });
+    const subtotalPedido = total;
+    const descuentoCuponPedido = descuentoDelCupon(subtotalPedido);
+    const codigoCuponPedido = descuentoCuponPedido > 0 ? estado.cupon.codigo : "";
+    total = Math.round((subtotalPedido - descuentoCuponPedido) * 100) / 100;
 
     // El mínimo NO se bloquea acá con el valor local (puede estar viejo
     // en caché y frenar pedidos válidos tras bajar el mínimo). La decisión
@@ -1896,6 +2033,7 @@ async function checkoutWhatsapp(){
             telefono,
             dni,
             total,
+            cupon: codigoCuponPedido,
             carrito: estado.carrito
         });
 
@@ -1907,7 +2045,7 @@ async function checkoutWhatsapp(){
                     method: "POST",
                     headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS contra Apps Script
                     body: cuerpoPedido
-                }, { timeoutMs: 45000, reintentos: 0 });
+                }, { timeoutMs: 90000, reintentos: 0 }); // margen amplio: cortar antes y reintentar podía abrir una segunda ejecución en paralelo
                 resultado = await response.json();
             }catch(errIntento){
                 ultimoError = errIntento;
@@ -1927,12 +2065,47 @@ async function checkoutWhatsapp(){
             if(typeof actualizarContador === "function") actualizarContador();
         }
 
+        if(!resultado.success && resultado.cuponInvalido){
+            // El cupón ya no sirve (se agotó, venció, ya lo usó este DNI…):
+            // se quita y se muestra el total sin descuento para que decida.
+            estado.idOperacionPedido = null;
+            estado.cupon = null;
+            abrirCarrito();
+            mostrarMensajeCupon(resultado.message || "El cupón ya no se puede usar.", "error");
+            mostrarToast((resultado.message || "El cupón ya no se puede usar.") + " Revisá el total y volvé a enviar el pedido.", "error");
+            desactivarCargaCheckout();
+            return;
+        }
+
         if(!resultado.success){
             if(resultado.pedidoMinimo === undefined) estado.idOperacionPedido = null; // error definitivo: el próximo intento es un pedido nuevo
             mostrarToast(resultado.message || "No se pudo guardar el pedido. Intentá de nuevo.", "error");
             desactivarCargaCheckout();
             return;
         }
+
+        // Nunca mandar un WhatsApp sin número de pedido. Si el servidor dijo
+        // "ok" pero no devolvió el número, se le vuelve a preguntar con el
+        // MISMO idOperacion (no duplica: devuelve el pedido ya guardado).
+        if(!resultado.pedidoId){
+            console.warn("[pedido] el servidor respondió sin número de pedido:", resultado);
+            try{
+                const r2 = await fetchAPI(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: cuerpoPedido
+                }, { timeoutMs: 90000, reintentos: 0 });
+                const j2 = await r2.json();
+                console.warn("[pedido] segunda consulta:", j2);
+                if(j2 && j2.success && j2.pedidoId) resultado = j2;
+            }catch(e){ console.warn("[pedido] segunda consulta falló:", e); }
+        }
+        if(!resultado.pedidoId){
+            mostrarToast("No pudimos confirmar el número de tu pedido. Tocá \"Enviar pedido\" de nuevo (no se va a duplicar).", "error");
+            desactivarCargaCheckout();
+            return;
+        }
+        if(resultado.version) console.info("[pedido] backend " + resultado.version + " — " + resultado.pedidoId);
 
         let mensaje = `*PEDIDO ${nombreNegocio.toUpperCase()}*
 
@@ -1959,11 +2132,19 @@ Subtotal: $${formatearPrecio(subtotal)}
 `;
         });
 
+        if(codigoCuponPedido){
+            mensaje += `
+Subtotal del pedido: $${formatearPrecio(subtotalPedido)}
+🎟️ Cupón ${codigoCuponPedido}: -$${formatearPrecio(descuentoCuponPedido)}
+`;
+        }
+
         mensaje += `
 💰 TOTAL: $${formatearPrecio(total)}
 `;
 
         estado.idOperacionPedido = null;
+        estado.cupon = null;
         estado.carrito = [];
         localStorage.removeItem("carrito");
         guardarCarrito();
@@ -1975,10 +2156,18 @@ Subtotal: $${formatearPrecio(subtotal)}
         const modal = bootstrap.Modal.getInstance(modalElement);
         if(modal) modal.hide();
 
+        // Recién ahora hace falta el número de WhatsApp: si la configuración
+        // todavía estaba cargando, se espera acá (en paralelo con el envío).
+        if(apariencaCargadaPromise){
+            try{ await apariencaCargadaPromise; }catch(e){ /* whatsappNumero ya tiene el valor de respaldo */ }
+        }
+
         desactivarCargaCheckout();
 
         setTimeout(()=>{
-            window.location.href = `https://api.whatsapp.com/send?phone=${whatsappNumero}&text=${encodeURIComponent(mensaje)}`;
+            const numeroDestino = whatsappNumero ||
+                String((typeof CONFIG_NEGOCIO_RESPALDO !== "undefined" && CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO) || "");
+            window.location.href = `https://api.whatsapp.com/send?phone=${numeroDestino}&text=${encodeURIComponent(mensaje)}`;
         }, 300);
 
     }catch(error){
@@ -2192,7 +2381,8 @@ function configurarChipBeneficio(wrapId, visible){
 function aplicarBeneficios(cfg){
 
     // --- WhatsApp: actualiza el botón flotante y la variable de checkout ---
-    const numeroWa = limpiarTelefonoParaLink(cfg.beneficioWhatsappNumero) || whatsappNumero;
+    const numeroWa = limpiarTelefonoParaLink(cfg.beneficioWhatsappNumero) || whatsappNumero ||
+        String((typeof CONFIG_NEGOCIO_RESPALDO !== "undefined" && CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO) || "");
     whatsappNumero = numeroWa;
 
     const btnFlotanteWa = document.getElementById("whatsapp-float-btn");
