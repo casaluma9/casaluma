@@ -38,7 +38,27 @@ let API_URL = "";
  *   "Guardando..." colgado para siempre — así el usuario puede
  *   revisar si se guardó o no antes de reintentar a mano.
  */
+/* Pedidos al servidor en curso — los usan los botones "↻ Actualizar"
+   para mostrar que están trabajando y cuándo terminaron (ver
+   iniciarBotonesActualizar). */
+const _redEnCurso = { n: 0, fallos: 0, cambios: 0 };
+function _avisarCambioRed() { _redEnCurso.cambios++; }
+
 async function fetchAPI(url, opciones = {}, config = {}) {
+  _redEnCurso.n++; _avisarCambioRed();
+  try {
+    const r = await _fetchAPIBase(url, opciones, config);
+    if (!r || !r.ok) _redEnCurso.fallos++;
+    return r;
+  } catch (e) {
+    _redEnCurso.fallos++;
+    throw e;
+  } finally {
+    _redEnCurso.n = Math.max(0, _redEnCurso.n - 1); _avisarCambioRed();
+  }
+}
+
+async function _fetchAPIBase(url, opciones = {}, config = {}) {
   // El backend (code.gs) está armado sobre doGet con ?action=..., así
   // que la GRAN MAYORÍA de las mutaciones (actualizarProducto,
   // guardarProducto, sumarStockProducto, guardarPedidoAdmin, etc.)
@@ -1905,7 +1925,10 @@ function renderVentasPOSHistorial(lista) {
       const motivo  = v.MOTIVO_ANULACION || "";
       const _vid = String(v.VENTA_ID || v.ID || "");
       _ventasMapPOS[_vid] = v;
+      // Resumen de ventas viejas (ver compactarVentasAntiguas en code.gs): no se reimprime ni se anula
+      const esResumen = /^RES-/i.test(_vid);
       const tr = document.createElement("tr");
+      if (esResumen) tr.className = "fila-resumen-ventas";
       if (anulada) tr.style.cssText = "background:#fff0f0;color:#b91c1c;";
       const badgeAnulada = anulada
         ? `<span class="badge bg-danger ms-1" style="font-size:10px;text-decoration:none;">ANULADA${motivo ? " · " + escapeHtml(motivo) : ""}</span>`
@@ -1916,12 +1939,12 @@ function renderVentasPOSHistorial(lista) {
         <td>${escapeHtml(String(items))}</td>
         <td>${escapeHtml(String(pago))}</td>
         <td class="money" style="${anulada ? 'text-decoration:line-through;' : ''}">$${total}</td>
-        <td>
+        <td>${esResumen ? `<span class="text-muted" style="font-size:12px;" title="Las ventas de hace más de 6 meses se guardan resumidas por día (el detalle completo quedó en Drive → Respaldo de ventas)">📦 ${escapeHtml(String(v.OBSERVACIONES || "Resumen del día"))}</span>` : `
           <button class="btn btn-sm btn-outline-secondary"
             onclick="imprimirVentaDesdeData(_ventasMapPOS['${escapeJsAttr(_vid)}'])" title="Reimprimir">🖨️ Reimprimir</button>
           <button class="btn btn-sm btn-outline-danger ms-1"
             onclick="eliminarVentaPOS(_ventasMapPOS['${escapeJsAttr(_vid)}'])"
-            ${anulada ? 'disabled title="Ya anulada"' : 'title="Anular"'}>🗑️ Anular</button>
+            ${anulada ? 'disabled title="Ya anulada"' : 'title="Anular"'}>🗑️ Anular</button>`}
         </td>`;
       frag.appendChild(tr);
     }
@@ -2067,6 +2090,7 @@ function mostrarConfigTab(tabId, btnEl) {
   }
 
   try { localStorage.setItem("veekpos_cfg_tab", tabId); } catch (e) {}
+  if (tabId === "sistema" && typeof cargarEstadoVentasResumidas === "function") cargarEstadoVentasResumidas();
 }
 
 /**
@@ -2232,6 +2256,150 @@ function mostrarSeccion(id) {
     cargarSiVencido("reportes", () => { Object.keys(_repTabRangoCargado).forEach(k => _repTabRangoCargado[k] = null); });
     mostrarTabReportes(_repTabActiva || _repTabPorDefecto());
   }
+}
+
+/* ===================================================================
+   BOTONES "↻ ACTUALIZAR": respuesta visible al tocarlos
+   Para todos los botones que empiezan con ↻ (o 🔄): el ícono gira y
+   dice "Actualizando…" mientras haya pedidos al servidor en curso;
+   al terminar muestra "✓ Actualizado" (o "Sin conexión") un momento.
+=================================================================== */
+function _esBotonActualizar(btn) {
+  if (!btn || btn.tagName !== "BUTTON" || btn.dataset.sinAnimacion !== undefined) return false;
+  return /^\s*(↻|🔄)/.test(btn.textContent || "");
+}
+
+function _animarBotonActualizar(btn) {
+  if (btn.classList.contains("btn-actualizando")) return;
+  const original = btn.innerHTML;
+  const anchoOriginal = btn.offsetWidth;
+  const soloIcono = (btn.textContent || "").replace(/↻|🔄/g, "").trim() === "";
+  const fallosAntes = _redEnCurso.fallos;
+  const inicio = Date.now();
+  let vioPedido = false, quietoDesde = 0;
+
+  btn.classList.add("btn-actualizando");
+  btn.setAttribute("aria-busy", "true");
+  btn.style.minWidth = anchoOriginal + "px";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="giro" aria-hidden="true">↻</span>' + (soloIcono ? "" : " Actualizando…");
+
+  const terminar = () => {
+    const fallo = _redEnCurso.fallos > fallosAntes;
+    btn.classList.remove("btn-actualizando");
+    btn.classList.add(fallo ? "btn-actualizado-error" : "btn-actualizado");
+    btn.innerHTML = soloIcono ? (fallo ? "⚠️" : "✓") : (fallo ? "⚠️ Sin conexión" : "✓ Actualizado");
+    btn.removeAttribute("aria-busy");
+    setTimeout(() => {
+      btn.classList.remove("btn-actualizado", "btn-actualizado-error");
+      btn.innerHTML = original;
+      btn.disabled = false;
+      btn.style.minWidth = "";
+    }, fallo ? 2200 : 1300);
+  };
+
+  const revisar = () => {
+    const t = Date.now() - inicio;
+    if (_redEnCurso.n > 0) { vioPedido = true; quietoDesde = 0; }
+    else if (!quietoDesde) quietoDesde = Date.now();
+    const quieto = quietoDesde && Date.now() - quietoDesde > 250;
+    // Mínimo 600 ms para que se vea; si no hubo pedido al servidor (datos
+    // frescos en memoria) se termina igual; tope 60 s.
+    if ((t > 600 && quieto && (vioPedido || t > 900)) || t > 60000) { terminar(); return; }
+    setTimeout(revisar, 120);
+  };
+  setTimeout(revisar, 120);
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest("button") : null;
+  if (!_esBotonActualizar(btn) || btn.disabled) return;
+  const antes = btn.innerHTML;
+  // Después de que corra el onclick del botón (que arranca el pedido).
+  // Si esa función ya cambió el botón por su cuenta, no se pisa.
+  setTimeout(() => { if (btn.innerHTML === antes && !btn.disabled) _animarBotonActualizar(btn); }, 0);
+}, true);
+
+/* ===================================================================
+   CONFIGURACIÓN → SISTEMA → Historial de ventas en la planilla
+   (ver compactarVentasAntiguas en code.gs)
+=================================================================== */
+let _estadoVentasResumidas = null;
+
+function _fechaDMA(iso) {
+  if (!iso) return "";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + "T12:00:00") : new Date(iso);
+  return isNaN(d) ? String(iso) : d.toLocaleDateString("es-AR");
+}
+
+async function cargarEstadoVentasResumidas() {
+  const caja = document.getElementById("ventasResumidasEstado");
+  const btn = document.getElementById("btnResumirVentas");
+  if (!caja) return;
+  caja.textContent = "Cargando…";
+  try {
+    const res = await fetchAPI(API_URL + "?action=estadoVentasResumidas");
+    const d = await res.json();
+    if (!d.success) throw new Error(d.message || "No se pudo leer el estado");
+    _estadoVentasResumidas = d;
+    const num = n => Number(n || 0).toLocaleString("es-AR");
+    const lineas = [];
+    if (d.desactivado) {
+      lineas.push("⏸ Desactivado (MESES_DETALLE_VENTAS = 0 en code.gs): se guarda todo el detalle.");
+    } else {
+      lineas.push(`Se guarda el detalle de los últimos <b>${d.meses} meses</b> (desde el ${escapeHtml(_fechaDMA(d.conservaDesde))}).`);
+    }
+    lineas.push(`Filas hoy: <b>${num(d.filasVentas)}</b> en VENTAS_LOCAL y <b>${num(d.filasDetalle)}</b> en DETALLE_VENTAS` + (d.filasResumen ? ` (${num(d.filasResumen)} son resúmenes)` : "") + ".");
+    lineas.push(d.paraResumir
+      ? `Para resumir ahora: <b>${num(d.paraResumir)} venta${d.paraResumir === 1 ? "" : "s"}</b> anteriores al ${escapeHtml(_fechaDMA(d.conservaDesde))}.`
+      : "No hay ventas para resumir: todo está dentro del período que se guarda completo.");
+    if (d.ultimo && d.ultimo.fecha) {
+      const u = d.ultimo;
+      const origen = u.origen === "panel" ? "desde el panel" : (u.origen === "editor" ? "desde el editor" : "automático");
+      let t = `Último resumen: ${escapeHtml(new Date(u.fecha).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }))} (${origen})`;
+      if (u.resumidas) t += ` — ${num(u.resumidas)} ventas: ${num(u.filasVentasAntes)} → ${num(u.filasVentasDespues)} filas de ventas, ${num(u.filasDetalleAntes)} → ${num(u.filasDetalleDespues)} de detalle`;
+      else if (u.mensaje) t += ` — ${escapeHtml(u.mensaje)}`;
+      if (u.respaldo && u.respaldo.carpeta) t += ` · <a href="${escapeHtml(u.respaldo.carpeta)}" target="_blank" rel="noopener">ver respaldo en Drive</a>`;
+      lineas.push(t + ".");
+    }
+    caja.innerHTML = lineas.map(l => `<div>${l}</div>`).join("");
+    if (btn) btn.disabled = d.desactivado || !d.paraResumir;
+  } catch (e) {
+    caja.textContent = "No se pudo leer el estado: " + (e.message || "error de conexión");
+    if (btn) btn.disabled = true;
+  }
+}
+
+function resumirVentasViejasClick() {
+  const d = _estadoVentasResumidas;
+  if (!d || !d.paraResumir) return;
+  const msg = `Se van a resumir ${Number(d.paraResumir).toLocaleString("es-AR")} ventas anteriores al ${_fechaDMA(d.conservaDesde)}.\n\n` +
+    "Los reportes siguen dando lo mismo; esas ventas dejan de verse ticket por ticket (y ya no se pueden anular ni reimprimir). " +
+    "Antes, el detalle completo se guarda en Drive → \"Respaldo de ventas\".\n\nPuede tardar hasta un par de minutos. ¿Seguir?";
+  confirmarAccion(msg, async () => {
+    const btn = document.getElementById("btnResumirVentas");
+    const caja = document.getElementById("ventasResumidasEstado");
+    if (btn) { btn.disabled = true; btn.textContent = "Resumiendo…"; }
+    if (caja) caja.insertAdjacentHTML("afterbegin", '<div class="text-primary">⏳ Resumiendo y guardando el respaldo… no cierres esta ventana.</div>');
+    try {
+      const res = await fetchAPI(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "resumirVentasViejas" })
+      }, { timeoutMs: 330000 });
+      const r = await res.json();
+      if (!r.success) { toast(r.message || "No se pudo resumir", "error"); return; }
+      toast(r.resumidas
+        ? `✅ ${Number(r.resumidas).toLocaleString("es-AR")} ventas resumidas: ${r.filasVentasAntes} → ${r.filasVentasDespues} filas de ventas`
+        : (r.mensaje || "No había ventas para resumir"), "success");
+      try { invalidarCache("ventasPOS"); } catch (e) {}
+    } catch (e) {
+      toast("No se pudo resumir: " + (e && e.name === "AbortError" ? "tardó demasiado (puede que haya terminado igual; tocá Actualizar)" : "error de conexión"), "error");
+    } finally {
+      if (btn) btn.textContent = "📦 Resumir ventas viejas ahora";
+      cargarEstadoVentasResumidas();
+    }
+  }, "📦 Resumir ventas viejas");
 }
 
 /* ===================== PEDIDOS ===================== */
@@ -2483,6 +2651,36 @@ function cacheSet(clave, data) {
   } catch(e) {}
 }
 
+/**
+ * Redibuja una lista sin que la pantalla salte al principio: mantiene la
+ * altura del contenedor mientras se vacía y se vuelve a llenar (las
+ * listas se dibujan en tandas) y devuelve el scroll a donde estaba.
+ * Si la persona mueve la rueda o toca la pantalla, se deja de corregir.
+ */
+function redibujarSinSalto(idContenedor, dibujar) {
+  const cont = document.getElementById(idContenedor);
+  const y = window.scrollY;
+  const seccion = cont ? cont.closest(".seccion") : null;
+  const ySeccion = seccion ? seccion.scrollTop : 0;
+  if (cont) cont.style.minHeight = cont.offsetHeight + "px";
+  let cancelado = false;
+  const cancelar = () => { cancelado = true; };
+  const eventos = ["wheel", "touchstart", "keydown", "pointerdown"];
+  eventos.forEach(ev => window.addEventListener(ev, cancelar, { once: true, passive: true, capture: true }));
+  dibujar();
+  const fin = Date.now() + 1500;
+  const corregir = () => {
+    if (!cancelado) {
+      if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
+      if (seccion && Math.abs(seccion.scrollTop - ySeccion) > 2) seccion.scrollTop = ySeccion;
+    }
+    if (!cancelado && Date.now() < fin) { requestAnimationFrame(corregir); return; }
+    if (cont) cont.style.minHeight = "";
+    eventos.forEach(ev => window.removeEventListener(ev, cancelar, { capture: true }));
+  };
+  requestAnimationFrame(corregir);
+}
+
 let _cargandoPedidos = null; // evita que el polling y la apertura de la sección pidan la lista a la vez
 
 function cargarPedidos() {
@@ -2495,8 +2693,13 @@ async function _cargarPedidosImpl() {
   // Mostrar caché al instante si existe
   const cached = cacheGet("pedidos");
   if (cached) {
-    pedidosGlobal = cached.data;
-    filtrarPedidos();
+    // La copia guardada se dibuja solo si todavía no hay nada en pantalla.
+    // Antes se redibujaba en cada actualización automática (cuando la
+    // copia ya tenía más de 5 min) y eso hacía saltar la lista arriba.
+    if (!pedidosGlobal || pedidosGlobal.length === 0) {
+      pedidosGlobal = cached.data;
+      filtrarPedidos();
+    }
     if (!cached.stale) return; // fresco, no hace falta recargar
   }
   try {
@@ -2519,7 +2722,7 @@ async function _cargarPedidosImpl() {
     pedidosGlobal = data.pedidos;
     cacheSet("pedidos", pedidosGlobal);
     _avisoPedidosCaido = false; // se pudo actualizar bien — resetea el aviso para el próximo corte
-    if (cambio && _pedidosEnProceso.size === 0) filtrarPedidos(); // no pisar el "Guardando…" de una acción en curso
+    if (cambio && _pedidosEnProceso.size === 0) redibujarSinSalto("tablaPedidos", filtrarPedidos); // no pisar el "Guardando…" de una acción en curso
   } catch (error) {
     if (error && error.name === "AbortError") {
       console.warn("Pedidos: el servidor tardó demasiado en responder (se reintenta en el próximo ciclo).");
@@ -2709,7 +2912,7 @@ async function cambiarEstado(pedidoId, estado, el) {
       mensaje = data.message || "No se pudo actualizar el pedido";
     } else {
       ok = true;
-      const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
+      const p = _pedidoLocalPorId(pedidoId);
       if (p) { p.ESTADO = estado; invalidarCache("pedidos"); }
     }
   } catch (error) {
@@ -2793,7 +2996,7 @@ async function aplicarCobroPedido(pedidoId, cobrado, formaPago, el) {
       mensaje = data.message || "No se pudo actualizar el cobro del pedido";
     } else {
       ok = true;
-      const p = pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId);
+      const p = _pedidoLocalPorId(pedidoId);
       if (p) {
         p.COBRADO = cobrado ? "SI" : "NO";
         p.FORMA_PAGO_COBRO = formaPago || "";
@@ -2820,16 +3023,98 @@ async function aplicarCobroPedido(pedidoId, cobrado, formaPago, el) {
   }
 }
 
+/* Pedidos viejos encontrados en el servidor para la búsqueda actual
+   (la lista general solo trae los en curso y los resueltos de los
+   últimos 30 días). Se muestran junto con los demás, marcados. */
+let _pedidosAntiguos = { clave: "", lista: [] };
+let _timerBusquedaPedidos = null;
+let _genBusquedaPedidos = 0;
+
+function _claveBusquedaPedidos() {
+  const q = (document.getElementById("buscarPedido")?.value || "").trim().toLowerCase();
+  const desde = document.getElementById("pedidosDesde")?.value || "";
+  const hasta = document.getElementById("pedidosHasta")?.value || "";
+  return { q, desde, hasta, clave: q + "|" + desde + "|" + hasta, activa: q.length >= 3 || !!desde || !!hasta };
+}
+
+/** Pedido por número, en la lista general o entre los viejos encontrados. */
+function _pedidoLocalPorId(pedidoId) {
+  return pedidosGlobal.find(x => x.PEDIDO_ID === pedidoId) || (_pedidosAntiguos.lista || []).find(x => x.PEDIDO_ID === pedidoId);
+}
+
+function programarBusquedaPedidosAntiguos(inmediata) {
+  clearTimeout(_timerBusquedaPedidos);
+  const b = _claveBusquedaPedidos();
+  const btnFechas = document.getElementById("pedidosLimpiarFechas");
+  if (btnFechas) btnFechas.style.display = (b.desde || b.hasta) ? "" : "none";
+  const aviso = document.getElementById("pedidosBusquedaAntiguos");
+  if (!b.activa) {
+    _pedidosAntiguos = { clave: "", lista: [] };
+    if (aviso) aviso.innerHTML = (b.q.length > 0 ? '<span class="text-muted">Escribí al menos 3 letras o números para buscar también en pedidos anteriores.</span>' : "");
+    return;
+  }
+  if (b.clave === _pedidosAntiguos.clave) return;
+  _timerBusquedaPedidos = setTimeout(() => buscarPedidosAntiguos(), inmediata ? 0 : 650);
+}
+
+async function buscarPedidosAntiguos() {
+  const b = _claveBusquedaPedidos();
+  if (!b.activa) return;
+  const aviso = document.getElementById("pedidosBusquedaAntiguos");
+  const miGen = ++_genBusquedaPedidos;
+  if (aviso) aviso.innerHTML = '<span class="text-muted"><span class="giro-chico">↻</span> Buscando también en pedidos anteriores…</span>';
+  try {
+    const qs = new URLSearchParams({ action: "buscarPedidos", q: b.q, desde: b.desde, hasta: b.hasta });
+    const res = await fetchAPI(API_URL + "?" + qs.toString(), {}, { timeoutMs: 45000, reintentos: 1 });
+    const data = await res.json();
+    if (miGen !== _genBusquedaPedidos) return; // ya se escribió otra cosa
+    if (!data.success) { if (aviso) aviso.innerHTML = `<span class="text-danger">${escapeHtml(data.message || "No se pudo buscar")}</span>`; return; }
+    const enLista = new Set(pedidosGlobal.map(p => String(p.PEDIDO_ID)));
+    const extra = (data.pedidos || []).filter(p => !enLista.has(String(p.PEDIDO_ID))).map(p => Object.assign(p, { _antiguo: true }));
+    _pedidosAntiguos = { clave: b.clave, lista: extra };
+    if (aviso) {
+      aviso.innerHTML = extra.length
+        ? `🗄️ <b>${extra.length}</b> pedido${extra.length === 1 ? "" : "s"} anterior${extra.length === 1 ? "" : "es"} encontrado${extra.length === 1 ? "" : "s"}` + (data.limitado ? ` (se muestran los 100 más nuevos de ${data.total}; afiná la búsqueda)` : "") + "."
+        : '<span class="text-muted">No hay pedidos anteriores con esa búsqueda.</span>';
+    }
+    filtrarPedidos();
+  } catch (e) {
+    if (miGen !== _genBusquedaPedidos) return;
+    if (aviso) aviso.innerHTML = '<span class="text-danger">No se pudo buscar en pedidos anteriores (sin conexión). Probá de nuevo.</span>';
+  }
+}
+
+function limpiarBusquedaPedidos() {
+  const d = document.getElementById("pedidosDesde"), h = document.getElementById("pedidosHasta");
+  if (d) d.value = ""; if (h) h.value = "";
+  filtrarPedidos();
+  programarBusquedaPedidosAntiguos(true);
+}
+
 function filtrarPedidos() {
-  const texto = document.getElementById("buscarPedido").value.toLowerCase();
+  const texto = document.getElementById("buscarPedido").value.toLowerCase().trim();
+  const textoNum = texto.replace(/\D/g, "");
   const estadoFiltro = (document.getElementById("filtroPedidoEstado")?.value || "").toUpperCase();
-  const filtrados = pedidosGlobal.filter(p => {
-    const coincideTexto =
+  const b = _claveBusquedaPedidos();
+  const desde = b.desde ? new Date(b.desde + "T00:00:00") : null;
+  const hasta = b.hasta ? new Date(b.hasta + "T23:59:59") : null;
+  // Los viejos encontrados en el servidor solo para la búsqueda que los trajo
+  const antiguos = (_pedidosAntiguos.clave === b.clave) ? _pedidosAntiguos.lista : [];
+  const filtrados = pedidosGlobal.concat(antiguos).filter(p => {
+    const coincideTexto = !texto ||
       String(p.PEDIDO_ID || "").toLowerCase().includes(texto) ||
       String(p.CLIENTE   || "").toLowerCase().includes(texto) ||
-      String(p.DNI       || "").toLowerCase().includes(texto);
+      String(p.DNI       || "").toLowerCase().includes(texto) ||
+      String(p.EMPRESA   || "").toLowerCase().includes(texto) ||
+      (textoNum.length >= 4 && String(p.TELEFONO || "").replace(/\D/g, "").includes(textoNum)) ||
+      !!p._antiguo; // el servidor ya filtró (sin acentos, DNI con guiones, etc.)
     const coincideEstado = !estadoFiltro || String(p.ESTADO || "").toUpperCase() === estadoFiltro;
-    return coincideTexto && coincideEstado;
+    let coincideFecha = true;
+    if (desde || hasta) {
+      const f = new Date(p.FECHA);
+      coincideFecha = !isNaN(f) && (!desde || f >= desde) && (!hasta || f <= hasta);
+    }
+    return coincideTexto && coincideEstado && coincideFecha;
   });
   renderPedidos(filtrados);
 }
@@ -4114,8 +4399,8 @@ function renderPedidos(listaOriginal) {
       tmp.innerHTML = `<div class="pedido-card estado-${claseEstado}${_pedidosEnProceso.has(p.PEDIDO_ID) ? " pedido-procesando" : ""}" data-pedido-card="${escapeHtml(p.PEDIDO_ID)}">
         <div class="pedido-card-top">
           <div>
-            <div class="pedido-card-id">${escapeHtml(p.PEDIDO_ID)}</div>
-            <div class="pedido-card-cliente">${escapeHtml(p.CLIENTE)}${p.EMPRESA ? ` <span style="font-weight:500;color:var(--slate-500);font-size:13px;">· 🚚 ${escapeHtml(p.EMPRESA)}</span>` : ""}</div>
+            <div class="pedido-card-id">${escapeHtml(p.PEDIDO_ID)}${p._antiguo ? ' <span class="pedido-antiguo-badge" title="Pedido de hace más de 30 días: no está en la lista general, apareció por la búsqueda">🗄️ Anterior</span>' : ""}</div>
+            <div class="pedido-card-cliente">${escapeHtml(p.CLIENTE || p.NOMBRE || "")}${p.EMPRESA ? ` <span style="font-weight:500;color:var(--slate-500);font-size:13px;">· 🚚 ${escapeHtml(p.EMPRESA)}</span>` : ""}</div>
             ${p.DIRECCION ? `<div class="pedido-card-dir">📍 ${escapeHtml(p.DIRECCION)}${p.LOCALIDAD ? ", " + escapeHtml(p.LOCALIDAD) : ""}</div>` : ""}
             <div class="pedido-card-fecha">📅 ${new Date(p.FECHA).toLocaleDateString("es-AR", {day:"2-digit", month:"2-digit", year:"numeric"})}</div>
           </div>
@@ -4275,7 +4560,7 @@ function renderTablaProductos(lista) {
         <td class="celda-check-orden">
           <span class="check-orden-inner">
             <span class="drag-handle-producto" title="${ordenamientoHabilitado ? "Arrastrá para reordenar" : "Limpiá la búsqueda y los filtros para poder reordenar"}">${ordenamientoHabilitado ? "⠿" : ""}</span>
-            <input type="checkbox" class="check-producto-etiqueta" value="${escapeHtml(p.CODIGO)}" onchange="actualizarSeleccionEtiquetas()">
+            <input type="checkbox" class="check-producto-etiqueta" value="${escapeHtml(p.CODIGO)}" onchange="alCambiarCheckProducto(this)"${_seleccionProductos.has(String(p.CODIGO)) ? " checked" : ""}>
           </span>
         </td>
         <td class="celda-foto-producto"><div class="tabla-producto-thumb">${fotoHtml}</div></td>
@@ -4284,7 +4569,7 @@ function renderTablaProductos(lista) {
         <td>${escapeHtml(p.CATEGORIA || "—")}</td>
         <td class="money">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</td>
         <td>${stockBadge}</td>
-        <td><span class="badge ${publicado ? "bg-success" : "bg-secondary"}">${publicado ? "Publicado" : "Oculto"}</span></td>
+        <td><span class="badge ${publicado ? "bg-success" : "bg-secondary"}">${publicado ? "Publicado" : "Oculto"}</span>${String(p.DESTACADO || "").trim().toUpperCase() === "SI" ? ' <span class="marca-prod" title="Destacado">⭐</span>' : ""}${String(p.OFERTA || "").trim().toUpperCase() === "SI" ? ' <span class="marca-prod" title="En oferta">🔥</span>' : ""}</td>
         <td class="celda-acciones-producto">
           <button class="btn btn-outline-success btn-sm btn-accion-producto" onclick="abrirModalStock('${escapeJsAttr(p.CODIGO)}')" title="Sumar stock">📦 <span class="btn-accion-texto">Stock</span></button>
           <button class="btn btn-primary btn-sm btn-accion-producto ms-2" onclick="editarProducto('${escapeJsAttr(p.CODIGO)}')" title="Editar">✏️ <span class="btn-accion-texto">Editar</span></button>
@@ -4299,9 +4584,7 @@ function renderTablaProductos(lista) {
       // Ceder control al browser entre chunks para que no congele la UI
       requestAnimationFrame(renderChunk);
     } else {
-      // Fin del render — actualizar estado de checkboxes
-      const checkTodos = document.getElementById("checkTodosProductos");
-      if (checkTodos) checkTodos.checked = false;
+      // Fin del render — la casilla del encabezado refleja los visibles
       actualizarSeleccionEtiquetas();
     }
   };
@@ -4666,6 +4949,12 @@ function filtrarProductos() {
     filtrados = filtrados.filter(p => !String(p.IMAGEN || "").trim() && Number(p.STOCK ?? 0) <= 0);
   } else if (estado === "ocultos") {
     filtrados = filtrados.filter(p => String(p.PUBLICADO || "").toUpperCase() !== "SI");
+  } else if (estado === "publicados") {
+    filtrados = filtrados.filter(p => String(p.PUBLICADO || "").toUpperCase() === "SI");
+  } else if (estado === "destacados") {
+    filtrados = filtrados.filter(p => String(p.DESTACADO || "").trim().toUpperCase() === "SI");
+  } else if (estado === "ofertas") {
+    filtrados = filtrados.filter(p => String(p.OFERTA || "").trim().toUpperCase() === "SI");
   }
 
   renderTablaProductos(filtrados);
@@ -6084,18 +6373,23 @@ async function actualizarClientesForm() {
 async function cargarClientesDesdeBackend() {
   const cached = cacheGet("clientes");
   if (cached) {
-    clientesGlobal = cached.data;
-    filtrarClientes();
+    // Igual que en pedidos: la copia guardada solo si la lista está vacía
+    if (!clientesGlobal || clientesGlobal.length === 0) {
+      clientesGlobal = cached.data;
+      filtrarClientes();
+    }
     if (!cached.stale) return;
   }
   try {
     const response = await fetchAPI(API_URL + "?action=clientesConCredito");
     const data = await response.json();
     if (!data.clientes) return;
+    // Redibujar solo si algo cambió (antes se redibujaba siempre → salto)
+    const cambio = JSON.stringify(clientesGlobal || []) !== JSON.stringify(data.clientes);
     clientesGlobal = data.clientes;
     cacheSet("clientes", clientesGlobal);
     _avisoClientesCaido = false; // se pudo actualizar bien — resetea el aviso para el próximo corte
-    filtrarClientes();
+    if (cambio) redibujarSinSalto("tablaClientes", filtrarClientes);
   } catch (error) {
     console.error("Error clientes:", error);
     if (!_avisoClientesCaido) {
@@ -8636,14 +8930,16 @@ const ANCHO_TICKET_USB = 42; // columnas para fuente normal en 80mm (12 cpl apro
 // (80mm, pensado para el ticket térmico) incluso al imprimir una
 // etiqueta o un A4, dando como resultado una impresión con forma de
 // ticket térmico en vez del tamaño esperado.
-function _setPrintPageSize(size) {
+function _setPrintPageSize(size, cssPropio) {
   let tag = document.getElementById("dynamicPrintPageSize");
   if (!tag) {
     tag = document.createElement("style");
     tag.id = "dynamicPrintPageSize";
     document.head.appendChild(tag);
   }
-  tag.textContent = size === "REMITO"
+  tag.textContent = size === "CUSTOM" && cssPropio
+    ? cssPropio
+    : size === "REMITO"
     ? "@media print { @page { size:A4; margin:0; } }"
     : size === "A4"
     ? "@media print { @page { size:A4; margin:8mm; } }"
@@ -12243,231 +12539,446 @@ async function guardarMovimientoCajaForm() {
 =================================================================== */
 
 /** Updates the selection counter and enables/disables the three label/QR generation buttons */
+/* Selección de productos: se guarda aparte de las casillas que se ven,
+   así no se pierde al buscar otro producto o cambiar de categoría
+   (antes la tabla se redibujaba y se borraba todo lo tildado). */
+const _seleccionProductos = new Set();
+
+function alCambiarCheckProducto(chk) {
+  if (chk.checked) _seleccionProductos.add(String(chk.value));
+  else _seleccionProductos.delete(String(chk.value));
+  actualizarSeleccionEtiquetas();
+}
+
+function quitarSeleccionProductos() {
+  _seleccionProductos.clear();
+  document.querySelectorAll(".check-producto-etiqueta").forEach(c => { c.checked = false; });
+  actualizarSeleccionEtiquetas();
+}
+
+/** Los tildados que ya no existen (borrados) se sacan de la selección. */
+function _limpiarSeleccionInexistente() {
+  if (!_seleccionProductos.size || !productosAdminGlobal || !productosAdminGlobal.length) return;
+  const existen = new Set(productosAdminGlobal.map(p => String(p.CODIGO)));
+  [..._seleccionProductos].forEach(c => { if (!existen.has(c)) _seleccionProductos.delete(c); });
+}
+
 function actualizarSeleccionEtiquetas() {
-  const checks = document.querySelectorAll(".check-producto-etiqueta:checked");
+  _limpiarSeleccionInexistente();
+  const visibles = [...document.querySelectorAll(".check-producto-etiqueta")];
+  const checkTodos = document.getElementById("checkTodosProductos");
+  if (checkTodos) {
+    const tildadosVisibles = visibles.filter(c => c.checked).length;
+    checkTodos.checked = visibles.length > 0 && tildadosVisibles === visibles.length;
+    checkTodos.indeterminate = tildadosVisibles > 0 && tildadosVisibles < visibles.length;
+  }
+  const checks = { length: _seleccionProductos.size };
   const info = document.getElementById("etiquetasSeleccionInfo");
   const btnEtiquetas = document.getElementById("btnGenerarEtiquetas");
   const btnQR = document.getElementById("btnGenerarQR");
   const btnQROffline = document.getElementById("btnGenerarQROffline");
-  const btnHacerVisibles = document.getElementById("btnHacerVisibles");
+  const btnCambiarLote = document.getElementById("btnCambiarLote");
 
   const cantidad = checks.length;
 
   if (info) {
-    info.textContent = cantidad === 0
-      ? "Ningún producto seleccionado"
-      : cantidad === 1
-        ? "1 producto seleccionado"
-        : `${cantidad} productos seleccionados`;
+    if (cantidad === 0) {
+      info.textContent = "Ningún producto seleccionado";
+    } else {
+      const visiblesTildados = visibles.filter(c => c.checked).length;
+      const fuera = cantidad - visiblesTildados;
+      info.innerHTML = `<b>${cantidad === 1 ? "1 producto seleccionado" : cantidad + " productos seleccionados"}</b>` +
+        (fuera > 0 ? ` <span class="text-muted">(${fuera} no se ve${fuera === 1 ? "" : "n"} con este filtro)</span>` : "") +
+        ` · <a href="#" onclick="quitarSeleccionProductos(); return false;">Quitar selección</a>`;
+    }
   }
 
   if (btnEtiquetas) btnEtiquetas.disabled = cantidad === 0;
   if (btnQR) btnQR.disabled = cantidad === 0;
   if (btnQROffline) btnQROffline.disabled = cantidad === 0;
-  if (btnHacerVisibles) btnHacerVisibles.disabled = cantidad === 0;
+  if (btnCambiarLote) btnCambiarLote.disabled = cantidad === 0;
+  if (cantidad === 0) cerrarMenuLote();
 }
 
-/**
- * Publica (PUBLICADO = "SI") todos los productos tildados, sin tener
- * que entrar a editarlos uno por uno. Pensado para usarse junto con
- * el filtro "Ocultos (no publicados)": el usuario filtra, tilda los
- * que quiere reactivar y aprieta este botón una sola vez.
- *
- * El backend (actualizarProducto) sobreescribe TODO el producto, así
- * que cada llamada manda el registro completo tal cual está hoy en
- * productosAdminGlobal, cambiando únicamente PUBLICADO a "SI".
- */
-async function hacerVisiblesProductosSeleccionados() {
+/* ===================================================================
+   CAMBIOS EN LOTE (Productos): mostrar/ocultar, destacado, oferta para
+   todos los tildados de una vez — ej. al cambiar de temporada: filtrar
+   la categoría, tildar todos (casilla del encabezado) y elegir la acción.
+   Va al backend en UNA sola llamada (actualizarProductosLote), que toca
+   solo esas columnas: no pisa stock, precio ni fotos. (Antes "Hacer
+   visibles" mandaba el producto entero, uno por uno.)
+=================================================================== */
+function alternarMenuLote(ev) {
+  if (ev) ev.stopPropagation();
+  const menu = document.getElementById("menuLoteProductos");
+  const btn = document.getElementById("btnCambiarLote");
+  if (!menu || !btn || btn.disabled) return;
+  const abrir = !menu.classList.contains("abierto");
+  menu.classList.toggle("abierto", abrir);
+  btn.setAttribute("aria-expanded", abrir ? "true" : "false");
+  if (abrir) setTimeout(() => menu.querySelector("button")?.focus(), 30);
+}
+
+function cerrarMenuLote() {
+  const menu = document.getElementById("menuLoteProductos");
+  if (menu) menu.classList.remove("abierto");
+  document.getElementById("btnCambiarLote")?.setAttribute("aria-expanded", "false");
+}
+
+document.addEventListener("click", (e) => { if (!e.target.closest || !e.target.closest(".lote-menu-wrap")) cerrarMenuLote(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarMenuLote(); });
+
+function _textoCambioLote(cambios) {
+  const partes = [];
+  if (cambios.PUBLICADO) partes.push(cambios.PUBLICADO === "SI" ? "mostrar en el catálogo" : "ocultar del catálogo y del POS");
+  if (cambios.DESTACADO) partes.push(cambios.DESTACADO === "SI" ? "marcar como destacados" : "quitar destacado");
+  if (cambios.OFERTA) partes.push(cambios.OFERTA === "SI" ? "poner en oferta" : "quitar oferta");
+  return partes.join(", ");
+}
+
+function aplicarCambioLote(cambios) {
+  cerrarMenuLote();
   const codigos = obtenerCodigosSeleccionados();
   if (codigos.length === 0) { toast("Seleccioná al menos un producto", "error"); return; }
 
-  const yaVisibles = codigos.filter(cod => {
+  const yaEstan = codigos.filter(cod => {
     const p = productosAdminGlobal.find(x => String(x.CODIGO) === String(cod));
-    return p && String(p.PUBLICADO || "").toUpperCase() === "SI";
-  });
-  const aActualizar = codigos.length - yaVisibles.length;
-
-  if (aActualizar === 0) {
-    toast("Los productos seleccionados ya estaban visibles", "success");
+    return p && Object.keys(cambios).every(k => {
+      const actual = String(p[k] || "").trim().toUpperCase() || (k === "PUBLICADO" ? "SI" : "NO");
+      return actual === cambios[k];
+    });
+  }).length;
+  if (yaEstan === codigos.length) {
+    toast(codigos.length === 1 ? "Ese producto ya estaba así" : "Los productos seleccionados ya estaban así", "success");
     return;
   }
 
-  const mensaje = codigos.length === 1
-    ? "¿Publicar este producto para que vuelva a verse en el catálogo/POS?"
-    : `¿Publicar ${codigos.length} productos seleccionados para que vuelvan a verse en el catálogo/POS?`;
+  const accion = _textoCambioLote(cambios);
+  const mensaje = `¿${accion.charAt(0).toUpperCase() + accion.slice(1)}: ${codigos.length === 1 ? "1 producto" : codigos.length + " productos"}?` +
+    (yaEstan ? ` (${yaEstan} ya estaba${yaEstan === 1 ? "" : "n"} así)` : "") +
+    (cambios.PUBLICADO === "NO" ? "\n\nLos productos ocultos no se ven en la página ni en el POS, pero no se borran: se vuelven a mostrar con \"Mostrar (publicar)\" (filtro \"Ocultos\")." : "");
 
   confirmarAccion(mensaje, async () => {
-    const btn = document.getElementById("btnHacerVisibles");
+    const btn = document.getElementById("btnCambiarLote");
     const textoOriginal = btn ? btn.innerHTML : "";
-    if (btn) { btn.disabled = true; btn.innerHTML = "Publicando..."; }
+    if (btn) { btn.disabled = true; btn.innerHTML = "Guardando…"; }
+    try {
+      const response = await fetchAPI(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "actualizarProductosLote", rol: obtenerRolActual(), codigos, cambios })
+      }, { timeoutMs: 60000 });
+      const data = await response.json();
+      if (!data.success) { toast(data.message || "No se pudieron guardar los cambios", "error"); return; }
 
-    let exitosos = 0, fallidos = 0;
+      // Reflejo local inmediato (la caché del catálogo se refresca abajo)
+      const set = new Set(codigos.map(String));
+      productosAdminGlobal.forEach(p => { if (set.has(String(p.CODIGO))) Object.assign(p, cambios); });
+      const n = data.actualizados || 0;
+      let msg = n === 0 ? "No hubo nada que cambiar" : (n === 1 ? "1 producto actualizado" : `${n} productos actualizados`);
+      if (data.noEncontrados && data.noEncontrados.length) msg += ` · ${data.noEncontrados.length} no se encontraron (¿los borraron?)`;
+      toast(msg + (n ? " — la página lo muestra en unos minutos" : ""), data.noEncontrados && data.noEncontrados.length ? "error" : "success");
 
-    // Uno por vez (no en paralelo) para no saturar el backend de Apps
-    // Script, que ya de por sí es lento con muchas requests simultáneas.
-    for (const codigo of codigos) {
-      const p = productosAdminGlobal.find(x => String(x.CODIGO) === String(codigo));
-      if (!p) { fallidos++; continue; }
-
-      try {
-        const params = new URLSearchParams({
-          action: "actualizarProducto",
-          rol: obtenerRolActual(),
-          codigoOriginal: p.CODIGO,
-          CODIGO: p.CODIGO,
-          PRODUCTO: p.PRODUCTO || "",
-          CATEGORIA: p.CATEGORIA || "",
-          ALIAS: p.ALIAS || "",
-          PRECIO: p.PRECIO ?? 0,
-          STOCK: p.STOCK ?? 0,
-          IMAGEN: p.IMAGEN || "",
-          PUBLICADO: "SI",
-          DESTACADO: p.DESTACADO || "NO",
-          OFERTA: p.OFERTA || "NO",
-          CODIGO_CAJA: p.CODIGO_CAJA || "",
-          UNIDADES_POR_CAJA: p.UNIDADES_POR_CAJA || 0,
-          PRECIO_CAJA: p.PRECIO_CAJA || 0
-        });
-        const response = await fetchAPI(API_URL + "?" + params.toString());
-        const data = await response.json();
-        if (data.success) exitosos++; else fallidos++;
-      } catch (error) {
-        console.error("Error al publicar producto", codigo, error);
-        fallidos++;
+      // Se limpia la selección: así un próximo cambio no se aplica sin querer a estos mismos
+      if (n > 0 || !(data.noEncontrados && data.noEncontrados.length)) _seleccionProductos.clear();
+      productosPOS = []; // el POS vuelve a leer el catálogo
+      if (typeof window.refrescarCatalogoLocalDesdeSheets === "function") {
+        try { await window.refrescarCatalogoLocalDesdeSheets(); } catch (e) {}
       }
+      try { localStorage.setItem("vpos_cache_productosAdmin", JSON.stringify({ ts: Date.now(), data: productosAdminGlobal })); } catch (e) {}
+      filtrarProductos();
+    } catch (error) {
+      console.error("Cambio en lote:", error);
+      toast(navigator.onLine ? "No se pudo guardar: el servidor no respondió. Probá de nuevo." : "Hace falta internet para cambiar varios productos a la vez.", "error");
+    } finally {
+      if (btn) { btn.innerHTML = textoOriginal; }
+      actualizarSeleccionEtiquetas();
     }
-
-    if (btn) { btn.disabled = false; btn.innerHTML = textoOriginal; }
-
-    if (fallidos === 0) {
-      toast(exitosos === 1 ? "1 producto publicado" : `${exitosos} productos publicados`, "success");
-    } else {
-      toast(`${exitosos} publicados, ${fallidos} con error`, exitosos > 0 ? "success" : "error");
-    }
-
-    productosPOS = []; // refrescar catálogo del POS en memoria
-    cargarProductos();
-  }, "👁️ Publicar productos");
+  }, "✏️ Cambiar productos seleccionados");
 }
+
+/** Compatibilidad: lo llamaba el botón viejo "Hacer visibles". */
+function hacerVisiblesProductosSeleccionados() { aplicarCambioLote({ PUBLICADO: "SI" }); }
 
 /** Toggles every visible product checkbox via the header checkbox */
 function toggleTodosProductos(checkboxHeader) {
+  // Solo los que muestra el filtro actual; los de otras búsquedas quedan como estaban
   document.querySelectorAll(".check-producto-etiqueta").forEach(c => {
     c.checked = checkboxHeader.checked;
+    if (c.checked) _seleccionProductos.add(String(c.value)); else _seleccionProductos.delete(String(c.value));
   });
   actualizarSeleccionEtiquetas();
 }
 
-/** Returns the list of currently-checked product codes */
+/** Códigos seleccionados (también los que no se ven con el filtro actual), en el orden del catálogo */
 function obtenerCodigosSeleccionados() {
-  return Array.from(document.querySelectorAll(".check-producto-etiqueta:checked")).map(c => c.value);
+  _limpiarSeleccionInexistente();
+  if (!_seleccionProductos.size) return [];
+  const orden = (productosAdminGlobal || []).map(p => String(p.CODIGO)).filter(c => _seleccionProductos.has(c));
+  const resto = [..._seleccionProductos].filter(c => orden.indexOf(c) === -1);
+  return orden.concat(resto);
+}
+
+/* ===================================================================
+   ETIQUETAS: tamaños (hoja A4 o rollo de impresora de etiquetas),
+   qué datos llevan y estilo. Vista previa en vivo con los mismos
+   estilos que la impresión. La última configuración se guarda en esta
+   computadora (localStorage "vpos_etq_config").
+=================================================================== */
+const ETQ_TAMANOS = {
+  A4: [
+    { id: "a4-38x21",  txt: "Chica — 38 × 21 mm",          w: 38,  h: 21 },
+    { id: "a4-48x25",  txt: "Chica — 48 × 25 mm",          w: 48,  h: 25 },
+    { id: "a4-52x30",  txt: "Mediana chica — 52 × 30 mm", w: 52,  h: 30 },
+    { id: "a4-63x38",  txt: "Mediana — 63 × 38 mm",        w: 63,  h: 38 },
+    { id: "a4-99x57",  txt: "Grande — 99 × 57 mm",         w: 99,  h: 57 },
+    { id: "a4-95x67",  txt: "Góndola — 95 × 67 mm",        w: 95,  h: 67 },
+    { id: "custom",    txt: "Personalizada…" }
+  ],
+  ROLLO: [
+    { id: "r-30x20",  txt: "30 × 20 mm",  w: 30,  h: 20 },
+    { id: "r-40x30",  txt: "40 × 30 mm",  w: 40,  h: 30 },
+    { id: "r-50x25",  txt: "50 × 25 mm",  w: 50,  h: 25 },
+    { id: "r-50x30",  txt: "50 × 30 mm",  w: 50,  h: 30 },
+    { id: "r-58x40",  txt: "58 × 40 mm",  w: 58,  h: 40 },
+    { id: "r-60x40",  txt: "60 × 40 mm",  w: 60,  h: 40 },
+    { id: "r-100x50", txt: "100 × 50 mm", w: 100, h: 50 },
+    { id: "custom",   txt: "Personalizada…" }
+  ]
+};
+
+const ETQ_FABRICA = {
+  papel: "A4", tamano: "a4-63x38", ancho: 63, alto: 38, separacion: 2, margen: 5, copias: 1, borde: "punteado",
+  verNegocio: false, verNombre: true, verCategoria: false, verPrecio: true, verPrecioCaja: false,
+  verBarras: true, verCodigo: true, verFecha: false, textoExtra: "",
+  tamPrecio: "auto", tamNombre: "1", lineasNombre: "2", altoBarras: "0.26", alineacion: "center", decimales: "0",
+  precioResaltado: false, negrita: true
+};
+
+const _ETQ_CAMPOS = {
+  papel: "etqPapel", tamano: "etqTamano", ancho: "etqAncho", alto: "etqAlto", separacion: "etqSeparacion", margen: "etqMargen",
+  copias: "etqCantidadCopias", borde: "etqBorde", verNegocio: "etqVerNegocio", verNombre: "etqVerNombre", verCategoria: "etqVerCategoria",
+  verPrecio: "etqVerPrecio", verPrecioCaja: "etqVerPrecioCaja", verBarras: "etqVerBarras", verCodigo: "etqVerCodigo", verFecha: "etqVerFecha",
+  textoExtra: "etqTextoExtra", tamPrecio: "etqTamPrecio", tamNombre: "etqTamNombre", lineasNombre: "etqLineasNombre",
+  altoBarras: "etqAltoBarras", alineacion: "etqAlineacion", decimales: "etqDecimales", precioResaltado: "etqPrecioResaltado", negrita: "etqNegrita"
+};
+
+function _configEtiquetasGuardada() {
+  try { return Object.assign({}, ETQ_FABRICA, JSON.parse(localStorage.getItem("vpos_etq_config") || "{}")); }
+  catch (e) { return Object.assign({}, ETQ_FABRICA); }
+}
+
+function _llenarTamanosEtiqueta(papel, elegido) {
+  const sel = document.getElementById("etqTamano");
+  if (!sel) return;
+  sel.innerHTML = (ETQ_TAMANOS[papel] || ETQ_TAMANOS.A4).map(t => `<option value="${t.id}">${escapeHtml(t.txt)}</option>`).join("");
+  sel.value = (ETQ_TAMANOS[papel] || []).some(t => t.id === elegido) ? elegido : (papel === "ROLLO" ? "r-50x30" : "a4-63x38");
+}
+
+function _ponerConfigEtiquetas(cfg) {
+  _llenarTamanosEtiqueta(cfg.papel, cfg.tamano);
+  Object.keys(_ETQ_CAMPOS).forEach(k => {
+    if (k === "tamano") return;
+    const el = document.getElementById(_ETQ_CAMPOS[k]);
+    if (!el) return;
+    if (el.type === "checkbox") el.checked = !!cfg[k]; else el.value = cfg[k];
+  });
+}
+
+function leerConfigEtiquetas() {
+  const cfg = {};
+  Object.keys(_ETQ_CAMPOS).forEach(k => {
+    const el = document.getElementById(_ETQ_CAMPOS[k]);
+    if (!el) { cfg[k] = ETQ_FABRICA[k]; return; }
+    cfg[k] = el.type === "checkbox" ? el.checked : el.value;
+  });
+  // medidas: del tamaño elegido o personalizadas
+  const t = (ETQ_TAMANOS[cfg.papel] || []).find(x => x.id === cfg.tamano);
+  const num = (v, min, max, def) => { const n = Number(v); return isFinite(n) && n > 0 ? Math.min(max, Math.max(min, n)) : def; };
+  cfg.w = t && t.w ? t.w : num(cfg.ancho, 15, 200, 63);
+  cfg.h = t && t.h ? t.h : num(cfg.alto, 10, 280, 38);
+  cfg.separacion = num(cfg.separacion, 0, 15, 3) || 0;
+  cfg.margen = cfg.papel === "ROLLO" ? 0 : (Number(cfg.margen) >= 0 ? Math.min(25, Number(cfg.margen)) : 8);
+  cfg.copias = Math.max(1, Math.min(50, Math.floor(Number(cfg.copias) || 1)));
+  return cfg;
+}
+
+function _guardarConfigEtiquetas(cfg) {
+  const guardar = {};
+  Object.keys(ETQ_FABRICA).forEach(k => { guardar[k] = cfg[k]; });
+  try { localStorage.setItem("vpos_etq_config", JSON.stringify(guardar)); } catch (e) {}
+}
+
+function restablecerConfigEtiquetas() {
+  try { localStorage.removeItem("vpos_etq_config"); } catch (e) {}
+  _ponerConfigEtiquetas(Object.assign({}, ETQ_FABRICA));
+  actualizarPreviewEtiquetas();
+}
+
+/** Cuántas entran en una hoja A4 */
+function _etiquetasPorHoja(cfg) {
+  if (cfg.papel === "ROLLO") return { cols: 1, filas: 1, total: 1 };
+  const anchoUtil = 210 - 2 * cfg.margen, altoUtil = 297 - 2 * cfg.margen;
+  const cols = Math.max(1, Math.floor((anchoUtil + cfg.separacion) / (cfg.w + cfg.separacion)));
+  const filas = Math.max(1, Math.floor((altoUtil + cfg.separacion) / (cfg.h + cfg.separacion)));
+  return { cols, filas, total: cols * filas };
+}
+
+function _precioEtiqueta(valor, cfg) {
+  const d = Number(cfg.decimales) || 0;
+  return "$" + Number(valor || 0).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+/** HTML de una etiqueta (medidas en mm; el código de barras se dibuja después en el <svg>). */
+function _htmlEtiqueta(p, cfg, idSvg) {
+  const H = cfg.h, W = cfg.w;
+  const pt = (mm) => (mm * 2.835).toFixed(1) + "pt"; // 1 mm = 2,835 pt
+  const chico = pt(Math.max(1.9, Math.min(H * 0.085, 3.4)));
+  const lineas = Number(cfg.lineasNombre) || 2;
+  const tamNombreMm = Math.max(2.1, Math.min(H * 0.08, W * 0.06, 4.2)) * (Number(cfg.tamNombre) || 1);
+  let tamPrecioMm;
+  if (cfg.tamPrecio === "auto") {
+    let base = Math.min(H * 0.3, W * 0.16);
+    const ocupan = (cfg.verBarras ? 1 : 0) + (cfg.verNombre ? 0.6 : 0);
+    tamPrecioMm = base * (ocupan >= 1.5 ? 0.7 : ocupan >= 1 ? 0.8 : 1);
+  } else {
+    tamPrecioMm = Math.min(H * 0.3, W * 0.16) * Number(cfg.tamPrecio);
+  }
+  const partes = [];
+  const fecha = new Date().toLocaleDateString("es-AR");
+  if (cfg.verNegocio && configNegocioCache.nombre) partes.push(`<div class="etq-negocio" style="font-size:${chico}">${escapeHtml(configNegocioCache.nombre)}</div>`);
+  if (cfg.verNombre) partes.push(`<div class="etq-nombre" style="font-size:${pt(tamNombreMm)};-webkit-line-clamp:${lineas};font-weight:${cfg.negrita ? 700 : 400}">${escapeHtml(p.PRODUCTO || "")}</div>`);
+  if (cfg.verCategoria && p.CATEGORIA) partes.push(`<div class="etq-chico" style="font-size:${chico}">${escapeHtml(p.CATEGORIA)}</div>`);
+  if (cfg.textoExtra) partes.push(`<div class="etq-extra" style="font-size:${pt(Math.max(2.2, Math.min(H * 0.09, 4)))}">${escapeHtml(cfg.textoExtra)}</div>`);
+  if (cfg.verPrecio) partes.push(`<div class="etq-precio${cfg.precioResaltado ? " resaltado" : ""}" style="font-size:${pt(tamPrecioMm)}">${_precioEtiqueta(p.PRECIO, cfg)}</div>`);
+  if (cfg.verPrecioCaja && Number(p.UNIDADES_POR_CAJA) > 0 && Number(p.PRECIO_CAJA) > 0) {
+    partes.push(`<div class="etq-chico" style="font-size:${chico}">Caja x${escapeHtml(p.UNIDADES_POR_CAJA)}: <b>${_precioEtiqueta(p.PRECIO_CAJA, cfg)}</b></div>`);
+  }
+  if (cfg.verBarras) partes.push(`<svg class="etq-barras" id="${idSvg}" preserveAspectRatio="none" style="height:${(H * Number(cfg.altoBarras || 0.26)).toFixed(1)}mm;flex-basis:${(H * Number(cfg.altoBarras || 0.26)).toFixed(1)}mm"></svg>`);
+  if (cfg.verCodigo) partes.push(`<div class="etq-chico etq-codigo" style="font-size:${chico}">${escapeHtml(p.CODIGO)}</div>`);
+  if (cfg.verFecha) partes.push(`<div class="etq-chico" style="font-size:${chico}">${fecha}</div>`);
+  const borde = cfg.borde === "ninguno" ? "none" : (cfg.borde === "solido" ? "0.2mm solid #555" : "0.25mm dashed #999");
+  const pad = Math.max(0.8, Math.min(H, W) * 0.05).toFixed(1);
+  return `<div class="etq" style="width:${W}mm;height:${H}mm;padding:${pad}mm;border:${borde};text-align:${cfg.alineacion};align-items:${cfg.alineacion === "left" ? "flex-start" : "center"}">${partes.join("")}</div>`;
+}
+
+function _dibujarBarrasEtiquetas(cont, items) {
+  items.forEach(({ id, codigo }) => {
+    const svg = cont.querySelector("#" + id);
+    if (!svg) return;
+    try {
+      JsBarcode(svg, String(codigo), { format: "CODE128", displayValue: false, width: 2, height: 60, margin: 0 });
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.removeAttribute("width");
+    } catch (error) {
+      // Código vacío o con caracteres no soportados: no frena el resto
+      console.error("No se pudo generar el código de barras para", codigo, error);
+      svg.outerHTML = `<div class="etq-chico" style="color:#b91c1c">(sin código de barras)</div>`;
+    }
+  });
 }
 
 function abrirModalEtiquetas() {
   const codigos = obtenerCodigosSeleccionados();
   if (codigos.length === 0) { toast("Seleccioná al menos un producto", "error"); return; }
-
-  actualizarPreviewEtiquetas();
+  _ponerConfigEtiquetas(_configEtiquetasGuardada());
+  const papel = document.getElementById("etqPapel");
+  if (papel && !papel.__conCambio) {
+    papel.addEventListener("change", () => {
+      _llenarTamanosEtiqueta(papel.value, "");
+      // En rollo las etiquetas ya vienen troqueladas: sin borde; en hoja, punteado para recortar
+      const borde = document.getElementById("etqBorde");
+      if (borde) borde.value = papel.value === "ROLLO" ? "ninguno" : "punteado";
+      actualizarPreviewEtiquetas();
+    });
+    papel.__conCambio = true;
+  }
   document.getElementById("etiquetasModalBackdrop").classList.add("show");
+  actualizarPreviewEtiquetas();
 }
 
 function cerrarModalEtiquetas() {
   document.getElementById("etiquetasModalBackdrop").classList.remove("show");
 }
 
-/** Shows a quick text summary (no barcodes yet — those render only at print time) */
+/** Vista previa con 1 a 3 de los productos elegidos, a tamaño real (achicada si no entra). */
 function actualizarPreviewEtiquetas() {
-  const codigos = obtenerCodigosSeleccionados();
-  const copias = Math.max(1, Number(document.getElementById("etqCantidadCopias").value || 1));
-  const totalEtiquetas = codigos.length * copias;
+  const cfg = leerConfigEtiquetas();
+  const personalizada = cfg.tamano === "custom";
+  const med = document.getElementById("etqMedidasPersonalizadas");
+  if (med) med.style.display = personalizada ? "" : "none";
+  const hoja = document.getElementById("etqOpcionesHoja");
+  if (hoja) hoja.style.display = cfg.papel === "A4" ? "" : "none";
 
+  const codigos = obtenerCodigosSeleccionados();
+  const productos = codigos.map(c => productosAdminGlobal.find(p => String(p.CODIGO) === String(c))).filter(Boolean);
+  const total = productos.length * cfg.copias;
   const info = document.getElementById("etiquetasPreviewInfo");
   if (info) {
-    info.textContent = `Se van a imprimir ${totalEtiquetas} etiqueta${totalEtiquetas === 1 ? "" : "s"} en total (${codigos.length} producto${codigos.length === 1 ? "" : "s"} × ${copias} copia${copias === 1 ? "" : "s"}).`;
+    let txt = `${total} etiqueta${total === 1 ? "" : "s"} (${productos.length} producto${productos.length === 1 ? "" : "s"} × ${cfg.copias} copia${cfg.copias === 1 ? "" : "s"}) de ${cfg.w} × ${cfg.h} mm.`;
+    if (cfg.papel === "A4") {
+      const ph = _etiquetasPorHoja(cfg);
+      txt += ` Entran ${ph.total} por hoja A4 (${ph.cols} × ${ph.filas}) → ${Math.max(1, Math.ceil(total / ph.total))} hoja${Math.ceil(total / ph.total) === 1 ? "" : "s"}.`;
+      if (cfg.w > 210 - 2 * cfg.margen) txt += " ⚠️ Más ancha que la hoja: achicala o bajá el margen.";
+    } else {
+      txt += " Una etiqueta por cada salto del rollo: en la impresora elegí ese mismo tamaño de papel.";
+    }
+    info.textContent = txt;
   }
+
+  const marco = document.getElementById("etqPreview");
+  if (!marco) return;
+  const muestras = productos.slice(0, 3);
+  const items = [];
+  marco.innerHTML = `<div class="etq-preview-escala" style="gap:${cfg.separacion}mm">` +
+    muestras.map((p, i) => { const id = "etqPrev" + i; items.push({ id, codigo: p.CODIGO }); return _htmlEtiqueta(p, cfg, id); }).join("") + `</div>`;
+  _dibujarBarrasEtiquetas(marco, items);
+  // Achicar si la etiqueta no entra en el recuadro
+  const escala = marco.firstElementChild;
+  const anchoPx = cfg.w * 3.78 + 4, disponible = Math.max(120, marco.clientWidth - 16);
+  const f = Math.min(1, disponible / anchoPx);
+  escala.style.transform = f < 1 ? `scale(${f.toFixed(3)})` : "";
+  escala.style.transformOrigin = "top left";
+  escala.style.marginBottom = f < 1 ? `-${Math.round(escala.offsetHeight * (1 - f))}px` : "";
 }
 
 /**
- * Builds the printable label grid (one <div> per label, with an <svg>
- * placeholder per barcode) and renders the actual barcodes into those
- * placeholders with JsBarcode — then triggers the browser's print
- * dialog. Runs entirely client-side, same approach as the PDF catalog
- * download: no server round-trip per label.
+ * Arma la grilla de impresión (A4) o una etiqueta por página (rollo),
+ * dibuja los códigos de barras y abre el diálogo de impresión.
  */
 function imprimirEtiquetas() {
   const codigos = obtenerCodigosSeleccionados();
   if (codigos.length === 0) { toast("Seleccioná al menos un producto", "error"); return; }
+  const cfg = leerConfigEtiquetas();
+  _guardarConfigEtiquetas(cfg);
 
-  const copias = Math.max(1, Number(document.getElementById("etqCantidadCopias").value || 1));
-  const columnas = document.getElementById("etqColumnas").value;
-
-  const productos = codigos
-    .map(codigo => productosAdminGlobal.find(p => String(p.CODIGO) === String(codigo)))
-    .filter(Boolean);
-
-  if (productos.length === 0) {
-    toast("No se encontraron los productos seleccionados", "error");
-    return;
-  }
+  const productos = codigos.map(c => productosAdminGlobal.find(p => String(p.CODIGO) === String(c))).filter(Boolean);
+  if (productos.length === 0) { toast("No se encontraron los productos seleccionados", "error"); return; }
 
   const printArea = document.getElementById("etiquetasPrintArea");
-
-  // Por si quedó contenido de una impresión de ticket térmico anterior
-  // a medio camino, se limpia el otro contenedor de impresión para que
-  // el CSS de :empty/:not(:empty) elija el correcto sin ambigüedad.
   const thermalFrame = document.getElementById("thermalPrintFrame");
   if (thermalFrame) thermalFrame.innerHTML = "";
 
-  let html = `<div class="etiquetas-grid cols-${columnas}">`;
-
-  let idx = 0;
+  const items = [];
+  let html = "", idx = 0;
   productos.forEach(p => {
-    for (let copia = 0; copia < copias; copia++) {
-      const svgId = `etqSvg${idx}`;
-      html += `
-        <div class="etiqueta-item">
-          <div class="etiqueta-nombre">${escapeHtml(p.PRODUCTO)}</div>
-          <svg class="etiqueta-barcode-svg" id="${svgId}"></svg>
-          <div class="etiqueta-codigo-texto">${escapeHtml(p.CODIGO)}</div>
-          <div class="etiqueta-precio">$${Number(p.PRECIO || 0).toLocaleString("es-AR")}</div>
-        </div>`;
-      idx++;
+    for (let copia = 0; copia < cfg.copias; copia++) {
+      const id = "etqSvg" + (idx++);
+      items.push({ id, codigo: p.CODIGO });
+      html += _htmlEtiqueta(p, cfg, id);
     }
   });
-
-  html += `</div>`;
-  printArea.innerHTML = html;
-
-  // JsBarcode necesita que el <svg> ya esté en el DOM antes de dibujar
-  // adentro — por eso se llena el HTML primero y se recorre después.
-  idx = 0;
-  productos.forEach(p => {
-    for (let copia = 0; copia < copias; copia++) {
-      try {
-        JsBarcode(`#etqSvg${idx}`, String(p.CODIGO), {
-          format: "CODE128",
-          displayValue: false, // el código ya se muestra como texto aparte, en una fuente más legible
-          width: 1.6,
-          height: 38,
-          margin: 4
-        });
-      } catch (error) {
-        // Un código vacío o con caracteres no soportados no debe
-        // frenar la impresión del resto de las etiquetas.
-        console.error("No se pudo generar el código de barras para", p.CODIGO, error);
-      }
-      idx++;
-    }
-  });
+  const clase = cfg.papel === "ROLLO" ? "etq-hoja etq-rollo" : "etq-hoja";
+  printArea.innerHTML = `<div class="${clase}" style="gap:${cfg.separacion}mm">${html}</div>`;
+  _dibujarBarrasEtiquetas(printArea, items);
 
   cerrarModalEtiquetas();
-
-  _setPrintPageSize("A4");
-  // Pequeño delay para asegurar que los SVG ya se pintaron en el DOM
-  // antes de que el navegador capture el contenido para imprimir.
-  setTimeout(() => {
-    window.print();
-  }, 200);
+  if (cfg.papel === "ROLLO") {
+    _setPrintPageSize("CUSTOM", `@media print { @page { size:${cfg.w}mm ${cfg.h}mm; margin:0; } }`);
+  } else {
+    _setPrintPageSize("CUSTOM", `@media print { @page { size:A4; margin:${cfg.margen}mm; } }`);
+  }
+  setTimeout(() => { window.print(); }, 200);
 }
 
 /* ===================================================================

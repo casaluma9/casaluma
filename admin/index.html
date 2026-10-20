@@ -555,7 +555,12 @@
     </div>
     <div class="card p-3">
       <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <input type="text" id="buscarPedido" class="form-control" style="max-width:320px" placeholder="🔍 Buscar por pedido, cliente o DNI..." oninput="filtrarPedidos()">
+        <input type="text" id="buscarPedido" class="form-control" style="max-width:320px" placeholder="🔍 Buscar por pedido, cliente, DNI o teléfono..." oninput="filtrarPedidos(); programarBusquedaPedidosAntiguos()">
+        <div class="pedidos-fechas" title="Para buscar pedidos de cualquier fecha, también los más viejos">
+          <label>📅 Desde <input type="date" class="form-control form-control-sm" id="pedidosDesde" onchange="filtrarPedidos(); programarBusquedaPedidosAntiguos(true)"></label>
+          <label>Hasta <input type="date" class="form-control form-control-sm" id="pedidosHasta" onchange="filtrarPedidos(); programarBusquedaPedidosAntiguos(true)"></label>
+          <button type="button" class="btn btn-link btn-sm p-0" id="pedidosLimpiarFechas" onclick="limpiarBusquedaPedidos()" style="display:none;">Quitar fechas</button>
+        </div>
         <div class="d-flex gap-2 ms-auto flex-wrap">
           <select class="form-select form-select-sm" id="filtroPedidoEstado" style="max-width:160px;" onchange="filtrarPedidos()">
             <option value="">Todos los estados</option>
@@ -566,6 +571,7 @@
           </select>
         </div>
       </div>
+      <div id="pedidosBusquedaAntiguos" class="pedidos-busqueda-antiguos" role="status"></div>
       <div id="tablaPedidos"></div>
     </div>
   </div>
@@ -594,7 +600,7 @@
           <select id="filtroCategoriaProductos" class="form-select form-select-sm" style="max-width:180px" onchange="filtrarProductos()">
             <option value="">Todas las categorías</option>
           </select>
-          <select id="filtroEstadoProducto" class="form-select form-select-sm" style="max-width:170px" onchange="filtrarProductos()">
+          <select id="filtroEstadoProducto" class="form-select form-select-sm" style="max-width:210px" onchange="filtrarProductos()">
             <option value="">Todos los productos</option>
             <option value="sin_imagen">Sin imagen</option>
             <option value="stock_bajo">Stock bajo (1 a 5)</option>
@@ -602,6 +608,9 @@
             <option value="stock_negativo">Stock negativo</option>
             <option value="sin_imagen_y_stock">Sin imagen y sin stock</option>
             <option value="ocultos">Ocultos (no publicados)</option>
+            <option value="publicados">Publicados</option>
+            <option value="destacados">⭐ Destacados</option>
+            <option value="ofertas">🔥 En oferta</option>
           </select>
         </div>
       </div>
@@ -609,9 +618,24 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span class="text-muted" style="font-size:12px;" id="etiquetasSeleccionInfo">Ningún producto seleccionado</span>
           <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-success btn-sm" id="btnHacerVisibles" onclick="hacerVisiblesProductosSeleccionados()" disabled>
-              👁️ Hacer visibles
-            </button>
+            <div class="lote-menu-wrap">
+              <button class="btn btn-outline-success btn-sm" id="btnCambiarLote" onclick="alternarMenuLote(event)" disabled aria-haspopup="true" aria-expanded="false" title="Ocultar, mostrar, destacar o poner en oferta todos los seleccionados">
+                ✏️ Cambiar seleccionados ▾
+              </button>
+              <div class="lote-menu" id="menuLoteProductos" role="menu">
+                <div class="lote-menu-tit">Catálogo web</div>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({PUBLICADO:'SI'})">👁️ Mostrar (publicar)</button>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({PUBLICADO:'NO'})">🙈 Ocultar</button>
+                <div class="lote-menu-tit">Destacado</div>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({DESTACADO:'SI'})">⭐ Marcar como destacados</button>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({DESTACADO:'NO'})">☆ Quitar destacado</button>
+                <div class="lote-menu-tit">Oferta</div>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({OFERTA:'SI'})">🔥 Poner en oferta</button>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({OFERTA:'NO'})">✖ Quitar oferta</button>
+                <div class="lote-menu-tit">Cambio de temporada</div>
+                <button type="button" role="menuitem" onclick="aplicarCambioLote({PUBLICADO:'NO', DESTACADO:'NO', OFERTA:'NO'})">📦 Ocultar y quitar destacado y oferta</button>
+              </div>
+            </div>
             <button class="btn btn-outline-dark btn-sm" id="btnGenerarQROffline" onclick="abrirModalQROffline()" disabled>
               📦 Generar QR de Identificación
             </button>
@@ -2687,6 +2711,16 @@
         <div><button type="button" class="btn btn-outline-secondary btn-sm" onclick="abrirInformeProblema()">🐞 Informar un problema</button></div>
       </div>
 
+      <div class="card p-3 mb-3" id="cardVentasResumidas">
+        <h6 style="margin-bottom:4px;">🗂️ Historial de ventas en la planilla</h6>
+        <p class="text-muted" style="font-size:13px;margin-bottom:10px;">Para que la planilla no crezca sin fin, se guarda el detalle de cada venta solo de los últimos meses. Lo anterior se resume por día (total por forma de pago y unidades por producto): <b>los reportes no cambian</b>, solo deja de verse cada ticket viejo por separado. Antes de resumir, el detalle completo se guarda en Drive (carpeta "Respaldo de ventas"). Se hace solo una vez por mes; con el botón se hace ahora.</p>
+        <div id="ventasResumidasEstado" class="ventas-resumidas-estado text-muted" style="font-size:13px;">Cargando…</div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="cargarEstadoVentasResumidas()">↻ Actualizar</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btnResumirVentas" onclick="resumirVentasViejasClick()" disabled>📦 Resumir ventas viejas ahora</button>
+        </div>
+      </div>
+
       <!-- ===== LICENCIA ===== -->
       <div class="card p-3 mb-3" id="cardLicencia">
         <div class="d-flex align-items-center gap-2" style="margin-bottom:12px;">
@@ -2965,6 +2999,14 @@
         <summary>Ver qué datos se envían</summary>
         <pre id="informeDetalleDatos"></pre>
       </details>
+      <div class="form-check mt-2 mb-1">
+        <input class="form-check-input" type="checkbox" id="informeCaptura">
+        <label class="form-check-label" for="informeCaptura">Adjuntar captura de pantalla <span class="text-muted" style="font-size:12px;">(opcional: puede mostrar datos de clientes o ventas que estén en pantalla)</span></label>
+      </div>
+      <div id="informeCapturaCaja" class="informe-captura" style="display:none;">
+        <div id="informeCapturaEstado" class="text-muted" style="font-size:12px;"></div>
+        <img id="informeCapturaVista" alt="Vista previa de la captura" style="display:none;">
+      </div>
       <div id="informeEstado" class="informe-estado" role="status"></div>
       <div class="d-flex justify-content-end gap-2 mt-3 flex-wrap">
         <button type="button" class="btn btn-outline-secondary" onclick="cerrarInformeProblema()">Cancelar</button>
@@ -3542,31 +3584,92 @@
     </div>
 
     <div class="product-modal-body">
+      <div class="etq-layout">
+        <div class="etq-opciones" oninput="actualizarPreviewEtiquetas()" onchange="actualizarPreviewEtiquetas()">
 
-      <div class="config-preview-hint mb-3">
-        <span class="ic">ℹ️</span>
-        El código de barras se genera a partir del código del producto (columna CODIGO) — funciona igual de bien con un EAN real o con un código interno propio, y lo va a leer el mismo lector que usás en el POS.
-      </div>
+          <div class="etq-grupo">
+            <div class="etq-grupo-tit">📐 Tamaño</div>
+            <label class="form-label">Papel</label>
+            <select class="form-select form-select-sm" id="etqPapel">
+              <option value="A4">Hoja A4 (impresora común)</option>
+              <option value="ROLLO">Rollo de etiquetas (impresora de etiquetas)</option>
+            </select>
+            <label class="form-label mt-2">Tamaño de la etiqueta</label>
+            <select class="form-select form-select-sm" id="etqTamano"></select>
+            <div class="row g-2 mt-1" id="etqMedidasPersonalizadas">
+              <div class="col-6"><label class="form-label">Ancho (mm)</label><input type="number" class="form-control form-control-sm" id="etqAncho" min="15" max="200" step="1" value="63"></div>
+              <div class="col-6"><label class="form-label">Alto (mm)</label><input type="number" class="form-control form-control-sm" id="etqAlto" min="10" max="280" step="1" value="38"></div>
+            </div>
+            <div class="row g-2 mt-1" id="etqOpcionesHoja">
+              <div class="col-6"><label class="form-label">Separación (mm)</label><input type="number" class="form-control form-control-sm" id="etqSeparacion" min="0" max="15" step="0.5" value="3"></div>
+              <div class="col-6"><label class="form-label">Margen hoja (mm)</label><input type="number" class="form-control form-control-sm" id="etqMargen" min="0" max="25" step="0.5" value="8"></div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-6"><label class="form-label">Copias por producto</label><input type="number" class="form-control form-control-sm" id="etqCantidadCopias" value="1" min="1" max="50"></div>
+              <div class="col-6"><label class="form-label">Borde</label>
+                <select class="form-select form-select-sm" id="etqBorde">
+                  <option value="punteado">Punteado (para recortar)</option>
+                  <option value="solido">Línea fina</option>
+                  <option value="ninguno">Sin borde</option>
+                </select></div>
+            </div>
+          </div>
 
-      <div class="row g-3 mb-3">
-        <div class="col-6">
-          <label class="form-label">Cantidad de copias por producto</label>
-          <input type="number" class="form-control" id="etqCantidadCopias" value="1" min="1" max="20" oninput="actualizarPreviewEtiquetas()">
+          <div class="etq-grupo">
+            <div class="etq-grupo-tit">🧩 Qué lleva</div>
+            <div class="etq-checks">
+              <label><input type="checkbox" id="etqVerNegocio"> Nombre del negocio</label>
+              <label><input type="checkbox" id="etqVerNombre" checked> Nombre del producto</label>
+              <label><input type="checkbox" id="etqVerCategoria"> Categoría</label>
+              <label><input type="checkbox" id="etqVerPrecio" checked> Precio</label>
+              <label><input type="checkbox" id="etqVerPrecioCaja"> Precio por caja (si tiene)</label>
+              <label><input type="checkbox" id="etqVerBarras" checked> Código de barras</label>
+              <label><input type="checkbox" id="etqVerCodigo" checked> Código en texto</label>
+              <label><input type="checkbox" id="etqVerFecha"> Fecha</label>
+            </div>
+            <label class="form-label mt-2">Texto extra <span class="text-muted" style="font-size:11px;">(opcional, ej. OFERTA · Precio contado)</span></label>
+            <input type="text" class="form-control form-control-sm" id="etqTextoExtra" maxlength="40">
+          </div>
+
+          <div class="etq-grupo">
+            <div class="etq-grupo-tit">🎨 Estilo</div>
+            <div class="row g-2">
+              <div class="col-6"><label class="form-label">Tamaño del precio</label>
+                <select class="form-select form-select-sm" id="etqTamPrecio">
+                  <option value="auto">Automático</option><option value="0.6">Chico</option><option value="0.8">Mediano</option><option value="1">Grande</option><option value="1.25">Muy grande</option>
+                </select></div>
+              <div class="col-6"><label class="form-label">Tamaño del nombre</label>
+                <select class="form-select form-select-sm" id="etqTamNombre">
+                  <option value="0.8">Chico</option><option value="1" selected>Normal</option><option value="1.25">Grande</option>
+                </select></div>
+              <div class="col-6"><label class="form-label">Líneas del nombre</label>
+                <select class="form-select form-select-sm" id="etqLineasNombre"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select></div>
+              <div class="col-6"><label class="form-label">Alto del código</label>
+                <select class="form-select form-select-sm" id="etqAltoBarras"><option value="0.18">Bajo</option><option value="0.26" selected>Normal</option><option value="0.36">Alto</option></select></div>
+              <div class="col-6"><label class="form-label">Alineación</label>
+                <select class="form-select form-select-sm" id="etqAlineacion"><option value="center">Centrada</option><option value="left">A la izquierda</option></select></div>
+              <div class="col-6"><label class="form-label">Decimales del precio</label>
+                <select class="form-select form-select-sm" id="etqDecimales"><option value="0">Sin decimales</option><option value="2">Con centavos</option></select></div>
+            </div>
+            <div class="etq-checks mt-2">
+              <label><input type="checkbox" id="etqPrecioResaltado"> Precio resaltado (fondo negro, letra blanca)</label>
+              <label><input type="checkbox" id="etqNegrita" checked> Nombre en negrita</label>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-link btn-sm p-0" onclick="restablecerConfigEtiquetas()">Volver a la configuración de fábrica</button>
         </div>
-        <div class="col-6">
-          <label class="form-label">Columnas por hoja</label>
-          <select class="form-select" id="etqColumnas" onchange="actualizarPreviewEtiquetas()">
-            <option value="3" selected>3 (etiqueta mediana)</option>
-            <option value="4">4 (etiqueta chica)</option>
-          </select>
+
+        <div class="etq-vista">
+          <div class="etq-grupo-tit">👁️ Vista previa <span class="text-muted" style="font-weight:400;font-size:11.5px;">(tamaño real aproximado)</span></div>
+          <div class="etq-preview-marco" id="etqPreview"></div>
+          <div class="etiquetas-preview-info" id="etiquetasPreviewInfo"></div>
         </div>
       </div>
-
-      <div class="etiquetas-preview-info" id="etiquetasPreviewInfo"></div>
-
     </div>
 
     <div class="product-modal-actions">
+      <span class="text-muted me-auto" style="font-size:12px;">La configuración se recuerda en esta computadora.</span>
       <button class="btn btn-outline-secondary" onclick="cerrarModalEtiquetas()">Cancelar</button>
       <button class="btn btn-success" id="btnImprimirEtiquetas" onclick="imprimirEtiquetas()">🖨️ Generar e Imprimir</button>
     </div>
