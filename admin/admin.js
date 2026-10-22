@@ -1077,6 +1077,145 @@ const APARIENCIA_DEFAULT = {
 function aplicarTemaAdmin(cfg) {
   const tema = (cfg.tema || APARIENCIA_DEFAULT.tema).toLowerCase();
   document.body.setAttribute("data-tema", tema);
+  // Tema de temporada activo: sus colores pisan los del tema (ver temporadas.js)
+  let t = null;
+  try { if (window.VeekTemporadas) t = window.VeekTemporadas.aplicarPanel(cfg.temporada || null); } catch (e) {}
+  const marca = document.getElementById("sidebarTemporada");
+  if (t && !marca) {
+    const brand = document.querySelector(".sidebar .sidebar-brand, .sidebar-brand");
+    if (brand) brand.insertAdjacentHTML("beforeend", `<span id="sidebarTemporada" class="sidebar-temporada" title="Tema de temporada: ${escapeHtml(t.nombre)}">${t.emoji}</span>`);
+  } else if (t && marca) {
+    marca.textContent = t.emoji; marca.title = "Tema de temporada: " + t.nombre;
+  } else if (!t && marca) {
+    marca.remove();
+  }
+}
+
+/* ===================================================================
+   TEMA DE TEMPORADA (Configuración → Catálogo web)
+=================================================================== */
+let _temporadaElegida = "";
+
+function _datosTemporadaForm() {
+  return {
+    id: _temporadaElegida,
+    desde: document.getElementById("tempDesde")?.value || "",
+    hasta: document.getElementById("tempHasta")?.value || "",
+    cartel: (document.getElementById("tempCartel")?.value || "").trim(),
+    animacion: !!document.getElementById("tempAnimacion")?.checked,
+    colores: !!document.getElementById("tempColores")?.checked
+  };
+}
+
+function cargarTemporadaForm(cfg) {
+  const T = window.VeekTemporadas;
+  const grilla = document.getElementById("tempGrilla");
+  if (!T || !grilla) return;
+  const tc = cfg.temporada || {};
+  _temporadaElegida = tc.id || "";
+  const opcion = (id, nombre, emoji, t) => {
+    let muestra = '<div class="temp-muestra temp-muestra--ninguno">Estilo normal</div>';
+    if (t) {
+      const tira = T.adornoTira(t.adorno);
+      const c = t.colores;
+      muestra = `<div class="temp-muestra" style="background:linear-gradient(135deg, ${c.a}, ${c.b})">
+          <div class="temp-muestra-adorno" style="background-image:${tira ? tira.fondo : "none"};background-size:${tira ? tira.ancho / 1.6 + "px " + tira.alto / 1.6 + "px" : "auto"}"></div>
+          <div class="temp-muestra-papel" style="background-color:${c.papel};background-image:${T.fondoMotivos(t.fondo, c.acento)};background-size:90px 90px">
+            <span class="temp-muestra-btn" style="background:${c.acento}">Agregar</span><span class="temp-muestra-icono">${t.icono}</span>
+          </div>
+        </div>`;
+    }
+    return `<button type="button" class="temp-opcion${id === _temporadaElegida ? " activa" : ""}" role="radio" aria-checked="${id === _temporadaElegida}" data-temp="${id}" onclick="elegirTemporada('${id}')">
+        ${muestra}<span class="temp-nombre">${emoji} ${escapeHtml(nombre)}</span></button>`;
+  };
+  grilla.innerHTML = opcion("", "Sin tema", "⚪", null) + T.ORDEN.map(id => opcion(id, T.TEMPORADAS[id].nombre, T.TEMPORADAS[id].emoji, T.TEMPORADAS[id])).join("");
+  document.getElementById("tempDesde").value = tc.desde || "";
+  document.getElementById("tempHasta").value = tc.hasta || "";
+  document.getElementById("tempCartel").value = tc.cartel || "";
+  document.getElementById("tempCartel").placeholder = _temporadaElegida && T.TEMPORADAS[_temporadaElegida] ? T.TEMPORADAS[_temporadaElegida].cartel : "Ej: 🎄 ¡Felices fiestas!";
+  document.getElementById("tempAnimacion").checked = tc.animacion !== false;
+  document.getElementById("tempColores").checked = tc.colores !== false;
+  actualizarEstadoTemporada();
+}
+
+function elegirTemporada(id) {
+  const T = window.VeekTemporadas;
+  const anterior = _temporadaElegida;
+  _temporadaElegida = id;
+  document.querySelectorAll("#tempGrilla .temp-opcion").forEach(b => {
+    const activa = b.dataset.temp === id;
+    b.classList.toggle("activa", activa);
+    b.setAttribute("aria-checked", activa ? "true" : "false");
+  });
+  // Cartel sugerido: si estaba vacío o era el sugerido del tema anterior
+  const cartel = document.getElementById("tempCartel");
+  const sugeridoAnterior = anterior && T.TEMPORADAS[anterior] ? T.TEMPORADAS[anterior].cartel : "";
+  if (cartel && (!cartel.value.trim() || cartel.value.trim() === sugeridoAnterior)) cartel.value = id ? T.TEMPORADAS[id].cartel : "";
+  if (cartel) cartel.placeholder = id ? T.TEMPORADAS[id].cartel : "Ej: 🎄 ¡Felices fiestas!";
+  actualizarEstadoTemporada();
+  previsualizarColoresTemporadaPanel();
+}
+
+/** Muestra en el panel cómo quedarían los colores (sin guardar todavía) */
+function previsualizarColoresTemporadaPanel() {
+  const d = _datosTemporadaForm();
+  try { window.VeekTemporadas.aplicarPanel(d.id ? { id: d.id, colores: d.colores } : null); } catch (e) {}
+}
+
+function actualizarEstadoTemporada() {
+  const el = document.getElementById("tempEstado");
+  if (!el || !window.VeekTemporadas) return;
+  const d = _datosTemporadaForm();
+  const T = window.VeekTemporadas;
+  const f = (iso) => iso ? iso.split("-").reverse().join("/") : "";
+  if (!d.id) { el.className = "temp-estado"; el.textContent = "Sin tema de temporada"; return; }
+  const nombre = T.TEMPORADAS[d.id].emoji + " " + T.TEMPORADAS[d.id].nombre;
+  if (d.desde && d.hasta && d.desde > d.hasta) { el.className = "temp-estado error"; el.textContent = "⚠️ \"Desde\" es posterior a \"Hasta\""; return; }
+  const hoy = T.hoyAR();
+  if (d.desde && hoy < d.desde) { el.className = "temp-estado programado"; el.textContent = `${nombre}: empieza el ${f(d.desde)}`; return; }
+  if (d.hasta && hoy > d.hasta) { el.className = "temp-estado vencido"; el.textContent = `${nombre}: terminó el ${f(d.hasta)}`; return; }
+  el.className = "temp-estado activo";
+  el.textContent = `${nombre}: activo` + (d.hasta ? ` hasta el ${f(d.hasta)}` : "");
+}
+
+function vistaPreviaTemporada() {
+  const d = _datosTemporadaForm();
+  let base = "../index.html";
+  if (typeof _esAppEscritorio === "function" && _esAppEscritorio()) {
+    base = (configNegocioCache && configNegocioCache.urlCatalogo) || "";
+    if (!base) { toast("Cargá la URL del catálogo (Catálogo web → Catálogo online) para ver la vista previa", "error"); return; }
+  }
+  if (!d.id) { window.open(base, "_blank", "noopener"); return; }
+  const url = base + (base.indexOf("?") === -1 ? "?" : "&") + new URLSearchParams({ vistaTemporada: d.id, anim: d.animacion ? "1" : "0", colores: d.colores ? "1" : "0", cartel: d.cartel }).toString();
+  window.open(url, "_blank", "noopener");
+}
+
+async function guardarTemporada() {
+  const d = _datosTemporadaForm();
+  if (d.desde && d.hasta && d.desde > d.hasta) { toast("La fecha \"desde\" no puede ser posterior a \"hasta\"", "error"); return; }
+  const btn = document.getElementById("btnGuardarTemporada");
+  const txt = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "Guardando…"; }
+  try {
+    const params = new URLSearchParams({
+      action: "guardarConfiguracionNegocio",
+      temporada: d.id, temporadaDesde: d.desde, temporadaHasta: d.hasta,
+      temporadaAnimacion: d.animacion ? "SI" : "NO", temporadaColores: d.colores ? "SI" : "NO",
+      temporadaCartel: d.cartel
+    });
+    const res = await fetchAPI(API_URL + "?" + params.toString());
+    const data = await res.json();
+    if (!data.success) { toast(data.message || "No se pudo guardar el tema", "error"); return; }
+    configNegocioCache = { ...configNegocioCache, temporada: d };
+    aplicarTemaAdmin(configNegocioCache);
+    actualizarEstadoTemporada();
+    const T = window.VeekTemporadas;
+    toast(d.id ? `${T.TEMPORADAS[d.id].emoji} Tema "${T.TEMPORADAS[d.id].nombre}" guardado — el catálogo lo muestra en unos minutos` : "Tema de temporada quitado — el catálogo vuelve al estilo normal en unos minutos", "success");
+  } catch (e) {
+    toast("Error de conexión al guardar el tema", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = txt; }
+  }
 }
 
 /** Muestra u oculta los dos selectores de color del gradiente propio */
@@ -1087,6 +1226,7 @@ function toggleGradPersonalizado() {
 
 /** Loads the saved banner/tema config into the "Apariencia" form (called when Configuración opens) */
 function cargarAparienciaForm(cfg) {
+  try { cargarTemporadaForm(cfg); } catch (e) { console.warn("Tema de temporada:", e); }
   document.getElementById("cfgNavbarTexto").value     = cfg.navbarTexto     ?? APARIENCIA_DEFAULT.navbarTexto;
   document.getElementById("cfgNavbarIcono").value     = cfg.navbarIcono     ?? APARIENCIA_DEFAULT.navbarIcono;
   document.getElementById("cfgBannerTitulo").value    = cfg.bannerTitulo    ?? APARIENCIA_DEFAULT.bannerTitulo;
@@ -12878,6 +13018,38 @@ function _dibujarBarrasEtiquetas(cont, items) {
   });
 }
 
+/**
+ * Si el contenido de una etiqueta no entra en su alto, achica primero el
+ * código de barras (hasta 5 mm) y después todas las letras, de a poco,
+ * hasta que entre. Así no se corta ninguna línea. Necesita que las
+ * etiquetas estén en pantalla (para imprimir se miden fuera de la vista).
+ */
+function _ajustarEtiquetas(cont) {
+  const MM = 96 / 25.4;
+  cont.querySelectorAll(".etq").forEach(e => {
+    const desborda = () => e.scrollHeight > e.clientHeight + 0.5;
+    for (let i = 0; i < 24 && desborda(); i++) {
+      const svg = e.querySelector("svg.etq-barras");
+      const altoSvg = svg ? svg.getBoundingClientRect().height : 0;
+      if (svg && altoSvg > 5 * MM) {
+        const nuevo = Math.max(5, (altoSvg / MM) * 0.85);
+        svg.style.height = nuevo.toFixed(2) + "mm";
+        svg.style.flexBasis = nuevo.toFixed(2) + "mm";
+        continue;
+      }
+      // Las letras: todas un 8% más chicas (mínimo 4,5 pt)
+      let achico = false;
+      e.querySelectorAll("[style*='font-size']").forEach(t => {
+        const m = /([\d.]+)pt/.exec(t.style.fontSize || "");
+        if (!m) return;
+        const pt = Math.max(4.5, parseFloat(m[1]) * 0.92);
+        if (pt < parseFloat(m[1])) { t.style.fontSize = pt.toFixed(1) + "pt"; achico = true; }
+      });
+      if (!achico) break; // ya no se puede achicar más: lo que sobre queda abajo
+    }
+  });
+}
+
 function abrirModalEtiquetas() {
   const codigos = obtenerCodigosSeleccionados();
   if (codigos.length === 0) { toast("Seleccioná al menos un producto", "error"); return; }
@@ -12893,6 +13065,7 @@ function abrirModalEtiquetas() {
     });
     papel.__conCambio = true;
   }
+  _etqHojaPreview = 0;
   document.getElementById("etiquetasModalBackdrop").classList.add("show");
   actualizarPreviewEtiquetas();
 }
@@ -12901,25 +13074,52 @@ function cerrarModalEtiquetas() {
   document.getElementById("etiquetasModalBackdrop").classList.remove("show");
 }
 
-/** Vista previa con 1 a 3 de los productos elegidos, a tamaño real (achicada si no entra). */
+/* Vista previa: "hoja" muestra la hoja A4 entera (o un tramo del rollo)
+   achicada para que entre, con las etiquetas acomodadas igual que al
+   imprimir; "real" muestra una etiqueta a tamaño real (aproximado). */
+let _etqModoPreview = "hoja";
+let _etqHojaPreview = 0;
+
+function cambiarModoPreviewEtiquetas(modo) {
+  _etqModoPreview = modo === "real" ? "real" : "hoja";
+  document.querySelectorAll(".etq-modo button").forEach(b => b.classList.toggle("activo", b.dataset.modo === _etqModoPreview));
+  actualizarPreviewEtiquetas();
+}
+
+function moverHojaPreviewEtiquetas(delta) {
+  _etqHojaPreview = Math.max(0, _etqHojaPreview + delta);
+  actualizarPreviewEtiquetas();
+}
+
+/** Lista de etiquetas a imprimir (producto repetido por cada copia), en orden. */
+function _listaEtiquetas(cfg) {
+  const codigos = obtenerCodigosSeleccionados();
+  const productos = codigos.map(c => productosAdminGlobal.find(p => String(p.CODIGO) === String(c))).filter(Boolean);
+  const lista = [];
+  productos.forEach(p => { for (let i = 0; i < cfg.copias; i++) lista.push(p); });
+  return { productos, lista };
+}
+
 function actualizarPreviewEtiquetas() {
   const cfg = leerConfigEtiquetas();
   const personalizada = cfg.tamano === "custom";
   const med = document.getElementById("etqMedidasPersonalizadas");
   if (med) med.style.display = personalizada ? "" : "none";
-  const hoja = document.getElementById("etqOpcionesHoja");
-  if (hoja) hoja.style.display = cfg.papel === "A4" ? "" : "none";
+  const hojaOpc = document.getElementById("etqOpcionesHoja");
+  if (hojaOpc) hojaOpc.style.display = cfg.papel === "A4" ? "" : "none";
 
-  const codigos = obtenerCodigosSeleccionados();
-  const productos = codigos.map(c => productosAdminGlobal.find(p => String(p.CODIGO) === String(c))).filter(Boolean);
-  const total = productos.length * cfg.copias;
+  const { productos, lista } = _listaEtiquetas(cfg);
+  const total = lista.length;
+  const ph = _etiquetasPorHoja(cfg);
+  const hojas = cfg.papel === "A4" ? Math.max(1, Math.ceil(total / ph.total)) : 1;
+  if (_etqHojaPreview > hojas - 1) _etqHojaPreview = hojas - 1;
+
   const info = document.getElementById("etiquetasPreviewInfo");
   if (info) {
     let txt = `${total} etiqueta${total === 1 ? "" : "s"} (${productos.length} producto${productos.length === 1 ? "" : "s"} × ${cfg.copias} copia${cfg.copias === 1 ? "" : "s"}) de ${cfg.w} × ${cfg.h} mm.`;
     if (cfg.papel === "A4") {
-      const ph = _etiquetasPorHoja(cfg);
-      txt += ` Entran ${ph.total} por hoja A4 (${ph.cols} × ${ph.filas}) → ${Math.max(1, Math.ceil(total / ph.total))} hoja${Math.ceil(total / ph.total) === 1 ? "" : "s"}.`;
-      if (cfg.w > 210 - 2 * cfg.margen) txt += " ⚠️ Más ancha que la hoja: achicala o bajá el margen.";
+      txt += ` Entran ${ph.total} por hoja A4 (${ph.cols} × ${ph.filas}) → ${hojas} hoja${hojas === 1 ? "" : "s"}.`;
+      if (cfg.w > 210 - 2 * cfg.margen || cfg.h > 297 - 2 * cfg.margen) txt += " ⚠️ La etiqueta no entra en la hoja: achicala o bajá el margen.";
     } else {
       txt += " Una etiqueta por cada salto del rollo: en la impresora elegí ese mismo tamaño de papel.";
     }
@@ -12927,19 +13127,56 @@ function actualizarPreviewEtiquetas() {
   }
 
   const marco = document.getElementById("etqPreview");
+  const pag = document.getElementById("etqPaginas");
   if (!marco) return;
-  const muestras = productos.slice(0, 3);
+  const MM = 96 / 25.4; // px por mm en pantalla
+  const disponible = Math.max(140, marco.clientWidth - 16);
   const items = [];
-  marco.innerHTML = `<div class="etq-preview-escala" style="gap:${cfg.separacion}mm">` +
-    muestras.map((p, i) => { const id = "etqPrev" + i; items.push({ id, codigo: p.CODIGO }); return _htmlEtiqueta(p, cfg, id); }).join("") + `</div>`;
+  const etiqueta = (p, i) => { const id = "etqPrev" + i; items.push({ id, codigo: p.CODIGO }); return _htmlEtiqueta(p, cfg, id); };
+
+  let anchoMm, altoMm, contenido;
+  if (_etqModoPreview === "real") {
+    anchoMm = cfg.w; altoMm = cfg.h;
+    contenido = lista.length ? etiqueta(lista[0], 0) : "";
+    if (pag) pag.style.display = "none";
+  } else if (cfg.papel === "A4") {
+    anchoMm = 210; altoMm = 297;
+    const desde = _etqHojaPreview * ph.total;
+    const enHoja = lista.slice(desde, desde + ph.total);
+    contenido = `<div class="etq-hoja-a4" style="width:210mm;height:297mm;padding:${cfg.margen}mm">
+        <div class="etq-hoja" style="gap:${cfg.separacion}mm">${enHoja.map((p, i) => etiqueta(p, i)).join("")}</div>
+      </div>`;
+    if (pag) {
+      pag.style.display = hojas > 1 ? "" : "none";
+      const txt = document.getElementById("etqPaginasTexto");
+      if (txt) txt.textContent = `Hoja ${_etqHojaPreview + 1} de ${hojas}`;
+      const [ant, sig] = pag.querySelectorAll("button");
+      if (ant) ant.disabled = _etqHojaPreview <= 0;
+      if (sig) sig.disabled = _etqHojaPreview >= hojas - 1;
+    }
+  } else {
+    // Rollo: tramo con las primeras etiquetas, una debajo de la otra
+    const n = Math.min(lista.length, 4);
+    const salto = 3; // mm entre etiquetas en el rollo (solo para mostrar)
+    anchoMm = cfg.w + 8; altoMm = n * cfg.h + (n + 1) * salto;
+    contenido = `<div class="etq-rollo-preview" style="width:${anchoMm}mm;height:${altoMm}mm;padding:${salto}mm 4mm;gap:${salto}mm">
+        ${lista.slice(0, n).map((p, i) => etiqueta(p, i)).join("")}
+      </div>`;
+    if (pag) pag.style.display = "none";
+  }
+
+  // Escala: que entre a lo ancho (y en hoja, que no pase de un alto razonable)
+  const altoMax = _etqModoPreview === "real" ? Infinity : Math.max(260, Math.min(560, window.innerHeight * 0.62));
+  const f = Math.min(1, disponible / (anchoMm * MM), altoMax / (altoMm * MM));
+  marco.innerHTML = `<div class="etq-escala" style="width:${(anchoMm * MM * f).toFixed(1)}px;height:${(altoMm * MM * f).toFixed(1)}px">
+      <div class="etq-escala-in" style="transform:scale(${f.toFixed(4)})">${contenido}</div>
+    </div>`;
   _dibujarBarrasEtiquetas(marco, items);
-  // Achicar si la etiqueta no entra en el recuadro
-  const escala = marco.firstElementChild;
-  const anchoPx = cfg.w * 3.78 + 4, disponible = Math.max(120, marco.clientWidth - 16);
-  const f = Math.min(1, disponible / anchoPx);
-  escala.style.transform = f < 1 ? `scale(${f.toFixed(3)})` : "";
-  escala.style.transformOrigin = "top left";
-  escala.style.marginBottom = f < 1 ? `-${Math.round(escala.offsetHeight * (1 - f))}px` : "";
+  _ajustarEtiquetas(marco);
+  const nota = _etqModoPreview === "real"
+    ? (f < 1 ? `Achicada al ${Math.round(f * 100)}% para que entre en pantalla.` : "A tamaño real (puede variar según la pantalla).")
+    : (cfg.papel === "A4" ? `Hoja A4 al ${Math.round(f * 100)}%.` : `Rollo al ${Math.round(f * 100)}%.`);
+  marco.insertAdjacentHTML("beforeend", `<div class="etq-escala-nota">${nota}</div>`);
 }
 
 /**
@@ -12971,6 +13208,10 @@ function imprimirEtiquetas() {
   const clase = cfg.papel === "ROLLO" ? "etq-hoja etq-rollo" : "etq-hoja";
   printArea.innerHTML = `<div class="${clase}" style="gap:${cfg.separacion}mm">${html}</div>`;
   _dibujarBarrasEtiquetas(printArea, items);
+  // Para medir, el área de impresión se muestra un instante fuera de la vista
+  const estiloPrevio = printArea.getAttribute("style") || "";
+  printArea.setAttribute("style", "display:block !important; position:absolute; left:-10000px; top:0; width:210mm; visibility:hidden;");
+  try { _ajustarEtiquetas(printArea); } finally { printArea.setAttribute("style", estiloPrevio); if (!estiloPrevio) printArea.removeAttribute("style"); }
 
   cerrarModalEtiquetas();
   if (cfg.papel === "ROLLO") {
@@ -14725,7 +14966,13 @@ async function generarCodigoIngresoAutomatico() {
       buscarProductoParaIngreso();
     }
   } catch (e) {
-    toast("No se pudo generar el código", "error");
+    // Sin conexión: mismo formato que genera el servidor (PRD-tiempo-azar),
+    // revisando que no exista en el catálogo cargado.
+    const existentes = new Set((productosAdminGlobal || []).map(p => String(p.CODIGO).trim()));
+    let codigo;
+    do { codigo = "PRD-" + Date.now() + "-" + Math.floor(Math.random() * 900 + 100); } while (existentes.has(codigo));
+    document.getElementById("ipCodigoScan").value = codigo;
+    buscarProductoParaIngreso();
   }
 }
 
@@ -15815,26 +16062,17 @@ async function guardarBoletaCompleta() {
   btn.disabled = true;
   btn.innerHTML = "Guardando...";
 
+  const payload = _payloadBoletaIngreso({ proveedor, proveedorContacto, numeroBoleta, observaciones, fecha, origen, sinDeuda });
+
   try {
     const res = await fetchAPI(API_URL, {
       method: "POST",
-      body: JSON.stringify({
-        action: "registrarIngresoProducto",
-        rol: obtenerRolActual(),
-        usuario: (sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("vendedor") || "ADMIN"),
-        proveedor, proveedorContacto, numeroBoleta, observaciones, fecha,
-        origen, sinDeuda,
-        items: ipCarritoBoleta.map(it => ({
-          codigo: it.codigo, producto: it.producto, categoria: it.categoria,
-          moneda: it.moneda, precio: it.precio, tipoCambio: it.tipoCambio, precioARS: it.precioARS,
-          precioVenta: it.precioVenta, cantidad: it.cantidad
-        }))
-      })
+      body: JSON.stringify(Object.assign({ action: "registrarIngresoProducto" }, payload))
     });
     const data = await res.json();
 
     if (!data.success) {
-      toast(data.message || "No se pudo guardar la boleta", "error");
+      toast(data.message || data.error || "No se pudo guardar la boleta", "error");
       return;
     }
 
@@ -15843,22 +16081,54 @@ async function guardarBoletaCompleta() {
       : `Boleta guardada — ${ipCarritoBoleta.length} producto(s), total $${Number(data.totalBoleta || 0).toLocaleString("es-AR")}`, "success");
 
     try { localStorage.removeItem("vpos_cache_productosAdmin"); } catch(e) {}
-    ipCarritoBoleta = [];
-    renderCarritoBoleta();
-    document.getElementById("ipbOrigen").value = "PROVEEDOR";
-    onCambioOrigenBoleta();
-    document.getElementById("ipbNumeroBoleta").value = "";
-    document.getElementById("ipbObservaciones").value = "";
+    _limpiarBoletaIngreso();
     await cargarProductos();
     await cargarHistorialIngresos();
 
   } catch (error) {
     console.error("Error al guardar la boleta:", error);
+    // App de escritorio: si se cortó la conexión, la boleta queda en la cola
+    // con la misma clave, así no se duplica si el servidor llegó a guardarla.
+    if (typeof window.encolarBoletaIngresoOffline === "function") {
+      const ok = await window.encolarBoletaIngresoOffline(payload);
+      if (ok) return;
+    }
     toast("Error de conexión al guardar la boleta", "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
   }
+}
+
+/** Arma lo que se manda al backend para registrar la boleta. La clave
+ *  idOperacionSync es la misma mientras no se vacíe la boleta: un
+ *  reintento (o la cola offline) no vuelve a sumar el stock. */
+let _ipClaveBoleta = null;
+function _payloadBoletaIngreso(cab) {
+  if (!_ipClaveBoleta) _ipClaveBoleta = "ING-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000);
+  return {
+    idOperacionSync: _ipClaveBoleta,
+    rol: obtenerRolActual(),
+    usuario: (sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("vendedor") || "ADMIN"),
+    proveedor: cab.proveedor, proveedorContacto: cab.proveedorContacto, numeroBoleta: cab.numeroBoleta,
+    observaciones: cab.observaciones, fecha: cab.fecha, origen: cab.origen, sinDeuda: cab.sinDeuda,
+    items: ipCarritoBoleta.map(it => ({
+      codigo: it.codigo, producto: it.producto, categoria: it.categoria,
+      moneda: it.moneda, precio: it.precio, tipoCambio: it.tipoCambio, precioARS: it.precioARS,
+      precioVenta: it.precioVenta, cantidad: it.cantidad
+    }))
+  };
+}
+
+/** Deja el formulario de boleta vacío después de guardarla (online u offline) */
+function _limpiarBoletaIngreso() {
+  _ipClaveBoleta = null;
+  ipCarritoBoleta = [];
+  renderCarritoBoleta();
+  document.getElementById("ipbOrigen").value = "PROVEEDOR";
+  onCambioOrigenBoleta();
+  document.getElementById("ipbNumeroBoleta").value = "";
+  document.getElementById("ipbObservaciones").value = "";
 }
 
 /** Carga el listado de boletas de proveedor (una fila = una boleta, con total/pagado/saldo) desde el backend */
@@ -15868,10 +16138,22 @@ async function cargarHistorialIngresos() {
     const res = await fetchAPI(API_URL + "?action=boletasProveedores");
     const data = await res.json();
     ingresosProductosGlobal = data.boletas || [];
+    try { localStorage.setItem("vpos_cache_boletasProveedores", JSON.stringify(ingresosProductosGlobal)); } catch (e) {}
     poblarDatalistProveedoresIngreso();
     filtrarHistorialIngresos();
   } catch (error) {
     console.error("Error al cargar boletas de proveedores:", error);
+    // Sin conexión: se muestra el último historial descargado (los proveedores
+    // también quedan para autocompletar la boleta nueva).
+    let copia = null;
+    try { copia = JSON.parse(localStorage.getItem("vpos_cache_boletasProveedores") || "null"); } catch (e) {}
+    if (Array.isArray(copia)) {
+      ingresosProductosGlobal = copia;
+      poblarDatalistProveedoresIngreso();
+      filtrarHistorialIngresos();
+      toast("Sin conexión: se muestra el último historial de boletas guardado", "info");
+      return;
+    }
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Error al cargar el historial</td></tr>`;
   }
 }

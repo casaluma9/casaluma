@@ -2689,14 +2689,31 @@ a[data-target="pedidos"]{ position:relative; }
 .etq-checks label{ display:flex; gap:6px; align-items:center; margin:0; cursor:pointer; }
 @media (max-width:480px){ .etq-checks{ grid-template-columns:1fr; } }
 .etq-vista{ position:sticky; top:0; align-self:start; }
-.etq-preview-marco{ background:repeating-conic-gradient(#f1f5f9 0 25%, #fff 0 50%) 0 0/16px 16px; border:1px solid var(--slate-200); border-radius:10px; padding:8px; overflow:hidden; min-height:120px; margin-bottom:8px; }
-.etq-preview-escala{ display:flex; flex-wrap:wrap; width:max-content; max-width:none; }
+.etq-preview-marco{ background:var(--slate-100,#f1f5f9); border:1px solid var(--slate-200); border-radius:10px; padding:8px; overflow:hidden; min-height:120px; margin-bottom:8px; }
+.etq-vista-cab{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.etq-modo{ display:inline-flex; border:1px solid var(--slate-200); border-radius:8px; overflow:hidden; }
+.etq-modo button{ border:0; background:transparent; font-size:12px; padding:4px 10px; cursor:pointer; color:var(--slate-600,#475569); }
+.etq-modo button + button{ border-left:1px solid var(--slate-200); }
+.etq-modo button.activo{ background:var(--slate-800,#1e293b); color:#fff; }
+.etq-escala{ position:relative; margin:0 auto; }
+.etq-escala-in{ position:absolute; top:0; left:0; transform-origin:top left; }
+.etq-escala-nota{ text-align:center; font-size:11px; color:var(--slate-500); margin-top:6px; }
+.etq-hoja-a4{ box-sizing:border-box; background:#fff; box-shadow:0 1px 3px rgba(15,23,42,.18), 0 8px 24px rgba(15,23,42,.10); overflow:hidden; }
+.etq-hoja-a4 .etq-hoja{ width:100%; }
+.etq-rollo-preview{ box-sizing:border-box; display:flex; flex-direction:column; align-items:center; background:#e9e4d8; border-radius:2mm; box-shadow:inset 0 0 0 0.3mm rgba(0,0,0,.08); }
+.etq-rollo-preview .etq{ border-radius:1mm !important; box-shadow:0 0.3mm 0.8mm rgba(0,0,0,.15); }
+.etq-paginas{ display:flex; align-items:center; justify-content:center; gap:10px; font-size:12.5px; margin:-2px 0 8px; }
 
 /* La etiqueta (pantalla e impresión) */
-.etq{ box-sizing:border-box; background:#fff; color:#000; font-family:Arial, Helvetica, sans-serif; display:flex; flex-direction:column; justify-content:center; gap:0.6mm; overflow:hidden; break-inside:avoid; page-break-inside:avoid; border-radius:1.5mm; }
+/* Centrado "seguro": si el contenido no entra, lo que sobra queda abajo
+   (nunca se corta la primera línea). Además _ajustarEtiquetas() achica
+   el código de barras y las letras hasta que entre todo. */
+.etq{ box-sizing:border-box; background:#fff; color:#000; font-family:Arial, Helvetica, sans-serif; display:flex; flex-direction:column; justify-content:flex-start; gap:0.6mm; overflow:hidden; break-inside:avoid; page-break-inside:avoid; border-radius:1.5mm; }
+.etq > :first-child{ margin-top:auto; }
+.etq > :last-child{ margin-bottom:auto; }
 .etq > *{ max-width:100%; flex-shrink:0; }
 .etq-negocio{ font-weight:700; text-transform:uppercase; letter-spacing:.04em; line-height:1.1; }
-.etq-nombre{ line-height:1.12; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+.etq-nombre{ line-height:1.18; padding-top:0.05em; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
 .etq-chico{ line-height:1.15; color:#222; }
 .etq-codigo{ letter-spacing:.06em; color:#333; }
 .etq-extra{ font-weight:800; text-transform:uppercase; line-height:1.1; }
@@ -2711,3 +2728,21 @@ a[data-target="pedidos"]{ position:relative; }
 @media print{
   .etq-precio.resaltado{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
+
+/* ===== Tema de temporada (Configuración → Catálogo web) ===== */
+.temp-grilla{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+.temp-opcion{ border:2px solid var(--slate-200); border-radius:12px; padding:6px; background:#fff; text-align:left; cursor:pointer; transition:border-color .15s, transform .15s, box-shadow .15s; display:flex; flex-direction:column; gap:6px; }
+.temp-opcion:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(15,23,42,.08); }
+.temp-opcion.activa{ border-color:var(--blue-500); box-shadow:0 0 0 3px color-mix(in srgb, var(--blue-500) 22%, transparent); }
+.temp-nombre{ font-size:12.5px; font-weight:600; padding:0 2px 2px; }
+.temp-muestra{ position:relative; height:74px; border-radius:8px; overflow:hidden; }
+.temp-muestra--ninguno{ display:grid; place-items:center; font-size:12px; color:var(--slate-500); background:repeating-linear-gradient(45deg, var(--slate-50,#f8fafc) 0 8px, #fff 8px 16px); border:1px dashed var(--slate-200); }
+.temp-muestra-adorno{ position:absolute; top:16px; left:0; right:0; height:16px; background-repeat:repeat-x; z-index:2; }
+.temp-muestra-papel{ position:absolute; left:0; right:0; bottom:0; height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 8px; }
+.temp-muestra-btn{ color:#fff; font-size:10px; font-weight:700; border-radius:6px; padding:3px 8px; }
+.temp-muestra-icono{ font-size:16px; background:rgba(255,255,255,.9); border-radius:50%; width:24px; height:24px; display:grid; place-items:center; }
+.temp-estado{ font-size:12px; font-weight:600; border-radius:999px; padding:3px 10px; background:var(--slate-100); color:var(--slate-600,#475569); white-space:nowrap; }
+.temp-estado.activo{ background:color-mix(in srgb, #22c55e 15%, #fff); color:#15803d; }
+.temp-estado.programado{ background:color-mix(in srgb, var(--blue-500) 12%, #fff); color:var(--blue-500); }
+.temp-estado.vencido, .temp-estado.error{ background:#fef2f2; color:#b91c1c; }
+.sidebar-temporada{ margin-left:6px; font-size:16px; }
