@@ -7,12 +7,6 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2005376579790-caramelera-calabaza/</loc>
-    <lastmod>2026-10-24</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/6682921647737-caramelera-caldero/</loc>
     <lastmod>2026-10-24</lastmod>
     <changefreq>weekly</changefreq>
@@ -1777,12 +1771,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/2006149669748-pelota-antiestres/</loc>
-    <lastmod>2026-10-24</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/2005759707048-pelota-basquet-n7/</loc>
     <lastmod>2026-10-24</lastmod>
     <changefreq>weekly</changefreq>
@@ -2917,6 +2905,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7798025250397-rolling-encastre-caminador/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7450077117775-monopatin-spiderman/</loc>
     <lastmod>2026-10-24</lastmod>
     <changefreq>weekly</changefreq>
@@ -3140,6 +3134,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/1780998104209-botella-sport-c-disenos-750ml/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7826328620729-vaso-termico-hoppy-850ml/</loc>
     <lastmod>2026-10-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -4028,6 +4028,30 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/1792771265264-385-disfras-chuky-nena-talle-2-3-edad-5-a-8/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792858332552-305-monopatin-princesa/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792859289478-708-vincha-cuernos/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792865607801-968-bandera-papa-leon/</loc>
+    <lastmod>2026-10-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792866349325-120-bandera-papa-leon-chico/</loc>
     <lastmod>2026-10-24</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
