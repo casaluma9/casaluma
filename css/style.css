@@ -613,6 +613,17 @@ select:focus-visible{
     }
 }
 
+/* En escritorio, Ordenar y Precio van en una sola fila (en el celular siguen
+   plegados detrás del botón "Ordenar y filtrar" y apilados). */
+@media (min-width:769px){
+    .filtros-extra{
+        display:flex;
+        flex-wrap:wrap;
+        align-items:center;
+        gap:0 28px;
+    }
+}
+
 /* =========================================================
    RESULTADOS / EMPTY STATE
 ========================================================= */
@@ -1996,6 +2007,116 @@ body.modal-open .toast-container{
     align-items:center;
 }
 
+/* =========================================================
+   BARRA LATERAL DE CATEGORÍAS — siempre visible a la izquierda
+   (escritorio y celular). El contenido de la página se corre a la
+   derecha con padding-left en el body.
+========================================================= */
+:root{ --sidebar-w:210px; }
+
+/* Layout de dos columnas debajo del banner */
+.catalogo-layout{
+    display:flex;
+    align-items:flex-start;
+    gap:0;
+    margin-top:8px;
+}
+.catalogo-main{
+    flex:1 1 0;
+    min-width:0;
+}
+.catalogo-main > .container{
+    max-width:100%;
+}
+
+/* Pegajosa: queda fija a la vista mientras se recorre el catálogo,
+   siempre por debajo del navbar y las franjas superiores */
+.sidebar-categorias{
+    position:sticky;
+    flex:0 0 var(--sidebar-w);
+    width:var(--sidebar-w);
+    top:calc(var(--navbar-h) + var(--top-banner-h) + var(--minimo-bar-h));
+    height:calc(100vh - var(--navbar-h) - var(--top-banner-h) - var(--minimo-bar-h));
+    z-index:10;
+    background:#fff;
+    border-right:1px solid var(--paper-line);
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding:14px 10px 24px;
+    scrollbar-width:thin;
+}
+.sidebar-categorias::-webkit-scrollbar{ width:5px; }
+.sidebar-categorias::-webkit-scrollbar-thumb{ background:#dcd7c8; border-radius:10px; }
+
+.sidebar-titulo{
+    font-family:var(--font-display);
+    font-size:.74rem;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-600);
+    margin:0 6px 10px;
+}
+
+/* Los chips pasan a ser una lista vertical */
+.sidebar-categorias .chip-scroll{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    overflow:visible;
+    padding:0;
+}
+.sidebar-categorias .chip{
+    width:100%;
+    text-align:left;
+    white-space:normal;
+    line-height:1.25;
+    border-radius:10px;
+    padding:9px 12px 9px 24px;
+}
+
+/* Modo celular: barra angosta, siempre a la vista */
+@media (max-width:768px){
+    :root{ --sidebar-w:84px; }
+
+    .sidebar-categorias{
+        padding:8px 5px calc(var(--mobile-cart-bar-h) + 16px);
+    }
+    .sidebar-titulo{ display:none; }
+    .sidebar-categorias .chip-scroll{ gap:5px; }
+    .sidebar-categorias .chip{
+        padding:8px 4px;
+        font-size:.68rem;
+        text-align:center;
+        border-radius:9px;
+        overflow-wrap:anywhere;
+        hyphens:auto;
+    }
+    .sidebar-categorias .chip::before{ display:none; }
+
+    /* Más espacio para la grilla de productos al lado de la barra */
+    .catalogo-main > .container{
+        padding-left:10px;
+        padding-right:10px;
+    }
+
+    /* Los botones flotantes pasan a la derecha para no tapar la barra */
+    .whatsapp-float-text{ left:auto; right:14px; }
+    .scroll-top-btn{ bottom:calc(var(--mobile-cart-bar-h) + 78px); right:18px; }
+
+    /* Deja lugar abajo para la barra del carrito */
+    .sidebar-categorias{
+        height:calc(100vh - var(--navbar-h) - var(--top-banner-h) - var(--minimo-bar-h) - var(--mobile-cart-bar-h));
+    }
+}
+
+/* Escritorio: el botón de WhatsApp a la derecha para no tapar la barra */
+@media (min-width:769px){
+    .whatsapp-float-text{ left:auto; right:25px; }
+}
+
 /* Paginación del catálogo: "Mostrando X de Y" + Ver más */
 .cargar-mas{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1rem 0 2rem}
 .cargar-mas-txt{font-size:.85rem;color:#6c757d}
@@ -2075,3 +2196,115 @@ body[data-temporada] .top-banner{ background:linear-gradient(90deg, var(--navy-9
 .pr-secundarios{ display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:6px; }
 .pr-secundarios .btn-link{ font-size:14px; text-decoration:none; }
 .pr-nota{ font-size:12.5px; color:#64748b; margin:6px 0 0; }
+
+
+/* =========================================================
+   REDES Y CONTACTO — botones con el color y el logo de cada red
+   (el data-red lo pone index.html en los enlaces fijos y
+   renderBeneficioTextoLibre() en app.js según el dominio del link)
+========================================================= */
+
+#beneficios-row{
+    justify-content:center;
+    align-items:center;
+    --bs-gutter-x:.5rem;
+    --bs-gutter-y:.6rem;
+}
+#beneficios-row > [class*="col-"]{
+    flex:0 0 auto;
+    width:auto;
+    max-width:100%;
+}
+
+.beneficios .beneficio-item{
+    font-size:.95rem;
+    line-height:1.3;
+}
+
+.beneficios .beneficio-link{
+    --red-color:var(--indigo-600);
+    display:inline-flex;
+    align-items:center;
+    gap:9px;
+    padding:6px 16px 6px 7px;
+    background:#fff;
+    border:1.5px solid var(--paper-line);
+    border-radius:var(--radius-pill);
+    color:var(--ink-900);
+    font-weight:700;
+    text-align:left;
+    transition:border-color .15s, box-shadow .15s, transform .15s;
+}
+.beneficios .beneficio-link:hover,
+.beneficios .beneficio-link:focus-visible{
+    color:var(--ink-900);
+    border-color:var(--red-color);
+    box-shadow:0 3px 10px color-mix(in srgb, var(--red-color) 28%, transparent);
+    transform:translateY(-1px);
+}
+.beneficios .beneficio-link:focus-visible{
+    outline:2px solid var(--red-color);
+    outline-offset:2px;
+}
+
+/* El logo va en blanco sobre un círculo del color de la red */
+.beneficios .beneficio-link .bi-icon{
+    flex:0 0 auto;
+    box-sizing:border-box;
+    width:2em;
+    height:2em;
+    padding:.48em;
+    border-radius:50%;
+    background:var(--red-color);
+    fill:#fff;
+    vertical-align:middle;
+}
+
+.beneficios .beneficio-link[data-red="instagram"]{ --red-color:#e1306c; }
+.beneficios .beneficio-link[data-red="instagram"] .bi-icon{
+    background:radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%);
+}
+.beneficios .beneficio-link[data-red="tiktok"]{ --red-color:#111; }
+.beneficios .beneficio-link[data-red="facebook"]{ --red-color:#1877f2; }
+.beneficios .beneficio-link[data-red="whatsapp"]{ --red-color:#25d366; }
+.beneficios .beneficio-link[data-red="youtube"]{ --red-color:#f00; }
+.beneficios .beneficio-link[data-red="twitter-x"]{ --red-color:#111; }
+.beneficios .beneficio-link[data-red="linkedin"]{ --red-color:#0a66c2; }
+.beneficios .beneficio-link[data-red="telegram"]{ --red-color:#229ed9; }
+.beneficios .beneficio-link[data-red="mapa"]{ --red-color:#ea4335; }
+
+@media (max-width:768px){
+    .beneficios{ padding:12px 0 2px; }
+    .beneficios .beneficio-item{ font-size:.88rem; }
+
+    /* Celular: solo el logo en un círculo (una sola fila). El nombre queda
+       oculto a la vista pero disponible para lectores de pantalla. */
+    #beneficios-row{
+        flex-wrap:wrap;
+        --bs-gutter-x:.3rem;
+        --bs-gutter-y:.4rem;
+    }
+    .beneficios .beneficio-link{
+        padding:4px;
+        gap:0;
+        border-width:1.5px;
+    }
+    .beneficios .beneficio-link > span{
+        position:absolute;
+        width:1px; height:1px;
+        margin:-1px; padding:0;
+        overflow:hidden;
+        clip:rect(0 0 0 0);
+        white-space:nowrap;
+        border:0;
+    }
+    .beneficios .beneficio-link .bi-icon{
+        width:2.3em;
+        height:2.3em;
+        padding:.55em;
+    }
+}
+@media (prefers-reduced-motion:reduce){
+    .beneficios .beneficio-link{ transition:none; }
+    .beneficios .beneficio-link:hover{ transform:none; }
+}

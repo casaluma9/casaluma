@@ -3368,6 +3368,67 @@ async function _leerRespuestaJSON(response) {
   }
 }
 
+/* ---- Corregir el stock de pedidos viejos (Configuración → Pedidos) ---- */
+let _repStockUltimaRevision = null; // { desde } de la última revisión, para aplicar exactamente eso
+
+async function repararStockPedidos(aplicar) {
+  const out = document.getElementById("repStockResultado");
+  const btnAplicar = document.getElementById("btnRepStockAplicar");
+  const desde = (document.getElementById("repStockDesde") || {}).value || "";
+  if (aplicar && (!_repStockUltimaRevision || _repStockUltimaRevision.desde !== desde)) {
+    toast("Primero tocá Revisar con esa misma fecha", "error");
+    return;
+  }
+
+  const ejecutar = async () => {
+    out.innerHTML = '<span class="text-muted">Revisando…</span>';
+    if (btnAplicar) btnAplicar.style.display = "none";
+    try {
+      const response = await fetchAPI(
+        API_URL + "?action=repararStockPedidos&aplicar=" + (aplicar ? "SI" : "NO") + "&desde=" + encodeURIComponent(desde),
+        {}, { timeoutMs: 60000 }
+      );
+      const d = await _leerRespuestaJSON(response);
+      if (!d.success) { out.innerHTML = `<span class="text-danger">${escapeHtml(d.message || "No se pudo revisar")}</span>`; return; }
+
+      const n = d.pedidos.length;
+      let html = "";
+      if (n === 0) {
+        html = '<span class="text-success">✓ No hay pedidos para corregir.</span>';
+        if (d.sinDetalle && d.sinDetalle.length) html += `<div class="text-muted mt-1">Pedidos sin productos cargados (se ignoran): ${d.sinDetalle.map(escapeHtml).join(", ")}</div>`;
+        _repStockUltimaRevision = null;
+      } else {
+        html += aplicar
+          ? `<div class="text-success fw-bold mb-2">✓ Listo: se corrigieron ${n} pedido(s).</div>`
+          : `<div class="fw-bold mb-2">${n} pedido(s) sin stock descontado. Esto restaría del stock:</div>`;
+        html += '<div class="table-responsive"><table class="table table-sm mb-2" style="font-size:12.5px;"><thead><tr><th>Producto</th><th class="text-end">Stock actual</th><th class="text-end">A descontar</th><th class="text-end">Quedaría</th></tr></thead><tbody>' +
+          d.productos.map(x => `<tr><td>${escapeHtml(x.producto || x.codigo)}<div class="text-muted mono" style="font-size:11px;">${escapeHtml(x.codigo)}</div></td><td class="text-end">${x.stockActual}</td><td class="text-end">−${x.aDescontar}</td><td class="text-end ${x.stockResultante < 0 ? "text-danger fw-bold" : ""}">${x.stockResultante}</td></tr>`).join("") +
+          '</tbody></table></div>';
+        html += `<details class="mb-2"><summary>Ver los ${n} pedido(s)</summary><div class="mt-1">${d.pedidos.map(x => `#${escapeHtml(x.pedidoId)} · ${escapeHtml(x.fecha)} · ${escapeHtml(x.cliente)} · ${escapeHtml(x.estado)}`).join("<br>")}</div></details>`;
+        if (d.codigosInexistentes && d.codigosInexistentes.length) html += `<div class="text-warning mb-1">Productos que ya no existen (no se tocan): ${d.codigosInexistentes.map(escapeHtml).join(", ")}</div>`;
+        if (d.sinDetalle && d.sinDetalle.length) html += `<div class="text-muted mb-1">Pedidos sin productos cargados (se ignoran): ${d.sinDetalle.map(escapeHtml).join(", ")}</div>`;
+        if (!aplicar) {
+          html += '<div class="text-muted">Si los números son correctos, tocá <b>Aplicar corrección</b>. Se puede repetir sin riesgo: los pedidos corregidos no vuelven a aparecer.</div>';
+          _repStockUltimaRevision = { desde };
+          if (btnAplicar) btnAplicar.style.display = "";
+        } else {
+          _repStockUltimaRevision = null;
+          if (typeof cargarProductos === "function") cargarProductos();
+        }
+      }
+      out.innerHTML = html;
+    } catch (error) {
+      out.innerHTML = `<span class="text-danger">${escapeHtml(error.message || "Error de conexión")}</span>`;
+    }
+  };
+
+  if (aplicar) {
+    confirmarAccion("¿Descontar del stock los pedidos de la lista? Se puede repetir sin riesgo, pero conviene haber revisado los números.", ejecutar, "Corregir stock de pedidos");
+  } else {
+    await ejecutar();
+  }
+}
+
 async function cambiarEstado(pedidoId, estado, el) {
   pedidoId = String(pedidoId); // los números nuevos (1001…) pueden llegar como número
   if (_pedidosEnProceso.has(pedidoId)) return;
@@ -7820,6 +7881,22 @@ async function actualizarCatalogoPOSManual() {
   toast("Catálogo actualizado", "success");
 }
 
+/**
+ * Descuenta el stock de una venta en las DOS listas en memoria (POS y
+ * sección Productos). Sin tope en 0: si se vendió sin stock cargado, el
+ * stock real queda negativo y tiene que verse igual en ambos lados.
+ */
+function _descontarStockEnListasEnMemoria(items) {
+  (items || []).forEach(item => {
+    [productosPOS, productosAdminGlobal].forEach(lista => {
+      const p = (lista || []).find(x => String(x.CODIGO) === String(item.CODIGO));
+      if (p && p.STOCK !== undefined) p.STOCK = Number(p.STOCK || 0) - Number(item.cantidad || 0);
+    });
+  });
+  const sec = document.getElementById("productos");
+  if (sec && sec.style.display === "block" && typeof filtrarProductos === "function") filtrarProductos();
+}
+
 async function asegurarProductosPOS() {
   if (productosPOS.length > 0) return;
 
@@ -8214,6 +8291,28 @@ function cerrarEdicionRapidaPOS() {
   _codigoEdicionRapidaPOS = null;
 }
 
+/**
+ * Después de una edición rápida desde el POS, copia los datos a la lista
+ * en memoria de la sección Productos (productosAdminGlobal) y la marca
+ * como vencida. Antes solo se actualizaba la lista del POS, y además se
+ * invalidaba la clave "productosAdmin" cuando la sección Productos usa la
+ * clave "productos": por eso seguía mostrando el stock viejo.
+ */
+function _reflejarEdicionRapidaEnProductos(codigoOriginal, producto) {
+  const a = (productosAdminGlobal || []).find(x => String(x.CODIGO).trim() === String(codigoOriginal).trim());
+  if (a) {
+    a.CODIGO = producto.CODIGO;
+    a.PRECIO = producto.PRECIO;
+    a.STOCK = producto.STOCK;
+    if (producto.ALIAS !== undefined) a.ALIAS = producto.ALIAS;
+    a._textoBusquedaPOS = undefined;
+    a._palabrasBusquedaPOS = undefined;
+  }
+  try { invalidarCache("productosAdmin", "productos"); } catch (e) {}
+  const sec = document.getElementById("productos");
+  if (sec && sec.style.display === "block" && typeof filtrarProductos === "function") filtrarProductos();
+}
+
 async function guardarEdicionRapidaPOS() {
   const codigoOriginal = _codigoEdicionRapidaPOS;
   if (!codigoOriginal) return;
@@ -8281,6 +8380,7 @@ async function guardarEdicionRapidaPOS() {
     producto.PRECIO = Number(precio);
     producto.STOCK = Number(stock);
     producto.ALIAS = alias;
+    _reflejarEdicionRapidaEnProductos(codigoOriginal, producto);
     // El código o el alias pueden haber cambiado: invalidar el texto
     // de búsqueda cacheado para que no quede buscando por el dato viejo.
     producto._textoBusquedaPOS = undefined;
@@ -8296,7 +8396,6 @@ async function guardarEdicionRapidaPOS() {
 
     toast("Producto actualizado", "success");
     cerrarEdicionRapidaPOS();
-    invalidarCache("productosAdmin");
 
   } catch (error) {
     console.error("Error en edición rápida de producto:", error);
@@ -8996,10 +9095,7 @@ async function confirmarFinalizarVenta() {
   posTileFocusIdx = -1;
 
   // Actualizar stock optimistamente en el grid
-  itemsSnapshot.forEach(item => {
-    const p = productosPOS.find(x => String(x.CODIGO) === String(item.CODIGO));
-    if (p && p.STOCK !== undefined) p.STOCK = Math.max(0, Number(p.STOCK) - item.cantidad);
-  });
+  _descontarStockEnListasEnMemoria(itemsSnapshot);
   renderPosGrid();
 
   const btn = document.getElementById("btnFinalizarVenta");
@@ -10687,8 +10783,56 @@ let camaraStream = null;
 let camaraDetectorTimer = null;   // usado por la rama BarcodeDetector nativo
 let zxingReader = null;           // usado por la rama fallback ZXing
 let camaraScanActivo = false;     // evita agregar el mismo código dos veces al cerrar
+let camaraScanAlLeer = null;      // qué hacer con el código leído (null = agregar al ticket del POS)
 
-async function abrirCamaraScan() {
+/** ¿Es un celular/tablet? Pantalla táctil y sin mouse, o táctil y angosta. */
+function esDispositivoMovil() {
+  const tactil = (navigator.maxTouchPoints || 0) > 0;
+  const sinMouse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const angosta = window.innerWidth <= 900;
+  return tactil && (sinMouse || angosta);
+}
+
+/** Marca el <body> con "es-movil" para mostrar los botones 📷 (.btn-escanear-movil) */
+function actualizarModoMovil() {
+  document.body.classList.toggle("es-movil", esDispositivoMovil());
+}
+document.addEventListener("DOMContentLoaded", actualizarModoMovil);
+window.addEventListener("resize", actualizarModoMovil);
+window.addEventListener("orientationchange", actualizarModoMovil);
+
+/**
+ * Abre la cámara y pone el código leído en el campo `inputId`
+ * (disparando "change" para que corran las validaciones del campo).
+ * `despues(codigo)` es opcional: se llama una vez cargado el campo.
+ */
+function escanearHacia(inputId, despues) {
+  abrirCamaraScan((codigo) => {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.value = codigo;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    if (typeof despues === "function") despues(codigo);
+    else if (input) input.focus();
+  });
+}
+
+/** Un código leído por la cámara: cierra el visor y lo entrega a quien lo pidió */
+function alLeerCodigoCamara(valor) {
+  const codigo = String(valor || "").trim();
+  if (!codigo || !camaraScanActivo) return;
+  const destino = camaraScanAlLeer;
+  cerrarCamaraScan();
+  try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* noop */ }
+  if (destino) destino(codigo);
+  else agregarProductoPorCodigo(codigo);
+}
+
+async function abrirCamaraScan(alLeer) {
+  // el onclick del POS no pasa nada; ignoramos cualquier cosa que no sea una función
+  camaraScanAlLeer = (typeof alLeer === "function") ? alLeer : null;
   const backdrop  = document.getElementById("scanModalBackdrop");
   const videoWrap = document.getElementById("scanVideoWrap");
   const video     = document.getElementById("scanVideo");
@@ -10710,7 +10854,7 @@ async function abrirCamaraScan() {
 
   try {
     camaraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
     });
     video.srcObject = camaraStream;
@@ -10751,9 +10895,7 @@ function iniciarDeteccionNativa(video) {
     try {
       const codigos = await detector.detect(video);
       if (codigos.length > 0) {
-        const valor = codigos[0].rawValue;
-        cerrarCamaraScan();
-        agregarProductoPorCodigo(valor);
+        alLeerCodigoCamara(codigos[0].rawValue);
       }
     } catch (err) { /* frame errors expected */ }
   }, 350);
@@ -10789,9 +10931,7 @@ async function iniciarDeteccionZXing(video) {
     // callback en cada frame; seguimos escaneando hasta encontrar un match.
     zxingReader.decodeFromVideoElementContinuously(video, (result, err) => {
       if (result && camaraScanActivo) {
-        const valor = result.getText ? result.getText() : result.text;
-        cerrarCamaraScan();
-        agregarProductoPorCodigo(valor);
+        alLeerCodigoCamara(result.getText ? result.getText() : result.text);
       }
       // NotFoundException se dispara en casi todos los frames sin código
       // visible: es esperable, no un error real.
@@ -10810,6 +10950,7 @@ function cerrarCamaraScan() {
   const backdrop = document.getElementById("scanModalBackdrop");
   backdrop.classList.remove("show");
   camaraScanActivo = false;
+  camaraScanAlLeer = null;
 
   if (camaraDetectorTimer) { clearInterval(camaraDetectorTimer); camaraDetectorTimer = null; }
   if (zxingReader) {
@@ -15178,10 +15319,7 @@ async function consultarCobroMercadoPagoPolling() {
         posTileFocusIdx = -1;
 
         // Stock optimista
-        itemsSnapshot.forEach(item => {
-          const p = productosPOS.find(x => String(x.CODIGO) === String(item.CODIGO));
-          if (p) p.STOCK = Math.max(0, Number(p.STOCK) - item.cantidad);
-        });
+        _descontarStockEnListasEnMemoria(itemsSnapshot);
         renderPosGrid();
 
         setTimeout(() => { cargarMetricas(); invalidarCache("ventasPOS"); }, 500);
