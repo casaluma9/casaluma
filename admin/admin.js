@@ -202,7 +202,7 @@ let ventasPOSGlobal = [];
 // problema: en una instalación recién copiada para un cliente nuevo
 // (sin config.json todavía, porque no pasó por el Instalador), esto
 // mandaba a login.html, que terminaba usando la URL de Apps Script
-// de otro cliente que venía por defecto en el código — pidiendo la
+// de Jireh que viene por defecto en el código — pidiendo la
 // contraseña de OTRA cuenta que el cliente nuevo ni siquiera tiene.
 // Ahora esa decisión se toma recién dentro de DOMContentLoaded, una
 // vez que ya se supo si esta instalación tiene config.json propio o no.
@@ -4701,7 +4701,7 @@ const REMITO_POS = {
   filasY0: 92.0, filasDy: 5.62, filasN: 13,
   cantX: 20.5, descX: 31.9, descW: 123
 };
-const REMITO_OFFSET_KEY = "veekpos_remito_offset";
+const REMITO_OFFSET_KEY = "jireh_remito_offset";
 
 function _remitoOffset() {
   try {
@@ -10126,7 +10126,7 @@ function buildThermalHTML(ventaId, items, total, formaPago, fecha, descuento, cf
    con el diálogo normal de Chrome, sin ningún cambio.
 =================================================================== */
 
-const USB_PRINT_PREF_KEY = "veekpos_usb_print_enabled";
+const USB_PRINT_PREF_KEY = "jireh_usb_print_enabled";
 const ANCHO_TICKET_USB = 42; // columnas para fuente normal en 80mm (12 cpl aprox.)
 
 // Inyecta un <style> con el @page correcto justo antes de imprimir.
