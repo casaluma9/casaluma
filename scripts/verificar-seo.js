@@ -229,10 +229,16 @@ function validarIndex() {
     const html = leer("index.html");
     const sinScripts = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
     const texto = decodificarEntidades(sinScripts.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
-    for (const t of ["Jireh Mayorista", "bazar", "regalería", "juguetes", "hogar", "al por mayor", "Av. Rivadavia 2555", "Once", "CABA", "Envíos a toda Argentina"]) {
+    // Textos que tienen que verse en la página: nombre y dirección salen de config.json
+    let cfgCliente = {};
+    try { cfgCliente = JSON.parse(leer("config.json")); } catch (e) {}
+    const dirCliente = String(cfgCliente.direccionComercial || cfgCliente.direccion || "").trim();
+    const calleCliente = dirCliente.split(",")[0].trim();
+    for (const t of [String(cfgCliente.empresa || "").trim(), "al por mayor", calleCliente, "Envíos a toda Argentina"].filter(Boolean)) {
         if (!texto.includes(t)) err(`index.html: falta el texto visible "${t}"`);
     }
-    if (/<[^>]*(display\s*:\s*none|hidden)[^>]*>[^<]*Rivadavia/i.test(html)) err("index.html: la dirección está en un elemento oculto");
+    const calleRe = calleCliente.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (calleRe && new RegExp("<[^>]*(display\\s*:\\s*none|hidden)[^>]*>[^<]*" + calleRe, "i").test(html)) err("index.html: la dirección está en un elemento oculto");
 
     const ini = html.indexOf("<!-- SEO-ENLACES:INICIO");
     const fin = html.indexOf("<!-- SEO-ENLACES:FIN -->");
