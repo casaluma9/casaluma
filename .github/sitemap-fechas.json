@@ -1,0 +1,3289 @@
+{
+ "_LEEME": "Lo usa generar-sitemap.js para que lastmod sea la fecha real del último cambio de cada página. No editar.",
+ "urls": {
+  "https://casaluma9.github.io/casaluma/": {
+   "huella": "5ab2cf4afb136118767d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/bazar/": {
+   "huella": "9ba7c4aa7cc96095174d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/bolsos-y-mochilas/": {
+   "huella": "242a124bba541f4379eb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/bombillas/": {
+   "huella": "5a997fb694d47754d9d8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/botellas/": {
+   "huella": "87e36cd801511fa4ae69",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/cotillon/": {
+   "huella": "44471ea9a858e9b4fcac",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/dia-de-la-madre/": {
+   "huella": "5b9895fe28987371f76a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/electronica/": {
+   "huella": "61f63f85f48151a9d374",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/halloween/": {
+   "huella": "3973b6606cbf6a240550",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/juego-de-mesa/": {
+   "huella": "b5c94bd3e164dc82ac43",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/jugueteria/": {
+   "huella": "5ad7f7680a3ae509b81d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/libreria/": {
+   "huella": "0fa9e2467d1fce6179f1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/mates/": {
+   "huella": "e193869461e7facc8226",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/navidad/": {
+   "huella": "93c3e11770785009b579",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/ofertas/": {
+   "huella": "12f86b426b6d02ef5028",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/regaleria/": {
+   "huella": "494b330abf7337006381",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/set-de-mate/": {
+   "huella": "7e880382df852c37c12b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/termicos/": {
+   "huella": "4980ea1f5321d6e4a143",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/verano/": {
+   "huella": "24013e21f6493aa53e6d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/categoria/yerberas/": {
+   "huella": "41193efc0205610947ea",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/devoluciones/": {
+   "huella": "3ca30b73027b2158053d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/%5DC12026040824019-rompecabeza-500-pcs/": {
+   "huella": "c87b32e94868a9b15e98",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/05022840148303-sonajero-x3/": {
+   "huella": "4567443bf68edd0acbde",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/05022849919423-pizarra-magica-neon/": {
+   "huella": "77a615c8c56cc5e99c5b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/06812943633782-termo-bola-1-2lt-diseno/": {
+   "huella": "7f3679dd626519bae8fc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1103-zapatilla-5-tomas-2mts/": {
+   "huella": "610cfc2f1631191bc0f7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1552642026126-auto-policia-en-bolsa/": {
+   "huella": "259cb62f64c02ec18d44",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998102755-botella-sport-750ml/": {
+   "huella": "831d883274fb47915448",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998103820-botella-sport-c-diseno-600ml/": {
+   "huella": "1ca471600c2ea80abe15",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998104148-botella-termica-con-diseno-650ml/": {
+   "huella": "90d608ed19cdbd98e35a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998104209-botella-sport-c-disenos-750ml/": {
+   "huella": "f23745a79eed7ce1ee3c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998504597-billetera-1-cierre-cod50459/": {
+   "huella": "4c0f624bebce83267847",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1780998509565-billetera-doble-cod50965/": {
+   "huella": "1fa30616f0cf799a7e08",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1787253331289-disfraz-infantil-batman/": {
+   "huella": "0e866cd6dc1b85da2652",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1789529578789-disfraz-infantil-bella/": {
+   "huella": "d866ab8bce608c312e3c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1790646797254-masa-magica-blister-de-30-pcs/": {
+   "huella": "146462790a32b3c4d6de",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1790646868042-masa-magica-blister-de-20-pcs/": {
+   "huella": "cfe0eaaac113817bda13",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1791409858648-mascara-disfraz-reloj-muneco-super-heroes/": {
+   "huella": "09a57d0f60f425db4f40",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1791465377917-bandeja-de-desayuno-gr-con-base/": {
+   "huella": "d12cd41179dcb3d5a486",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1791922019151-capa-halloween-grande/": {
+   "huella": "984c233f9dad43a7c8ca",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1792420534101-botella-deportiva-c-batidor-500-ml/": {
+   "huella": "cadb1811523811c250ae",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1792587043273-414-maquillaje-artistico-x1/": {
+   "huella": "5ad2f552fe4a620f9415",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1792678472241-497-aranas-halloween/": {
+   "huella": "6e8b0a0e87888a675d20",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/1793027893488764-maquillaje-artistico-fluor/": {
+   "huella": "85de18075871c76a4e30",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000080534851-vaso-gliter-c-sorbete/": {
+   "huella": "dc9c2d240b4c8cb7967d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000161422329-avion-dron/": {
+   "huella": "e29b1abf0bee34c5dcb7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000200531876-lunchera-termica/": {
+   "huella": "b2a26deee8fb9e25e949",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000335538252-bombilla-acero-pico-loro-chata/": {
+   "huella": "f64acbde66f50275c6bc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000378615620-pizarra-magica-la-bubu/": {
+   "huella": "2b46506b0d9a82ab95c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000420764337-juego-de-ajedrez-17x17-cm/": {
+   "huella": "10d2f0c2e39884c94de0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000556847140-set-limpieza-c-balde/": {
+   "huella": "552f666dc8176327678e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000619156196-chop-de-vidrio-negro-cuadros/": {
+   "huella": "5535444b0e787e995968",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000812067183-mate-tipo-pampa-engomado/": {
+   "huella": "968acda25a52900708ca",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000857000947-yerbera-y-azcucarera-plastico/": {
+   "huella": "f9a42440355929cd3a31",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2000938641274-mate-termico-c-tapa-y-bombilla/": {
+   "huella": "51473531d136c7000403",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001012085045-kit-bandeja-taza-y-azucarera-mama/": {
+   "huella": "e20a33e303239db7f38a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001192297788-vaso-infantil-c-sorbete/": {
+   "huella": "d482043445d13cb52252",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001231278037-chau-lata-marwal/": {
+   "huella": "52a3885761b48873e8c2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001261474331-marcador-doble-punta-x120/": {
+   "huella": "50e5fbf1b9ba664e93f8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001269425472-guitarra-madera-60cm/": {
+   "huella": "69dc13787c0e7a2bda7b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001335788302-pelota-n5/": {
+   "huella": "21f177d467b996e5830d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001416183118-camioneta-hilux-metal-caja/": {
+   "huella": "4bf13d699a3f86df9e10",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001629746100-crybaby-sorpresa-en-caja/": {
+   "huella": "ba22117cebadb04d1c6a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001644788192-sorbete-de-metal-para-vaso-quencher/": {
+   "huella": "4c1b7db51b8ecc1250c1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2001935039736-cuadro-c-base-p-mama/": {
+   "huella": "1f02abc543e6df79af4d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2002832518713-bombilla-acero-pico-de-loro-c-tambor/": {
+   "huella": "189480f18a0a1633e25e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2002851945415-cajita-mama-10x15-fibrofacil/": {
+   "huella": "83d116d3aee8338d5444",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2002936695426-muneca-flaca-en-caja/": {
+   "huella": "d4820a888cdb1d5bb340",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003009818933-yenga-chico-33-pcs/": {
+   "huella": "75a75a39029492d1fc1c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003148933993-yenga-mediano-liso-45-pcs/": {
+   "huella": "df7d01d543f06b2895c6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003207309813-excavadoras-duravit-chico/": {
+   "huella": "3f566607fc0f9de34917",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003233144594-loteria-en-caja-x48-cartones/": {
+   "huella": "47791a3b6f247842ec4f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003241705411-juego-de-ludo-bolsa/": {
+   "huella": "19857375bce0553f4366",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003328912527-velador-capibara-doble-funcion-con-cable-usb/": {
+   "huella": "fe89f6a94611aa003718",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003460361085-pelota-boca-river-n5/": {
+   "huella": "29a2c14c5a0d88b4dac2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003494638849-frisbee-ninja-24x24-cm/": {
+   "huella": "e226f34fc32ed1f8eb3d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003678144869-carta-uno-personajes/": {
+   "huella": "7ee6cab8851e1157eda9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003751023173-cuadro-p-mama-12x17cm/": {
+   "huella": "a5c4fceb463c982e3093",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003792830907-set-mate-mama-c-bombilla/": {
+   "huella": "b5e6a4ef12c269aad06b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003805497189-set-mate-love-bolsa/": {
+   "huella": "7a71001a0f96bbe81698",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2003998614899-chop-de-vidrio-cordoba/": {
+   "huella": "4332d182cd2db9e3be5c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004003143557-mate-rombo/": {
+   "huella": "a15f426685382a37b89f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004187367671-auto-metal-11cm/": {
+   "huella": "ec7dc2774ed1957a510b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004307252719-marcador-doble-punta-x168/": {
+   "huella": "8eb8b910c04218957b64",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004327923224-bolitas-x21-meteorito/": {
+   "huella": "6c933a233ffd48776fa7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004576968236-yenga-c-dado-36-pcs/": {
+   "huella": "5c51ff5deb9c0b99e90e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004711143146-termo-media-manija-c-mate-1lt/": {
+   "huella": "2a2102a4f7dd24a3b117",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2004831257846-guitarra-madera-42cm/": {
+   "huella": "3a68c4fc2ffa3747a0f8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005085652845-mate-retro-mama-c-bombilla/": {
+   "huella": "e9b2a113d46b13a82394",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005226675207-mate-c-bombilla-boca-river/": {
+   "huella": "a7ac3ea7088107b54881",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005231134973-taka-taka-gr/": {
+   "huella": "38354d0db9406f9d6408",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005259407288-vaso-c-sorbete-argentina-450ml/": {
+   "huella": "4366b181469a5c75ecc3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005416357302-termo-c-mate-1-200ml/": {
+   "huella": "da5b1638adb5edb00556",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005470677309-combo-dia-de-la-madre-chopera-mate-c-bombilla-yerbera-azucarera-bandeja/": {
+   "huella": "8ef123132f1d2310cc91",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005588134961-slime-c-dinos/": {
+   "huella": "66adb76dca8e013ab673",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005623132570-juego-de-domino/": {
+   "huella": "c8a9623934e51cd972e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005774833937-bandeja-de-desayuno-p-mama-25x35/": {
+   "huella": "0c63ccc36f92ea69ce39",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2005889733306-cocina-100-cheff/": {
+   "huella": "b24885b5221d6d9e1ab1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006196943402-set-mate-mama-frases-bolsa/": {
+   "huella": "36ba1f05299157277f4f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006285115383-yerbera-y-azucarera-st/": {
+   "huella": "77ac23f4f4e2330bd966",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006295257257-mate-3d-caballo/": {
+   "huella": "8b48570743590b5def4a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006340307319-mate-imperio/": {
+   "huella": "088e4e8ed3ea3ea7c0e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006534940315-pelota-boca-river-420gr-n5/": {
+   "huella": "362ee54814ce2e1c0e41",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006579323005-cocina-gigante-duravit-89cm-alto/": {
+   "huella": "a678849bcb314ced64e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006612480153-bolso-porta-termo-liso/": {
+   "huella": "bde3941a1018a7c23742",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006654331383-mate-misionero/": {
+   "huella": "a95160768a312dd8e775",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006705071251-alcancia-c-masa-grande/": {
+   "huella": "d1974760bb08ae132075",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2006938020101-tazon-dia-de-la-madre/": {
+   "huella": "aad5fc5c56f0f8a14e96",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007196875366-megafono/": {
+   "huella": "4029475900a92da0f814",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007392696383-set-mate-mama-blanco-bolsa/": {
+   "huella": "7eac2bfc5c63a9eaf4cd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007694262354-yenga-c-frases-45-pcs/": {
+   "huella": "c10d7a996e0c8614dea5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007752217043-taza-negra-mama-dorado/": {
+   "huella": "832379cc0aa098674a95",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007770560442-pistola-balin-c-laser/": {
+   "huella": "0fb7663947abdee6aeff",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007872987406-auto-de-metal-a-friccion-c-sonido/": {
+   "huella": "937d7bb0a5eb2e0bb8f3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2007954754261-juego-de-damas-bolsa/": {
+   "huella": "54c18e508ace1043dffc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008097613682-yerbera-y-azucarera-boca-river/": {
+   "huella": "567fb6a1fa90ec102a9e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008132582010-pelota-n2/": {
+   "huella": "3d86ff216a6d0b7fa42a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008272397154-pelota-de-tenis-x3/": {
+   "huella": "f02b0e93ffb607183cb9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008318894760-cinta-ancha-fragil/": {
+   "huella": "43922f35c71fe373359c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008350507192-alcancia-lata-grande/": {
+   "huella": "1b29d46c4941385f4982",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008443651870-squishy-queso-raton/": {
+   "huella": "a81ba5d42b3bc052ad46",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008587242873-alcancia-c-masa-ch/": {
+   "huella": "8e614066dee62d86b72b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008619323945-juego-de-la-oca/": {
+   "huella": "b19c552ac2bb6e1fa2a9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008625724033-taza-ceramica-mug-mama/": {
+   "huella": "6db0d0e71db4109d2aa5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008673270032-bombonera-redonda-mama-fibrofacil/": {
+   "huella": "97f182a30aee9476f36c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008783440288-diamont/": {
+   "huella": "fab5809ac33bb56a3069",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008899465106-humificador-aromatizador-simil-madera/": {
+   "huella": "5f29b16fe0a5c9034914",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2008916179528-mate-imperial-de-calabaza-grande/": {
+   "huella": "7fb3e7f71bc6320c62be",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009252857491-mate-imperial-de-calabaza-chico/": {
+   "huella": "2f4ac94c1ac4fff58df7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009373915384-bandeja-corazon-c-taza-mama/": {
+   "huella": "198239e5573c5b175f5a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009637136258-bombilla-brasilera/": {
+   "huella": "8204c3710439d0ea8c96",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009652530512-bombilla-acero-bolsa/": {
+   "huella": "f44a9afcaf3bdc759a18",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009836583839-juego-de-mate-torre/": {
+   "huella": "67c07751d9394be82c02",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2009901659810-loteria-en-caja-x96-cartones/": {
+   "huella": "66263ddb3ca0e4267ad9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2024150452814-bateria-de-cocina-x4/": {
+   "huella": "1802f9667f0cffed43d4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524053-avion-c-luz-y-sonido/": {
+   "huella": "88f43f540f792760ddf2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524055-helicoptero-c-autos/": {
+   "huella": "024ae9390b0ce450e0be",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524056-avion-c-luz-y-sonido-23x14-cm/": {
+   "huella": "350e952a02ec669f83c5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524113-lanza-auto-tiburon/": {
+   "huella": "a3f7f3f62178db975fcb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524123-camioneta-4x4-a-control-remoto/": {
+   "huella": "e1ef07452902c594ce05",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025032524172-pistola-burbujero-transparente/": {
+   "huella": "7ba61a425f3fccccca6a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025040300601-patin-4-ruedas/": {
+   "huella": "c51770e2f2f89dc62b24",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025112041329-tupper-x4-de-vidrio-c-tapa-hermetica/": {
+   "huella": "3f8d9ae952bd7c47ca6d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025112041350-tupper-x4-de-vidrio-c-tapa-hermetica/": {
+   "huella": "1fc06f7423e65e8a0ec3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025112041398-set-de-3-bowl-de-vidrio-c-tapa-hermetica/": {
+   "huella": "42e6e5e20a311193b023",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025113755058-bowl-de-vidrio-ch-600-ml/": {
+   "huella": "726c4d9cd9ef4ee1cac1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025113755591-tupper-vidrio-c-tapa-bambu-rectangular/": {
+   "huella": "4a67171a47aa0ed48165",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025113755669-fuente-de-vidrio-ovalada-c-posa-fuente/": {
+   "huella": "32501e12e89c421dc1c4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025113755720-fuente-de-vidrio-c-base/": {
+   "huella": "af7339d949a9d19192ab",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025113755751-fuente-de-vidrio-c-base/": {
+   "huella": "e917e01f8b1aa4b4c33c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2025150452934-cacerola-4-2-lt-24cm/": {
+   "huella": "35bbb5014330639f786f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026010824006-burbujero-c-luz-y-sonido-personajes/": {
+   "huella": "b555b733cdf5968f335d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026011424126-juego-del-basta/": {
+   "huella": "8b9f8fe9ded6067b2445",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026040824042-pinturita-stich/": {
+   "huella": "8124a1df2268dd097fce",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026040824168-pinturita-stich-carterita/": {
+   "huella": "ec85d0e3c382b9d62353",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026042224102-laboratorio-slime-monster/": {
+   "huella": "1bf6a88c54517f2f4f0c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026062562226-slime-c-toy-story/": {
+   "huella": "c19a0c675c32655fcb1d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026062562417-slime-doble-c-mario-bross/": {
+   "huella": "d4ad6fea07ab3d9161ab",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026318450014-luces-led-blancas-frias-x100/": {
+   "huella": "07165687ed4d0631dd4f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026318450021-luces-led-calidas-x100/": {
+   "huella": "1d3f11e0278204754e3f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026318450038-luces-led-multicolor-x100/": {
+   "huella": "1628475baa0cec0d3206",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026318450076-luces-arroz-calidas-x100/": {
+   "huella": "155d41619b7fad2e02e5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2026318450083-luces-arroz-multicolor-x100/": {
+   "huella": "7b738a6fcecddab083d3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2400000001508-lampara-esfera-cristal-3d/": {
+   "huella": "a33d7adca75628c7788a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2400000059912-parlante-c-2-microfonos/": {
+   "huella": "f4cfec14e3910cf23850",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2400000059943-set-bijouterie-personajes/": {
+   "huella": "31218f0c022a45452d98",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2400000248507-molde-de-hielo-facil-de-silicona/": {
+   "huella": "3f57935c653466353d03",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/2420260571573-burbujero-tiburon-a-pila/": {
+   "huella": "b7ffd94a03d6225c0ec0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/24578965547-vaso-pinta-argentina-x3/": {
+   "huella": "3f2e9e1130ea73011773",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31045-set-de-cocina/": {
+   "huella": "bc378c9bae26c2c3187a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31103-unicornio-c-luz-musical/": {
+   "huella": "bfd409e628eb0942fa35",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31154-juego-de-masa-unicornio/": {
+   "huella": "52f8e3812adae2c489a9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31179-pistola-burbujero/": {
+   "huella": "2c4a2c57164a901c2fed",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31241-robot-c-luz-y-sonido/": {
+   "huella": "4c1ac15e7c1f5085d948",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/31274-ametralladora-c-luz-y-sonido/": {
+   "huella": "6218609524d91b7b4623",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/3154144681100-tijera-maped-21cm/": {
+   "huella": "b00df3b6de9d53d7e925",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4512352612351-helicoptero-a-pila-luz-y-sonido/": {
+   "huella": "21eb67118012fcd0f13e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4606998026068-slime-hamburguesa/": {
+   "huella": "63d352f6bfbe08245a11",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4635625363801-pistola-lanza-dardo-ch/": {
+   "huella": "979812ff0536ad1c3f18",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4635626363329-pistola-lanza-dardo-gr/": {
+   "huella": "ac7af97c6b54f56c8bec",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4635645363805-pistola-lanza-dardo-mediano-fast/": {
+   "huella": "d1bb0438eff2867d2863",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4635689263147-pistola-lanza-dardo-dino/": {
+   "huella": "5e5455e39f27b7ab8a70",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4894130974012-plato-playo-de-vidrio-templado-negro-opalino-27cm/": {
+   "huella": "754af910345cb41c6063",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4894130974036-plato-hondo-de-vidrio-templado-negro-opalino-22cm/": {
+   "huella": "96829687ca4809f22d9f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4894130980211-set-x6-pcs-taza-vidrio-templado-c-plato-220ml/": {
+   "huella": "6810b57f516f1b5d6488",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4894130991873-vaso-trago-largo-shard-395cc-x6pcs/": {
+   "huella": "c26f1df51d9c5b050944",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/4894130991880-vaso-vidrio-shard-320cc-x6pcs/": {
+   "huella": "a8e46382929c3ff1f6cf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840086377-laboratorio-de-slime-ch/": {
+   "huella": "97c0facf19d044e7ed73",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840145074-auto-rally-control-remoto/": {
+   "huella": "c2b0cbed6942b1d75ca5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840152430-tren-a-pila/": {
+   "huella": "ec2efd26557e02ddf41d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840248201-dinosaurio-que-muerde/": {
+   "huella": "aacd551bd61b002512c0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840405994-bebe-c-mesa-en-caja/": {
+   "huella": "6ee91231e0e2308b3773",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022840645314-tren-para-armar/": {
+   "huella": "48aaca9ecce81034379a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5022848363128-autitos-x8/": {
+   "huella": "0843f874853ced3c5a36",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5658565430036-mate-listo-c-diseno-750ml/": {
+   "huella": "924f80a490cfe735654e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5901234123457-carta-uno/": {
+   "huella": "6cb81fc34c44b4c6527f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/5925080124420-vaso-quencher-1-200ml/": {
+   "huella": "a9d68e5e83a110a8a351",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/601202023752-set-mate-mama-corazon-c-packaging/": {
+   "huella": "05e8f810b3b298431177",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6111301271175-inflador-de-mano-en-caja-29cm/": {
+   "huella": "b76f0c827dbc3036681f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6226636363363-botella-c-sticker/": {
+   "huella": "12dada36c2d730c03da6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/626-zapatilla-4-tomas-usb-2mts/": {
+   "huella": "b250d565dcbb3e4f17c7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6456001072951-avion-en-bolsa-chico-35-cm/": {
+   "huella": "202f8edc7083eed810b5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6456001072968-avion-a-friccion-bolsa-40-cm/": {
+   "huella": "15185d1fa1ddc32b08b2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6512903749792-termo-media-manija-river-1lt/": {
+   "huella": "e75009a97fffa9d751b9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6512913788742-mate-listo-liso-750ml-solo-rosa/": {
+   "huella": "ee1eee898318868acb8d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6512943744782-termo-bala-c-diseno-1lt/": {
+   "huella": "2815b2d67686c889d182",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6512944989242-termo-system-c-mate-diseno-1-2ml/": {
+   "huella": "bb83e740cd043de8b311",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6578979841-organizador-c-espejo-y-luz-led/": {
+   "huella": "e4c25994c734eeb2c48e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6589124758126-inflador-de-pie-doble-piston-54cm/": {
+   "huella": "20ffed882c2eb3e3fdcb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6800880006598-cortina-de-luces-led-pino-estrella-calida-3x0-6-mt/": {
+   "huella": "24b8e58a0b83785fa07d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6800880065120-cortina-de-luces-led-pino-calida-3x0-6-mt/": {
+   "huella": "f374796f6cbe7864d4a4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6803786531690-dumpling/": {
+   "huella": "e43b9dc43a591ae260ec",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6812943780782-termo-bola-1-3lt-liso/": {
+   "huella": "9f2883afc8f79daaeae7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6900000018972-luces-led-multicolor-arbolito-a-pila/": {
+   "huella": "16428cca28cfe9a8d176",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6900005109460-set-manicure/": {
+   "huella": "9b33e3fd5e326496d022",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6900005109477-set-manicura-gr/": {
+   "huella": "65ac75411139be94f4e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6901221003303-piloto-p-ninos/": {
+   "huella": "d1f31a931a7bcb854bd6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6901221003310-piloto-cubre-mochila/": {
+   "huella": "8741c72a386cf91bb0e8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6902024202979-botella-antiderrame-400-ml/": {
+   "huella": "7c5e31fbd600d87416ac",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6902024558533-botella-osito-con-vicera-600ml/": {
+   "huella": "2f94233e534a13fc18bd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6902436876089-dinos-x4-desarmables/": {
+   "huella": "e892e7fc41a617038195",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6902533641757-pizarra-magica-spiderman/": {
+   "huella": "09ce82136412accaa8d4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6903204265456-jarra-de-vidrio-c-6-vasos/": {
+   "huella": "728f9b3cd4dfc63455ed",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6903204265470-jarra-de-vidrio-c-manija-y-6-vasos/": {
+   "huella": "be2a165ba80d68b1e622",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6905803589780-olla-de-vidrio-c-tapa/": {
+   "huella": "70de61ef4897430c54cc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6906570090066-rosa-cono-37cm/": {
+   "huella": "0927aec7f780b41d3f83",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6906570105593-rosa-cono-en-caja/": {
+   "huella": "cafdcf5a64ea0bb5144b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6912345258029-llavero-celu/": {
+   "huella": "3ee4696c851da6401796",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6913532551244-vaso-c-sorbetepastel/": {
+   "huella": "07560fab983beaf99270",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6915911147543-vaso-de-vidrio-c-sorbete/": {
+   "huella": "399199b77b6b55eea45b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6916034261475-taza-de-vidrio-doble-fondo-400ml/": {
+   "huella": "ca3a889c3bd36dbd1f7b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6916741645063-set-decoracion-para-cumpleanos-x34pcs/": {
+   "huella": "2c4653f53c8c1f7ca847",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6917318065055-cortina-guirnaldas-luz-led-calida-3x0-6-mt/": {
+   "huella": "6b37285f53e1a66905c9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920250314006-sonajero-mordillo-giratorio/": {
+   "huella": "a29cae7e44be2a40ae4c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920250319001-piano-musical-xilofono/": {
+   "huella": "2e35a070af2cdfe7c860",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920250321004-carrusel-c-sonido-y-musica/": {
+   "huella": "9124513b6e667acf7018",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920257281202-teclado-musical-mono/": {
+   "huella": "2470bdae418f2f800ad5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920257282414-teclado-musical-leon-apto-de-1-a-3/": {
+   "huella": "991df1cb9e6f98ca7beb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920268156032-muneca-coreanas-articuladas/": {
+   "huella": "37ec153541ff3d0883cb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388600088-aro-salvavidas-animales-55cm-4-8/": {
+   "huella": "9553f74402654fd49d9a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388606134-ballena-inflable-135x73cm/": {
+   "huella": "908f945d417cc7f424e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388607087-foca-inflable-108x83cm/": {
+   "huella": "491e74a0e5256d9fa1b0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388607094-cocodrilo-inflable-139x23cm/": {
+   "huella": "997dae6795044e3964d1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388610742-bote-p-bebe-c-techo-66x66cm/": {
+   "huella": "a2092022d00957b545d0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388613026-bote-bebe-c-piecitos-66-5x63cm/": {
+   "huella": "4b702ab1dc47a6f6b231",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388616928-bracitos-inflables-30cm-6-12/": {
+   "huella": "50303e2d9cfbc97824a8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388618922-punching-ball-animales-inflable-90cm/": {
+   "huella": "8e4e8b22a7e47e94c0f9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388619073-pileta-3-aros-fondo-animado-70x20xm/": {
+   "huella": "9ba4e63b25638a1e0db1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388619738-pileta-de-lona-1-22x33cm/": {
+   "huella": "29a3cfabad263500e8e0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388643009-inflable-tucan-128x104/": {
+   "huella": "794039a24de0fc26f9e5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388645423-colchoneta-183cm-x-69cm/": {
+   "huella": "e369015661ad8227437d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388645829-pileta-rigida-150cm-x-25cm/": {
+   "huella": "296d530ce97c4c94e85a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388645836-pileta-rigida-120cm-x-25cm/": {
+   "huella": "d9d25b2548077aa15491",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388661904-aro-salvavidas-60cm-4-8/": {
+   "huella": "e0a79dd96ee38194638c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388662154-aro-salvavidas-mosaicos-90cm-9/": {
+   "huella": "4fd9ecdba3572d0d9845",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388662260-moto-inflable-de-agua-91cm-3/": {
+   "huella": "b5bfa205a9991ad65417",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388662444-punching-ball-animales-inflable-80x32cm/": {
+   "huella": "93766d2c4f098f95b918",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388663069-tabla-de-surf-inflable-150x53cm/": {
+   "huella": "6bcfdbb2875553f05d24",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388666879-dinosaurio-inflable-102x63cm/": {
+   "huella": "fb97112af7f7ffdb127f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667029-aro-salvavidas-60cm-5-10/": {
+   "huella": "ba10d71bb274403bc441",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667036-aro-salvavidas-pez-79cm-3-6/": {
+   "huella": "2e5a49d51632520ddff0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667067-pelota-inflable-playa-40cm/": {
+   "huella": "807f28bfd70cb1025ec6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667227-bracitos-dinosairio-23cm-3-6/": {
+   "huella": "2ba6044b7321dffa3553",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667289-pelota-inflable-playa-panda-40cm/": {
+   "huella": "6c342e756377f9d81d42",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667470-puching-boxeo-35x120cm/": {
+   "huella": "7ff14bbc4dbdbb1a6a9c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667487-punching-ball-animales-inflable-82x26cm/": {
+   "huella": "72bb368478fd24de72d8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388667852-pileta-grande-1-68mtsx51cm/": {
+   "huella": "2da9c47d96f707e53b99",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388685498-rinoceronte-inflable-127x64cm/": {
+   "huella": "d55a7cc613e9d3155122",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388695961-aro-salvavidas-animales-63cm-4-8/": {
+   "huella": "7b3fa8ea068d1c41825e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920388697354-bracitos-inflables-22cm-3-6/": {
+   "huella": "827e4dec49fe7ae1b12f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920567930005-tren-alfabeto-gom-eva/": {
+   "huella": "a09bb112d45657a87dc7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920567930807-piso-goma-eva-x26pcs/": {
+   "huella": "82984eb289162ed20548",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6920567930869-piso-goma-eva-x36pcs/": {
+   "huella": "5404bf99ab2ff6b5a934",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6921254911086-cepillo-de-pelo-de-madera/": {
+   "huella": "a923fa017a58450f4b4f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6923001994854-munaca-flaca-caja/": {
+   "huella": "42e48ce2f01597f95efb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6924010326834-escopeta-ak-c-luz-y-sonido-65cm/": {
+   "huella": "1846d4880aab54778be7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6924190709847-auto-transformer-a-pila/": {
+   "huella": "83f06b9b017ed80b533e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6924210924984-tanque-c-luz-y-sonido/": {
+   "huella": "a88ceffbf0a26783bf9c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6924251456727-licuadora-tokio-4-velocidades-molinillo/": {
+   "huella": "504bbbdf52d4960bf143",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925072824184-teclado-musical-dinosaurio/": {
+   "huella": "55b99807361944e2a598",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925190967978-pistola-lanza-agua-chica-17cm/": {
+   "huella": "d41419909cb7eb294253",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925241414673-bloques-magneticos-x42pcs/": {
+   "huella": "28d67b69b1a601b897ca",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925250121234-animales-de-selva-x6/": {
+   "huella": "4181347b50463453b736",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925250358944-lanza-agua-en-bolsa-41cm/": {
+   "huella": "2cde6217bf0f202bad81",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925250713194-lanza-agua-chico-en-bolsa-27cm/": {
+   "huella": "b6823baba8bed7561415",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6925930218018-piloto-infantil/": {
+   "huella": "8488cb068f7768cea653",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926200442676-animales-en-bolsa-x4/": {
+   "huella": "06f252a7fb81ba98e814",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926230446019-animales-de-granja-x4/": {
+   "huella": "a9d2a499f76cd9f82bcf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926230446026-animales-domesticos-bolsa-x4/": {
+   "huella": "224be712a0e39a3640b6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926231058327-bloques-x80pcs/": {
+   "huella": "fc5a8ed6c84fce5a28ee",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926231058341-bloques-x180pcs/": {
+   "huella": "dcad36bde527c9e1a98f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926231058358-bloques-x250pcs/": {
+   "huella": "4d704449450a656192a3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926240454943-pistola-hidrogel-en-bolsa/": {
+   "huella": "d0585f23ce568acf4ace",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926241770288-gimnasio-de-bebe/": {
+   "huella": "870fcd1d23d22ca22ed1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926250761147-rifle-c-lanza-dardo-y-bolitas-de-gel-no-necesita-pila/": {
+   "huella": "610f55386717f33b406d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926251621402-ametralladdora/": {
+   "huella": "af591e9cebfccbcc89e9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799203078-colchon-inflable-twin-191x99cm/": {
+   "huella": "c0f03533ca7fbbd768d0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799203085-colchon-inflable-1-plaza-191x73cm/": {
+   "huella": "c8e2eb750053281da555",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799211301-pileta-c-techo-mono-102x102x80cm/": {
+   "huella": "d57d461be72577b24c77",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799211677-aro-salvavida-gomon-90cm-9/": {
+   "huella": "286b94f5f9efcf93344c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799211738-pelota-inflable-de-playa-40cm/": {
+   "huella": "15fd3d7b2141d7ce67ad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799211745-pelota-inflable-de-playa-50cm/": {
+   "huella": "d9a91f2210d39b06199f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799213886-bracitos-caja-25cm-x-15cm/": {
+   "huella": "f842aec29b0b8bd46f30",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799213893-chaleco-inflable-3-6anos/": {
+   "huella": "f4e8eac0f97383ce529b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799214722-pileta-3-aros-76x25cm-1-3/": {
+   "huella": "49bef3090c79acd5ad65",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799214814-pileta-3aros-122x25cm-2-6/": {
+   "huella": "c2c89cab58e032066bf3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6926799214838-pileta-3aros-157x25cm/": {
+   "huella": "5775c73664acbe8bd682",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6929668878506-set-moldes-desmontables-x3-pcs/": {
+   "huella": "e69a3c4e865173e638a4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6931571028763-bebe-lloron-sorpresa/": {
+   "huella": "d9239871e8d75148db06",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6931571047320-labubu-sorpresa-coca-cola/": {
+   "huella": "971a2de8b43297fd7a16",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6932009656800-licuadora-botella-420ml/": {
+   "huella": "667c5dbfe9115636a0ac",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6932241025228-morral-cuero-con-codigo-de-seguridad/": {
+   "huella": "3f0fcec645be21d22ef9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6932841025888-morral-c-seguridad/": {
+   "huella": "21573ee4b1a1e42cf99f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6939585808807-marcador-triangular-x12/": {
+   "huella": "fc68c3383db407b62210",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6940079570582-lunchera-doble-piso-c-cubiertos-gr/": {
+   "huella": "0e20e66ef312a922e47f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6942377610861-colchoneta-pez-150cm-x-25cm/": {
+   "huella": "e8ae16d7161a5d10ef39",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6942377627029-pileta-3-aros-122x25cm-2-6/": {
+   "huella": "1991d6b1982f75b79461",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6948726901888-carta-de-poker-x2/": {
+   "huella": "1904dc099ccd42a2e2a0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6950260403223-boas-verde-fina-2-metros/": {
+   "huella": "3fbdbf36219f068df2e4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6950260403346-arbol-navidad-plegable-nevado-1-50mt/": {
+   "huella": "4d6477af7f22abdabc9e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6950260403353-arbol-navidad-plegable-verde-1-50mt/": {
+   "huella": "c803bde42f4dbf2854fa",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6951260401028-cortina-de-luces-led-arbol-multicolor-3x0-6-mt/": {
+   "huella": "0d081427de3cd832138b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6951260401035-cortina-de-luces-led-lluvia-estrella-multicolor-3x0-6-mt/": {
+   "huella": "9455fd6020615850c953",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6952022211534-muneca-trapo-musical/": {
+   "huella": "5bce6fa15a838e16fd15",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6955682143290-taza-batidora-420ml/": {
+   "huella": "df3a952034ac9a16c60b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6956988552434-adorno-p-puerta-pino-40cm/": {
+   "huella": "020ee885fa7fa6301fa8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6956988552489-adorno-p-puerta-redondo-30-cm/": {
+   "huella": "c61c27b8d6b2b242aef0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6956988552724-boas-nevado-2mt/": {
+   "huella": "0c1ba877120900c338ae",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6956988552731-boas-verde-2mt/": {
+   "huella": "10207fa6d3b42dc17420",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963490162624-plancha-de-pelo-seis-45w/": {
+   "huella": "647e75be71e64670e2ac",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963490162655-plancha-de-pelo-ch-45w/": {
+   "huella": "d42433695de8258f5908",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963490162686-secador-de-pelo-seis-1500w/": {
+   "huella": "36c75c22c3c2782c93ff",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963490162723-secador-de-pelo-seis-2000w/": {
+   "huella": "17e958ffdab1f8996732",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963520001930-plancha-de-pelo-45w/": {
+   "huella": "54d91d07e52dbb81fe36",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6963520001985-secador-de-pelo-seis-frio-calor-200w/": {
+   "huella": "b909d96d2274a825c9e5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6965251760582-hilo-de-colores-x12/": {
+   "huella": "f78c477d112811c7134e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6965823721126-numeros-imantados/": {
+   "huella": "597ad9d0d10565182c58",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6970507505077-munecos-italianos/": {
+   "huella": "277cdf023ddb017685d9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6971551886624-slime-c-k-pop/": {
+   "huella": "d8df3a9bac700cd5525e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6972024151249-taza-de-vidrio-doble-fondo-x6-150-ml/": {
+   "huella": "005f62489a43cbc484ba",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6973228740192-mixer-tokio-3-en-1/": {
+   "huella": "563be50479ac2c1e8a9a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6974664898256-piloto-infantil-personaje/": {
+   "huella": "512bc44d94e18cca1456",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6975782225474-set-de-ollas-x3/": {
+   "huella": "38ac2014dda0c7eaff99",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6976424772530-vaso-termico-pico-silicona/": {
+   "huella": "52a04d0834bec5f7af05",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6977527730137-vaso-termico-720ml-c-correa/": {
+   "huella": "c9392a5e1b260ca6167d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6979298491569-luz-de-emergencia-3led/": {
+   "huella": "2841f36c25753cfb8903",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6982026000018-kit-terere-termolar-c-mate-2500ml/": {
+   "huella": "f5718ba67fdb47ac02ca",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6982026000063-kit-terere-mate-y-yerbera-2500ml/": {
+   "huella": "2a8b58960ee60c58c6c3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6986321566866-spinner-ball-c-luz/": {
+   "huella": "a5fb3d808e2d6cece60c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6989806012001-parlante-rueda/": {
+   "huella": "44526844391c51141a32",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6990010500048-taza-termica-600ml/": {
+   "huella": "7fd465db095a8b6753ba",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6990010500055-taza-termica-480ml/": {
+   "huella": "0f5776753b494af03e66",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6991200192081-pistola-lanza-agua-tiburon-34cm/": {
+   "huella": "f9067cee262cd6008d5e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6991200192173-pistola-lanza-agua-unicornio-34cm/": {
+   "huella": "7cb693ad758f3cfb23ab",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6995202068665-luz-de-emergencia-3led/": {
+   "huella": "3b920b860bc53bdca560",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/6995632756637-botella-osito-antiderrame/": {
+   "huella": "0d033ea3d23cba2cc329",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7123002022801-boas-color-2mt/": {
+   "huella": "8862ad88dd0f396f8761",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/714604032250-termo-bala-dakota-1lt/": {
+   "huella": "a71be82fc439534ca2b9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7194611179644-juego-mate-c-bandeja/": {
+   "huella": "95a5a8f81701926f6e7c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/720665915685-pizarra-magica-tablet-lcd-12/": {
+   "huella": "2ca8d0613cddad6fe222",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/727373092936-tapa-de-termo/": {
+   "huella": "a5968ab4cc76b4027dd7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/727373092950-tapa-de-termo/": {
+   "huella": "8c87675e88f596da4c30",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077050591-monopatin-boca-c-luz/": {
+   "huella": "ffb12494606a7b406542",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077051444-espada-y-escudo/": {
+   "huella": "bb52274256ce0f144a1e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077051772-juego-de-masa-flor-ch/": {
+   "huella": "384fe8581220f3189351",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077054001-robot-transformer/": {
+   "huella": "b84227d6a5ca5b8024c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077054902-robot-transformer-verde/": {
+   "huella": "867d19dd36078bcbcc15",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077055299-arco-de-futbol-bolsa-65x45x35-cm/": {
+   "huella": "df7eb9484465e352a2a6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077057620-fabrica-de-pulsera/": {
+   "huella": "a637f8ce7fb9862a3c7c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077059402-loteria-spiderman-x48-cartones/": {
+   "huella": "a2a4d7c2b2fcca36a5dd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077061283-muneca-sirena-blister/": {
+   "huella": "85661cfa865ea16a52c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077063829-caja-registradora/": {
+   "huella": "339408953072cc0cdf44",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077065953-pintura-cartera-caja/": {
+   "huella": "6109cbb1b8d0bdd36e63",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077066219-pinturitas-sirenita/": {
+   "huella": "b5112da28a9717a4d5b3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077069135-set-pinturita-cartera/": {
+   "huella": "930df7c25450008d490d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077069180-monopatin-tiny-con-asiento-c-luz-aprox-40kg-altura-mini-52cm-altura-max-80cm/": {
+   "huella": "5744964329c4522d7546",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077070339-robot-transformer-amarillo/": {
+   "huella": "3333cb1c0844b3f0b258",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077072265-set-policia-c-granada/": {
+   "huella": "49408e1e6888252edc62",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077072401-muneca-tiny-hada-c-alas/": {
+   "huella": "9a434ef8d152ad2ba174",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077074214-auto-control-volante/": {
+   "huella": "6332350be01cf6a99971",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077074283-huevito-dino-p-armar/": {
+   "huella": "45a859d29841a31df7dd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077074931-masas-divertidas-pote/": {
+   "huella": "cbcd23741aa944af87f7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077076621-super-soldado-lancha/": {
+   "huella": "eeec94b3a6dbfbad27ad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077084107-pinturita-buho-tiny/": {
+   "huella": "b5c780330b5c9c4579fe",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077084428-burbujero-a-pila-tiny-c-glitter/": {
+   "huella": "bfa79427661815e29825",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077091976-masa-alcancia-bichito-de-luz/": {
+   "huella": "8e3ac60d9f142d725211",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077095226-set-patitos-chico/": {
+   "huella": "44699f49edecfd488579",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077095363-varita-c-luz-tiny-blister/": {
+   "huella": "2441eae44ee9264374a7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077096698-binoculares-en-bolsa/": {
+   "huella": "f8960648422d0beba0d6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077098692-camion-c-acoplado-a-friccion/": {
+   "huella": "57d3c3a2393a22636400",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077099514-juego-de-agua-pc/": {
+   "huella": "35641be3845845e1ac2f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077116303-juego-de-masa-pulpo/": {
+   "huella": "019a02a9a24bb59403ad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077117577-triciclo-metalico/": {
+   "huella": "5813f92bad865beb526d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077118406-muneca-tiny-influencer/": {
+   "huella": "69e2fa7cb3df0dd01158",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077119076-auto-a-control-remoto-go-speed/": {
+   "huella": "b20ba7493fc513c51ff7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077119366-juego-bingo-x48-cartones/": {
+   "huella": "1ee584965e50a274dc5d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077123417-muneca-tiny-dolly-48cm/": {
+   "huella": "12e741a2e0f110c708bf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077124636-auto-a-frccion-dino-lanza-dardo/": {
+   "huella": "ec85a8a5556d0884d48a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077125527-autos-metal-avengers/": {
+   "huella": "1c203fd61a3d7e5431f8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077126012-celular-c-sonido/": {
+   "huella": "c213e8dbd8963797fecb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077126258-auto-rally-monster-a-control/": {
+   "huella": "7c06edc9e5c2d7a25a86",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077131689-juego-de-masa-flor/": {
+   "huella": "04c6d61f96fecd3d281a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077131702-walkie-takie/": {
+   "huella": "1cec3bbc09b52ed0092e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077131771-camion-bombero-friccion/": {
+   "huella": "c4d670a8ced43f008e27",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077134710-muneco-kevin/": {
+   "huella": "255f833519bd29c18277",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077134796-camion-construccion/": {
+   "huella": "a9f9d7140c498ca956fd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077134901-pinturita-c-anillos/": {
+   "huella": "f670e0dc67ac85520569",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077134994-dino-chico-en-bolsa/": {
+   "huella": "3347c829b36745ab5cb8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077136028-sonajero-c-manija/": {
+   "huella": "f29b36971bec406e67fb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077136738-camion-c-acoplado-x5-vehiculos-34x17cm/": {
+   "huella": "77a1bd66b3b8ed5433e5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077136837-bebote-tiny-emi-con-pelo-30cm/": {
+   "huella": "5a285c7236e409a05545",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077138565-huevo-de-dino-p-armar/": {
+   "huella": "c48ef8b8d0e48d76f37a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077139807-pistola-lanza-agua-mini-12cm/": {
+   "huella": "8b767c4daa8c22ee08c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077141374-auto-control-remoto-tiny-c-muneca/": {
+   "huella": "47a642253c97f4bc6436",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077141992-muneca-tiny-c-cuatricilo/": {
+   "huella": "d0b2950cdc2088276926",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/74500771419920-excavadora-duravit-60cm/": {
+   "huella": "da3c1f9514e6345ea242",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077142135-set-bijouterie-tiny/": {
+   "huella": "26c1a4603e596eb1d9f8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077144924-muneca-tiny-skincare/": {
+   "huella": "73dbe66602f1db51c309",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077145785-bebote-tiny-noe-c-pelo-30cm/": {
+   "huella": "ea6fe18d356791d89960",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077146959-burbujero-a-pila-tiny-mar/": {
+   "huella": "0e0d5edd77e51e674867",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077147093-ametralladora-c-lentes/": {
+   "huella": "177a15bc7ca0893f9fb9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077147352-auto-a-friccion-spiderman/": {
+   "huella": "7f14c7036840c1b87786",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077147888-pinturita-sirenita/": {
+   "huella": "d0a914fdf5ed458fec5b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077148830-auto-a-control-go-speed/": {
+   "huella": "4042050276defa0a7ef6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077149165-juego-de-masa-balde/": {
+   "huella": "27f5dbfe48407d272f12",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7450077149820-set-patitos/": {
+   "huella": "dbf7d0170a6a23374974",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077200041-set-policia-md-c-reloj/": {
+   "huella": "9a26416f97258fcaac11",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077200140-pinturita-mariposa-ch/": {
+   "huella": "bed693253d4467e5771b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077200157-pinturita-corona-ch/": {
+   "huella": "65b3b5e845777e4120be",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077202977-mochila-de-agua-militar/": {
+   "huella": "b36c37cc2e2e82c4d2e1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077206388-trenzador-de-pelo-tiny/": {
+   "huella": "93fe8fb9d4ffce12436b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077209174-pinturita-unicornio/": {
+   "huella": "d2fd6d10cf69920c1068",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077209808-lanza-agua-spiderman-45cm/": {
+   "huella": "c729d4aa946a9125070c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077211344-squishy-huevo-unicornio/": {
+   "huella": "6839a23cadfe5d76a149",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077211597-masas-para-moldear-valija-c-cortantes/": {
+   "huella": "495babe0cde9da1056e6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077222920-masa-alcancia-honguito-c-acc/": {
+   "huella": "3a26d831304e77dfce6a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077224634-conjunto-de-policia/": {
+   "huella": "6ea19bb9980454b04845",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077224788-muneca-tiny-chef/": {
+   "huella": "9a0c2851c44d181b889b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077225846-caja-registradora-tiny/": {
+   "huella": "e786a6d03cb026445da2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077225952-sonajero-pastel-x2pcs/": {
+   "huella": "906fc0aba7c1b9434374",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077227888-muneca-tiny-c-vestido/": {
+   "huella": "2c3bd12f865f5e9f17ac",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077227963-burbujero-a-pila-bubble-toygun/": {
+   "huella": "97e45cbe96b8eb85bf41",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077230758-set-bijouterie/": {
+   "huella": "e26e6525dab5a23b7c25",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077231359-monopatin-tiny-plegable-peso-aprox-45kg-altura-74cm/": {
+   "huella": "ff133967b71369cd4ba0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077234015-super-set-militar/": {
+   "huella": "4bcf9c4ba53a18e0d9c1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077236446-sonajero-doble-21x7cm/": {
+   "huella": "c967a9bc8d6ad22c065e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077236651-set-policia-chico/": {
+   "huella": "9c3c288ad46256164431",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077237719-set-de-belleza-valija/": {
+   "huella": "c93e06cebbf2e64ad12e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077239881-set-policia-blister-32x25cm/": {
+   "huella": "c4cbb76f0a2c39908461",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077242126-dino-a-pila-lanza-dardo-triceratops-c-sonido/": {
+   "huella": "2f2e3690218f1df46ad3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077242164-dino-a-pila-lanza-dardo-y-sonido-t-rex/": {
+   "huella": "dfe32acd6812ad335dc7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077242379-camioneta-a-friccion-spiderman/": {
+   "huella": "b9adbde1f5cf10acebb0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077242850-torpedo-juego-de-agua/": {
+   "huella": "4b933344bc294ad51e62",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077248067-autitos-metalicos-x4-marvel/": {
+   "huella": "2824c4706d11fef8165e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077248715-rolles-3-en-1-h-arana/": {
+   "huella": "644c4dfbbbef2b5dc4b1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453077248845-monopatin-stitch-c-luz-manubrio-ajustable-de-60-a-70-cm/": {
+   "huella": "f719b13c98f9c6249ac3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105000766-muneca-bailarina-tiny/": {
+   "huella": "596bdfffab8f649ac4de",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105002357-pinturita-dino-bebe/": {
+   "huella": "48cf8c9391d17dcd1d1b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105003071-set-policia-c-helicoptero/": {
+   "huella": "8b56ba0cb183b19aaafb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105004467-mochila-lanza-agua-superman/": {
+   "huella": "542966eba480de44d513",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105004528-mochila-lanza-agua-batman/": {
+   "huella": "7615a7eb83d68e852e88",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105005365-pinturita-ballena/": {
+   "huella": "432fe266a0d0af2f4315",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105008816-auto-a-control-eco/": {
+   "huella": "b5bca7a614404130467a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105014527-camion-c-acoplados-de-f1-x9pcs-62x18cm/": {
+   "huella": "e0e03a69f5eeebc8225b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7453105018228-pinturita-lechuza/": {
+   "huella": "dc999eab7765471b7480",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7702003469381-carta-poker/": {
+   "huella": "e51f3093e243f8bdddad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705000578148-bracitos-inflables-15cm/": {
+   "huella": "e19e7163d58babb8e9d7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705021571081-chaleco-inflable-abc/": {
+   "huella": "e05785c4ecb9eb662064",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705149978892-bote-inflable-animales-60cm/": {
+   "huella": "3fade5dcfc6288c1f47d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705164754334-bote-con-techo/": {
+   "huella": "bbe662d416166f2ccd1b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705500975218-colchoneta-inflable-180cm/": {
+   "huella": "19a2864a4db33f6a5f5f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705651368907-aro-salvavidas-70cm-abc/": {
+   "huella": "7980875f863c6888f45a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705672034102-aro-salvavidas-70cm-diseno/": {
+   "huella": "f3e0804c3b332f48a302",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7705802207413-ballena-inflable-100cm/": {
+   "huella": "58e7cbd5b00e238a8ce0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7706015677000-antiparras/": {
+   "huella": "656f38dce48dba146ed0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7706070631412-set-de-buceo-27-5cm/": {
+   "huella": "258ae45bea7419751196",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7706071173966-set-de-buceo-30cm/": {
+   "huella": "aec57acf2dedb5270183",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7742401754191-letras-imantadas/": {
+   "huella": "602b7f9f1d1a4edcdffb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7751079248420-muneca-tiny-doll/": {
+   "huella": "43f95401f04bc7147ec0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7751079251383-juego-de-agua-toy-story/": {
+   "huella": "77386076608dbe34419a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7751079253981-muneca-tiny-rainbow-belu-31cm/": {
+   "huella": "bca37762e28a970e7f23",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7751079254322-muneca-tiny-fantasy-pelo-de-colores/": {
+   "huella": "1bd58a472c3b3a9d89a8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7751079257927-set-pinturitas-cartera/": {
+   "huella": "a3347641546d1ea938e2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7781512005303-jarra-de-vidrio-1-9lt/": {
+   "huella": "ada50220537bf4fb3a20",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7781512008700-mandolina-x22pcs/": {
+   "huella": "eb4429de832183d7326f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7781512032804-set-x6-copas-de-vidrio-465ml-transparente/": {
+   "huella": "3da6c0665e46f0cb9b2f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7781512032903-set-x6-copa-de-vidrio-dorado/": {
+   "huella": "9948c998e7eec9134441",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7781512033009-set-x6-copa-de-vidrio-fume/": {
+   "huella": "6cbbcc8c637fa28557e8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7785360402017-set-de-herramientas-en-caja/": {
+   "huella": "94be28a1d03e3b2bd7d0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780035912-centro-de-mesa-de-vidrio-gr/": {
+   "huella": "1e9f066a55ddc0d4038f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780056245-dispenser-de-bano-x2-de-vidrio/": {
+   "huella": "15270b1cd8a4a56d885a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780056726-tetera-de-porcelana-c-filtro/": {
+   "huella": "bd9dcdfcdc3e15b43cd1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780078605-dispenser-de-detergente-c-esponja/": {
+   "huella": "85c829724ffbc1a4db50",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780083258-set-taza-arbol-corazon-x4pcs/": {
+   "huella": "1de96d8f74817eb75a7b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780086754-caramelera-de-vidrio/": {
+   "huella": "fc6b8375e2f8cf670f6c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780089434-plato-hondo-blanco-ceramica/": {
+   "huella": "ecc541c075bbd1f746bf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780094315-set-de-tazas-x4-arbol/": {
+   "huella": "5116873ed4804faaaff8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780094353-set-de-tazas-x4-corazon/": {
+   "huella": "c5d145d2a9987934fa7e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780099648-tetera-de-porcelana-c-filtro/": {
+   "huella": "1d31eec3ea898390c7ec",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780112521-caramelera-de-vidrio/": {
+   "huella": "d865db07a71a37e71fb6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780118516-set-de-tazas-x4-gatito/": {
+   "huella": "16d3f99ef6903c03fcd4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780123022-centro-de-mesa-de-vidiro-ch/": {
+   "huella": "1b388dcdf9e84da482f4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780124005-caramelera-de-vidrio-ambar/": {
+   "huella": "34a3f5a5bbea66f97609",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780124357-taza-de-vidrio-doble-fondo-250ml/": {
+   "huella": "d20417d162dbc73ec6b8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780126207-papa-noel-piernas-retractil/": {
+   "huella": "086a79454c27d3e30883",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780126412-anteojos-fantasia-navidenos/": {
+   "huella": "78ff20e4ae8de254838e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780126443-vincha-navidena-c-luz/": {
+   "huella": "3268de130f2cba32fe76",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780127082-vela-led-a-pila-7cm/": {
+   "huella": "0c8f30f04ed53a63262d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780127099-vela-led-a-pila-8cm/": {
+   "huella": "7739fd2bb4c1f04ba731",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780127440-set-de-20-esferas-navidenas-8cm/": {
+   "huella": "971dba85f200ba5e3bcf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780127709-estrella-puntal-15x15cm/": {
+   "huella": "7340e0ff484a80a5a1fe",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780128270-cinta-navidena-6cm-x-2-7-mt/": {
+   "huella": "724394d405df34564e4b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780128294-cinta-navidena-2-5cm-x-2-7-mt/": {
+   "huella": "9f8e8bd83ae3ba06757c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780128713-lunchera-termica-acero/": {
+   "huella": "755971b8e26646e70b02",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780133700-taza-c-cuchara-de-porcelana/": {
+   "huella": "84f25a8145e578ef97df",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780136909-centro-de-mesa-vidrio-media-luna/": {
+   "huella": "b6aa49b508b18555f6b9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780137364-frasco-de-vidrio-x3/": {
+   "huella": "2834fc3d3f2e76c202d9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780140203-centro-de-mesa-de-vidrio/": {
+   "huella": "66e505949754c91dab31",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146229-set-x20-esferas-navidenas-5cm/": {
+   "huella": "36cc3ad07575fcdaa1c4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146236-set-de-20-esferas-navidenas-5cm/": {
+   "huella": "548c6b02adce5a740c74",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146243-set-de-20-esferas-navidenas-5cm/": {
+   "huella": "de2b47745e4e8a36968c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146250-set-de-20-esferas-navidenas-5cm/": {
+   "huella": "0e8d2c90fc6b199761a3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146267-set-de-20-esferas-navidenas-5cm/": {
+   "huella": "717587ac0b6c481668f2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146878-anteojos-2027/": {
+   "huella": "2d91e01e39b16830321f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780146885-anteojos-cuernos-de-reno/": {
+   "huella": "0a22aa31461d2a45026a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780150363-set-de-tazas-vidrio-x6-fume/": {
+   "huella": "0c43fbe1a18ce8bb191f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780150370-set-de-tazas-vidrio-x6-ambar/": {
+   "huella": "c7ec9c2817b95c632e79",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790780150387-set-de-tazas-vidrio-x6-transp/": {
+   "huella": "b2a672fc1fa6e493d752",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918011252-bowl-redondo-de-ceramica-negro-beige/": {
+   "huella": "9d889e29a661ceb9b373",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918011269-bowl-redondo-de-ceramica-beige/": {
+   "huella": "e642a15ce42184fc8eab",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918011276-bowl-negro-con-puntitos-500-ml/": {
+   "huella": "3a5e2b8b67b83ba97080",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918013904-tupper-de-vidrio-c-tapa-bambu-500ml/": {
+   "huella": "3d707beabb4ef6871fa2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918013911-tupper-vidrio-c-tapa-bambu-800ml/": {
+   "huella": "c83c7d3336d382556e2a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918267369-especiero-giratorio-cuadrado-x8/": {
+   "huella": "a3c2e31c1928a7672cc1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918282416-tupper-vidrio-hermetico-800ml/": {
+   "huella": "25f2fa7895fdf5790e26",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7790918282423-tupper-vidrio-1200ml/": {
+   "huella": "eb2a08b3ad37603c79db",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7791130938280-libro-de-pintar/": {
+   "huella": "3464e4842a01da30bb34",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7791806005001-bombucha-x100/": {
+   "huella": "4ce21e19bc29a018fb2f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792024100004-set-x6-copa-de-vidrio-transparente-435ml/": {
+   "huella": "ae9417a013a03980b3ef",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792024118702-escurridor-de-silicona/": {
+   "huella": "9c965e267b8f6c4bd2a9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792024200001-copas-goblet-x6-pcs/": {
+   "huella": "190ac25e72b7b62f14e8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792025050261-set-herramientas-c-chaleco/": {
+   "huella": "c30edeb51f191ee23c89",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792025050377-set-militar-en-bolsa/": {
+   "huella": "5ac07cba06cfaedf810a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435002010-super-constructor-x4-duravit/": {
+   "huella": "6ccfb195b91e379615c7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435002041-constructor-x2-duravit-54cm/": {
+   "huella": "2e4b29c5bc8fa67cbd88",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435002348-excavadora-c-casco-duravit/": {
+   "huella": "83c1f43c014b88017d8d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435002355-camion-volcador-c-casco-duravit-40x20cm/": {
+   "huella": "ab79cd5b92620e8f1199",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435003659-ambulancia-duravit/": {
+   "huella": "9859b8a04974f1e0c2da",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435003697-policia-duravit/": {
+   "huella": "4d07b49a92501b2ab6c6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/779243500370-camion-cementero-duravit/": {
+   "huella": "af3ef75af3b42be83302",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435003710-auto-camion-basura-duravit/": {
+   "huella": "06b5950f9ba1af1f3148",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435003758-elevador-mini-duravit/": {
+   "huella": "b6fcc8904843adebdc23",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435004120-banco-de-herramientas-duravit-50x40cm/": {
+   "huella": "684c921013162860f3e1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435004137-set-herramientas-c-casco/": {
+   "huella": "debbe72f645080bce200",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435005066-canasta-verduras-y-frutas/": {
+   "huella": "0e7e597b66f27ae93030",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435005073-verdura-y-frutas/": {
+   "huella": "a2644e630a121e572fa7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006124-set-de-cocina-duravit/": {
+   "huella": "65947806e4c3d6fd5456",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006186-juego-de-mate-duravit/": {
+   "huella": "2d06e4950d44f4c9b1cd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006278-tren-didactico-c-encastre-duravit-51cm/": {
+   "huella": "207a1441668b3a2245fb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006285-mordillo-aro/": {
+   "huella": "69e31e4b2057bd8fdaf3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006599-balde-de-encastre-primera-infancia/": {
+   "huella": "69794013ea40382a98a3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006704-llaves-mordillo/": {
+   "huella": "d738a254004e608f9bd2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006797-gimnasio-p-bebe-duravit/": {
+   "huella": "32d8f5cee0ea928ea394",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006803-camion-volcador-duravit/": {
+   "huella": "3302035e581481394176",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435006995-estacion-3-niveles-duravit/": {
+   "huella": "c753019524120163545d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435007008-estacion-4-niveles-duravit/": {
+   "huella": "5980712de2cf334c7de0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435007091-masas-x10-duravit/": {
+   "huella": "61334f7bb879246bea6a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792435007282-juego-de-masa-panzotas/": {
+   "huella": "97278e987040aaf5939d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792530108754-calculadora-de-bolsillo/": {
+   "huella": "b91f5ca345e0d3df9d9c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7792604221839-botella-termica-450/": {
+   "huella": "6cdb1ea575ea6f8d5563",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7793437456009-disfras-unicornio/": {
+   "huella": "4dc62befcda2138d1557",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224327264-vaso-termico-afa-500ml/": {
+   "huella": "ba57e604b56416200da1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224327271-vaso-afa-c-sorbete-500ml/": {
+   "huella": "a2ae853bd6ce673a0cad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224367192-botella-aluminio-a-rosca-500-ml-apto-frio/": {
+   "huella": "00efaa218f6b28e923d8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224367222-botella-aluminio-arg/": {
+   "huella": "c01e22a2493adfa4b4d6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224367246-botella-geo-afa-500ml/": {
+   "huella": "7ce00eb2839953505c25",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795224367567-vaso-afa-c-sorbete-600ml/": {
+   "huella": "b9c270597cc53a6b93be",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795345007304-billetes-didacticos/": {
+   "huella": "30f9b3550cc8c3e1c144",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7795513044728-lapiz-color-filgo-x12/": {
+   "huella": "4f51266e73673cbc4bf0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7796285001124-carta-dos/": {
+   "huella": "0eef35c94848eff65538",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7796569561122-repuesto-de-hojas-x480-triunfante/": {
+   "huella": "a0f211b6c6728f5f6e46",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7796851812482-pilas-aaa-x2/": {
+   "huella": "d52c5bad87368c4e705b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7796851812505-pilas-aa-x2/": {
+   "huella": "a4373c3d400fb7d1a311",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797076011094-camion-bombero-luni-32cmx22cmx18cm/": {
+   "huella": "c00f836bece56bea0f69",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797076011162-camion-volcador-luni-26cmx25x51cm/": {
+   "huella": "b71c7c196a94cead9100",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797076016051-balde-playa-c-pala-y-rastrillo-moldes-1605/": {
+   "huella": "7752259356d4d8f9e239",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797076016303-balde-playa-c-pala-y-rastrillo-luni/": {
+   "huella": "591dfb3ceffe5568233d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797076016860-balde-playa-grande-7pcs/": {
+   "huella": "8e67e0949c1ed33de648",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7797245644108-vaso-americano-termico-450-ml/": {
+   "huella": "86d1b7d4d5fabb84f40d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798000084276-lapiz-color-corto-simball-x6pcs/": {
+   "huella": "34b5de2c173071cbb1d5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798025250397-rolling-encastre-caminador/": {
+   "huella": "dbb40f26af8f2dfae2e2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798025256689-tocador-portatil-new-plast/": {
+   "huella": "26e85a4da71ad230924b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052580351-slime-dr-lokus-con-bichitos/": {
+   "huella": "dfc1f6f93d8d63a414f3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052582249-yoyo-x6/": {
+   "huella": "1b97b43baac0769477fd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052582263-valijita-c-masa/": {
+   "huella": "4c976be05672821f22ce",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052582317-masa-caritas/": {
+   "huella": "a0da37657b27f6aec089",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052582706-slime-dr-lokus/": {
+   "huella": "1a51daf65b98d99a6873",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798052582881-valija-carry-on/": {
+   "huella": "5dfa3aa8d8b1011f39bb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798100861869-lanza-agua-c-pico-60cm/": {
+   "huella": "135069018c3d747b8905",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798104180140-avion-en-red/": {
+   "huella": "d2f991bd31a0aba20c71",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798104180270-tren-en-red/": {
+   "huella": "35f13ebc541232392089",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798104180300-volcador-en-red/": {
+   "huella": "d473a9ea84d9d71f354b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798121287792-jeep-jugar/": {
+   "huella": "ec64932f229b939e098a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798121287808-tractor-jugar/": {
+   "huella": "bff0e71d49a93636bafd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798121287822-mini-volcador-jugar/": {
+   "huella": "21a21603c2cdaa506bdc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798121288171-tren-x4-jugar/": {
+   "huella": "4c478853bdbbca90f1a9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798121288300-auto-x4/": {
+   "huella": "5adbdc857849c9938011",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798141993901-balde-c-pala-y-rastrillo/": {
+   "huella": "38f1f40f374b5f38a496",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798141993925-balde-c-regadera-rastrillo-y-pala/": {
+   "huella": "6c63cb07b87010d03f44",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798148730875-tejos-plastico/": {
+   "huella": "c7ccf1f97e871ce97280",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798148735184-bebitos-en-bolsa/": {
+   "huella": "e4981b6401d7ded1d883",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798148735511-bebe-real-en-bolsa/": {
+   "huella": "0dd3b9cbd774542a6188",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798151811769-mate-acero-dia-de-la-madre/": {
+   "huella": "cb243087515d68c3d31a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798151812513-mate-c-bombilla-en-caja/": {
+   "huella": "0475078ac5c086718976",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798166463847-separadores-x6-c-solapa-n3-snoopy-mooving/": {
+   "huella": "f06c82387524b4762d64",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798166468958-etiqueta-river-mooving/": {
+   "huella": "6a47dd90807d2496a001",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798166469085-separadores-x6-c-solapa-n3-river-mooving/": {
+   "huella": "e7266537f5f9ff1724de",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798180881306-carpeta-2-tapas-n3-celeste-pvc-avios/": {
+   "huella": "c52efbc0b48d2ebfde9d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798302935856-carpeta-3-solapa-oficio-quita-pesares-mooving/": {
+   "huella": "132d8e928110547cd472",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798302937775-separadores-x6-c-solapa-n3-spiderman-mooving/": {
+   "huella": "b7ae8cd22800b1b2d37b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798307625929-acuarela-trama/": {
+   "huella": "c3aa29f0d889fb8d59c2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798319303891-globos-surtidos-pastel-x25/": {
+   "huella": "e807fdc8646cdc51f550",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798356618033-separadores-x6-c-solapa-n3-minnie-mouse-mooving/": {
+   "huella": "90e4abc87952715f398d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798368426152-morral-boca/": {
+   "huella": "07ec4fdf8e640ed2771d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798368426534-morral-river/": {
+   "huella": "ba6464a83b160735ecea",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798465465-cinta-confitera/": {
+   "huella": "ad7f1fd503dcd713ae41",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7798778413555-plato-playo-x6-durax/": {
+   "huella": "7901fe4b46d3c2c0ebcb",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133001949-carpeta-n3-3x40-afa-mooving/": {
+   "huella": "e54f30bbba62f8e685a1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133004391-etiquetas-spiderman-mooving/": {
+   "huella": "789ce1b1f9c0c39f0d4f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133005022-separadores-x6-c-solapa-n3-afa-mooving/": {
+   "huella": "54f4dd1053c862626dd9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133013423-carpeta-n3-3x40-stitch-mooving/": {
+   "huella": "f96b3fa733017360ee7e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133013577-carpeta-3-solapas-oficio-stich-mooving/": {
+   "huella": "8916293bd2dc12809a2d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133014321-etiquetas-x12-stitch-mooving/": {
+   "huella": "79220e89c7a4d8b92c85",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133014413-separadores-x6-c-solapa-n3-stitch-mooving/": {
+   "huella": "787595a55bdacd25c907",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133018329-etiquetas-x12-playstation-mooving/": {
+   "huella": "6d6464cd352ac824590b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133020254-carpeta-n3-3x40-minecraft-mooving/": {
+   "huella": "82c3f7523eeaaf59d8e9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133020636-carpeta-n3-3x40-hello-kitty-mooving/": {
+   "huella": "767c6bc0b946edac3232",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133020957-separador-x6-c-solapa-n3-mooving-hello-kitty/": {
+   "huella": "f06e3afd00b709bb2b5a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133022616-etiquetas-x12-hello-kitty-mooving/": {
+   "huella": "bb60b0c652543ea66b01",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039249-lunchera-termica-mooving-minecraft/": {
+   "huella": "8fd759f27941e645f2bf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039294-lunchera-termica-mooving-afa/": {
+   "huella": "14f7662a5f177668d93d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039300-lunchera-termica-mooving-stich/": {
+   "huella": "9329b9e3a4c8532fbda4",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039324-lunchera-termica-mooving-playstation/": {
+   "huella": "0c65d1a0fe3cc6750907",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039393-lunchera-termica-mooving-river-plate/": {
+   "huella": "aab6b59a8c8abae7a8c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133039423-lunchera-termica-mooving-snoopy/": {
+   "huella": "ffcb4f5e55a7045bb8d2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133043222-etiquetas-x12-chicas-super-poderosas-mooving/": {
+   "huella": "5a5b5b877f77883ead35",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133043642-separadores-x6-c-solapa-n3-chicas-superpoderosas-mooving/": {
+   "huella": "1c2421d7a711c0ae1cad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7799133043864-carpeta-n3-chicas-super-poderosas-mooving/": {
+   "huella": "c936048708eb2925b95b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7850421440120-termo-media-manija-c-mate-disenos/": {
+   "huella": "55396325ec732cf3f051",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7888800835373-pizarra-magica-picachu/": {
+   "huella": "e3f27be97c215dd6959d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7891112173385-tenedor-x3pcs/": {
+   "huella": "d20fc522c3c8ec6e82e1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7891112359208-cubiertos-tramontina-x20/": {
+   "huella": "d85fab6a46b5800120bc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7892409093041-linterna-recargable/": {
+   "huella": "8f4349237d2c282424f2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7892409093058-linterna-estuche-recargable/": {
+   "huella": "fbba0e5b1c7c81801134",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7892409093065-linterna-usb-recargable-solar/": {
+   "huella": "e374889acde249cca5de",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7892506137532-linterna-negra-usb-recargable/": {
+   "huella": "a729843618fc4b3654c6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7893505001459-cubiertos-x24/": {
+   "huella": "73dc53f33b241f59f011",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7894902061220-angel-sony/": {
+   "huella": "96fb7f442c1f83a86ce5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7899222756269-spinner-ball/": {
+   "huella": "e8e174c318cd6ee02ab3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7899454402521-balanza-digital-de-cocina-10kg/": {
+   "huella": "3f5ee0978052802c4927",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/792421637105-insectos-x-4pcs/": {
+   "huella": "e31db739cba84470fcc2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/793033597261194-slime-tubo-avengers/": {
+   "huella": "4d4be937cc7769929808",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7960030100602-mate-c-asa/": {
+   "huella": "1f0463cbf3113142ed49",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7962740100019-botella-geo-500ml/": {
+   "huella": "0ba24dc8269b8e723e0f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7962770100010-botella-infantil-400-ml/": {
+   "huella": "2dc65bc1adb5ea20872d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7990500282880-caja-registradora-c-acc/": {
+   "huella": "b6499b64befdba807649",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/7990500303950-muneca-c-monopatin/": {
+   "huella": "7cf220d1ad3bda71f8b2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/8865256789664-pulsera/": {
+   "huella": "e499729f551e974b170a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/8920718250011-pistola-de-agua-a-bateria/": {
+   "huella": "cc8d19bb8143341512b9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/9656594996992-vaso-termico-doble-pico/": {
+   "huella": "be886b6a5e6bb40c5dfd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/9656594998942-vaso-c-parlante/": {
+   "huella": "98ac2cd4e68b2934e066",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/9780201379600-birome-borrable-x12-katana-azul/": {
+   "huella": "155bfaf6ad41bbfe6ff9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/9946599164161-set-de-globos-snoopy-5pcs/": {
+   "huella": "d6c76ef1683bbb2c1bd3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/BSM26113078-billetera-1-cierre-grande/": {
+   "huella": "ea8b32b154d3e78f9b80",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/BSM2611T16-billetera-1-cierre-gr/": {
+   "huella": "33af2be35d41c07ea145",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/BSM26AT7-billetera-2-cierres-chica/": {
+   "huella": "7c097c837e130862d0ba",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/DCO016-termo-1-200ml/": {
+   "huella": "b105b099884f01fec355",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/DCO017-termo-system-1-2-dorados/": {
+   "huella": "4b9b8ed50958f20f9e50",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/DIVASOX1-vaso-vidrio-dibu/": {
+   "huella": "99586e99cfa1c37669d2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/DO22-vaso-termico-c-parlante-afa/": {
+   "huella": "9e613b062f1b563588ef",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786224985508-slime-c-avion/": {
+   "huella": "e516cc11d3333962692b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786453161003-bolsa-de-box-gr/": {
+   "huella": "61850cdffa1d0a11d9dd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786453179741-bolsa-box-mediana-45-cm/": {
+   "huella": "68f0a2e1a5b5b811c02f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786464898299-bolitas-x100/": {
+   "huella": "dc260f52a86f0c0185f2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786582355772-bolitas-x50unidades/": {
+   "huella": "cbec73c0b24c3ba207c7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786582382163-bolon-x25unidades/": {
+   "huella": "923ad5efcd43e5eee059",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786582409156-bolitas-lechera-x50unidades/": {
+   "huella": "57c0d3479c2fd1035d73",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786582556076-pata-pata/": {
+   "huella": "0fc2938181dfaf5c091e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786583632586-balde-de-bloques-x60pcs/": {
+   "huella": "dd57b504d9a85ea3fec6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786625805256-balde-de-bloques-x240pcs/": {
+   "huella": "94d8b5e10d432d503fde",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786632669641-taza-hombre-arana-color/": {
+   "huella": "f32e77ced2e0cc3490c5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786633147388-bowling-x6/": {
+   "huella": "a3e19152caa82929c53a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1786633198373-juego-de-mate-c-pava/": {
+   "huella": "0b262482cff969843b10",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787074351772-balde-de-bloques-x120/": {
+   "huella": "f03924a2726091e1d477",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787074425604-juego-de-loteria-en-bolsa/": {
+   "huella": "f4bd8526508c9cc2bdc3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787074671329-carrito-de-compras/": {
+   "huella": "f6ab9ddac98256124610",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787075698360-yerbera-y-azucarera-negro/": {
+   "huella": "e595e9722ba6c31c9a4d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787075724672-yerbera-y-azucarera-blanco/": {
+   "huella": "5d1bedfdab56e36a49a2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787075763127-yerbera-y-azucarera-rosa/": {
+   "huella": "a90272ab997a16565f37",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787075822000-yerbera-y-azucarera-verde/": {
+   "huella": "7fc7925ed0d00a300f7e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787075949611-yerbera-y-azucarera-beige/": {
+   "huella": "0a0d46c3aa40fb5cd161",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787154004680-chispero-electrico/": {
+   "huella": "f717b37609a2b09e540e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787331751822-llavero-peluche/": {
+   "huella": "d03570c7586d1b6d861a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787332163848-velador-capibara-casita-redonda-cable-usb/": {
+   "huella": "3af699da44adcbfb10b9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787332370652-pulsera-labubu/": {
+   "huella": "d357fa3628a245b033ca",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787332391590-pulsera-stich-gr/": {
+   "huella": "d47b2ba4a426fbb5e04f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787332410593-pulsera-capibara/": {
+   "huella": "3dfa8c274d932048c5ae",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787340652813-bolso-porta-termo-35x22-cm/": {
+   "huella": "0bb4c2fe30e1bfb847d8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787596275090-vaso-vidrio-pinta/": {
+   "huella": "25e7f1ec44c49fa8edf9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787601519111-taza-ceramica-personajes/": {
+   "huella": "31fbb53f2e1da8213f0d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787690253341-avion-a-friccion/": {
+   "huella": "6d214ad19729154c8657",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787758572358-auto-bolsa-gr/": {
+   "huella": "6f1a49af8b9e2b39196e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787771560369-pelota-goma-x5-river/": {
+   "huella": "8b80c2c4398596fd2b99",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787842206984-avon-x1-rayado/": {
+   "huella": "cd48adbd6dec4eaf77ba",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787847424000-bolso-kuromi/": {
+   "huella": "88814b1fb9b3a73ad3a0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787924032354-yoyo-x1/": {
+   "huella": "7f4f505b38db0e049378",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787928593245-peluche-capi-mochila-22-cm/": {
+   "huella": "b48110e72c4b239e8b4e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787928888578-peluche-capi-palta-grande/": {
+   "huella": "0d2194d4ac68a113d9da",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787928923266-peluche-palta-mediano/": {
+   "huella": "64d6de411a88cba69748",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787929079475-peluche-capi-mediano-35cm/": {
+   "huella": "d0874fc700bd12d7af88",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787929162377-peluche-labubu-mediano-35cm/": {
+   "huella": "73d5a92d469510ed4be0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787929246525-peluche-labubu-chico/": {
+   "huella": "b1061fd17738b4645190",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787933816438-juego-de-domino-frutas/": {
+   "huella": "6c29cf91a253f7fc1344",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787933851110-juego-de-domino-animales/": {
+   "huella": "2066bc3f74d0462c0892",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1787934629305-juego-de-domino-afa/": {
+   "huella": "b5e8e9f1ae8dd9966092",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788026987995-yerbera-y-azucarera-plateado/": {
+   "huella": "8f9df73371940abc77ab",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788043812981-rinonera-boca/": {
+   "huella": "efc4206acb3c5f76a4bd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788211526943-camion-volcador-duravit-2-a-8-anos-77cm/": {
+   "huella": "d4bb4e0dc978c96efc2a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788267056998-pista-de-3-niveles/": {
+   "huella": "fe51b9a33efa60c42bf7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788297052855-slime-c-unicornio/": {
+   "huella": "721dfdd2e05934050590",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788297372452-slime-c-robot/": {
+   "huella": "717567dc123008f34df1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788297606052-slime-c-sony/": {
+   "huella": "20570c3ba91b38935ccd",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788298176769-slime-c-hombre-arana/": {
+   "huella": "6fcd8ab19c371e09b623",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788298583572-slime-c-princesa/": {
+   "huella": "750b938d28f3e438d60a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788366599046-chau-lata/": {
+   "huella": "39591d444a1df4beef7c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788375372318-banquitos/": {
+   "huella": "6dced5d5def3f9c61b2c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788387409034-mate-barril-c-mandala-bombilla/": {
+   "huella": "aa4023541a61bbc66310",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788388469897-combo-duet-mama/": {
+   "huella": "fe2a15c3a40a51047bfc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788389918241-consome-mama/": {
+   "huella": "602763b549a2f3e486a7",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788390337838-taza-genko-mama/": {
+   "huella": "0a64f52cc320673c668e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788390517637-chopp-mama-c-gel-refrigerante-1-ltr/": {
+   "huella": "b5da96cc37b4ce278ff0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788390640725-chopp-mama-c-gel-refrigerante-500ml/": {
+   "huella": "82baf10eba9124c25b51",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788465333292-yerbera-y-azucarera-disenos/": {
+   "huella": "861852a0b438037c37c8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788465996604-bolso-porta-termo/": {
+   "huella": "a4ec02eeeb3468bd1697",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788622567512-vaso-vidrio-afa/": {
+   "huella": "a433c8f116b8bc2ffb15",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788628372879-auto-bombero-duravit/": {
+   "huella": "a470693e57fc36a73621",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788962071962-lentes-de-lectura-0-75-al-4-00/": {
+   "huella": "9b5d5a199617a66a855f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788969218940-taza-toy-story-color-verde/": {
+   "huella": "066e26fe37fb5594ca94",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788986755753-taza-sonic-color/": {
+   "huella": "61076be7720d70cfed3d",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788987012271-taza-spiderman-color-celeste/": {
+   "huella": "7880c26cb406a3d7048c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788991676392-pizarra-magica-hello-kitty/": {
+   "huella": "bd5982bbf952f33178e0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788997991330-taza-star-word-color-negro/": {
+   "huella": "b63d9779ae1f4787545e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788998406106-taza-mug-ceramica-boca/": {
+   "huella": "bdf525f99f9433815d55",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1788998653885-taza-mug-ceramica-river/": {
+   "huella": "d470f853c4f50f831108",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1789154474640-caballito-pata-pata/": {
+   "huella": "227f8a7944cdc86af2a0",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1790102310045-pelota-n-2-river-boca/": {
+   "huella": "663782cfb86e4d301762",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1790965308394-pelota-pelotero-halloween-x100pcs/": {
+   "huella": "e168290881f34a48f346",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1790965424707-pelota-pelotero-halloween-x50pcs/": {
+   "huella": "fdf70ae577f483a0f4ae",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1790969864223-bebe-de-goma-noni-28-cm/": {
+   "huella": "b22c471c67d2ec2b9165",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791237196428-bombilla-de-acero-inoxidable-x6-pcs/": {
+   "huella": "a43892bdd4ad561590da",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791298719289-flota-flota-x-1/": {
+   "huella": "65105a96be0155deb297",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791406840115-despolvillador-mama/": {
+   "huella": "e52b2b28e7c6d40f2322",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791407866053-plim-plim-a-baila-y-reproduce-la-voz/": {
+   "huella": "3afd4594c3bac3a8bccf",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791407945531-abejita-a-pila-baila-y-reproduce-la-voz/": {
+   "huella": "30bc1fe6c4adfa39491b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791490997819-canasto-matero-c-chau-latas/": {
+   "huella": "81d2ff22443a2065cf18",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791575200453-maquina-patillera-vintage/": {
+   "huella": "61c4d8c5d74acd4fa748",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791643589903-968-limpia-bombillas/": {
+   "huella": "b5d1bb39479cb21f67aa",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791661700410-yerbera-y-azucarera-lisa/": {
+   "huella": "7378fa3bdea4220865c9",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791923037916-squishy-oreo/": {
+   "huella": "c7ed061e114a09b52cda",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791923857119-squishy-chocolate/": {
+   "huella": "4af67b14847444b829a1",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1791986113188-pistola-de-agua-personajes/": {
+   "huella": "cff19c7b9218b095030e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792175624981-783-pava-electrica-tokyo/": {
+   "huella": "31cdcd5470bbc2a36cfc",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792183671880-set-manicure-grande/": {
+   "huella": "8d20d80feb70ed944f42",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792266096677-balde-c-regadera-p-r/": {
+   "huella": "66f7abcfc3e449eb2659",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792419855250-plato-playo-plastico-chico-21cm/": {
+   "huella": "0accf1ada31bafcffcc3",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792419923157-plato-playo-plastico-grande-25cm/": {
+   "huella": "7bc74c4cab66ddc4041b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792426694150-botellas-duki-pastel/": {
+   "huella": "0c6365d5c537e5a874e8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792439450020-166-cuad-exito-n1-x50/": {
+   "huella": "53266ab0b04dfcd6c171",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792444998637-804-llavero-labubu/": {
+   "huella": "aff1ff6e8e9a609d6f8a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792448441090-563-moto-de-metal-a-friccion-c-sonido/": {
+   "huella": "ac665f8f1040389cf662",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792521981227-768-bombilla-chata-st/": {
+   "huella": "fdc057bf885b96b7bda5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792615274632-bleyblade-en-caja/": {
+   "huella": "c1fd670feaa7bb78d710",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792676565390-190-auto-control-batman/": {
+   "huella": "49963245d168fd93f724",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1792865607801-968-bandera-papa-leon/": {
+   "huella": "5fa38827f85390c0ce86",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793020515689-108-taza-c-tapa/": {
+   "huella": "b9283909a3f288864583",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793047210116-981-dados-x100/": {
+   "huella": "c8b6ae54eebb00cc3672",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793220296124-526-estacion-3-niveles/": {
+   "huella": "3a3738efb7aea376ba74",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793384205435-157-rinonera-cueirna/": {
+   "huella": "c0e640b6064e35ea32f6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793457318628-120-mi-primer-tocador/": {
+   "huella": "1621b76ffc3bff060d17",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793638871681-605-porta-termo-stanley/": {
+   "huella": "1ca8e88d0d7e2151e593",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793812959673-diamont-stitch/": {
+   "huella": "b4578365a4cd3afdf1d2",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1793989045272-733-rompecabeza-carton/": {
+   "huella": "9bfe59653e1e9bf23b40",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1794927500721-pelota-personajes-n-5/": {
+   "huella": "17af9001ea69ae417b50",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1794943842050-lunchera-termica-eco/": {
+   "huella": "ad270df7d91367446e6e",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795105625844-disfraz-infantil-spiderman/": {
+   "huella": "1be09c5d4a3a80216b68",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795105820007-disfraz-infantil-hulk/": {
+   "huella": "28f460eda9d1670fff49",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795106049243-disfraz-infantil-capitan-america/": {
+   "huella": "77a6c8b92bef004e5c78",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795106338293-disfraz-infantil-ironman/": {
+   "huella": "c6b15120f53bb21ebd22",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795107341989-disfraz-infantil-aurora/": {
+   "huella": "33d54a1cfef72effd7f8",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795107397697-disfraz-infantil-princesas/": {
+   "huella": "fa401d1d7748518e5628",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795107464519-disfraz-infantil-blancanieves/": {
+   "huella": "af5c133182922c10fcec",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795108916072-disfraz-infantil-elsa/": {
+   "huella": "985333d8384d4d2a7520",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795109032926-disfraz-infantil-cenicienta/": {
+   "huella": "b3154e138a75cd3210d5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795109503206-disfraz-infantil-thor/": {
+   "huella": "e32775b732632460e82f",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795190126261-873-birome-borrable-filgo/": {
+   "huella": "16e4073ec10448632207",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795281459147-927-pila-aaa-blister/": {
+   "huella": "9d3b13fbd7fc028164b6",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795638031840-squishy-bola-crujiente-7cm/": {
+   "huella": "1e658c891b25d23db338",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795647232889-608-squishy-manteca/": {
+   "huella": "2283fa572bcbad9c49ad",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/PRD-1795711447861-869-banquitos-osito/": {
+   "huella": "26e596c558621d469a4c",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1789508448501-auto-4x4-monster-a-friccion/": {
+   "huella": "02a6921a5381dfdd703a",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1789580931660-carrito-de-compra/": {
+   "huella": "72ba03dacaf04f37189b",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1789653700769-pelota-pelotero-colores-x100/": {
+   "huella": "39ae28d0a90e08975c09",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1789753387737-banddeja-3dd-mama/": {
+   "huella": "ad00e9c310a4d8a88763",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1789761655668-bombilla-color/": {
+   "huella": "68e581201f61d83b1cce",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1790011183559-capibara-que-respira-ideal-de-apego/": {
+   "huella": "428f591327b283cfbe54",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1790011315851-capibara-c-manta/": {
+   "huella": "aea810c0099b7e01f085",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1790015295431-bolso-matero-ridigo/": {
+   "huella": "666fe3b6061c5cb63e62",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1790429006092-llavero-mama/": {
+   "huella": "ff2ec07a02b9d1c12a50",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/TEMP-1790952777275-corazon-mama/": {
+   "huella": "0633a77d90642027bd13",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/UK8866F-bengala-x4/": {
+   "huella": "a495e5cc8d552b8b25b5",
+   "fecha": "2026-11-26"
+  },
+  "https://casaluma9.github.io/casaluma/producto/UTA4214-lanza-papel/": {
+   "huella": "3110a06d30a61f5e965b",
+   "fecha": "2026-11-26"
+  }
+ }
+}

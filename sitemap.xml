@@ -1,10 +1,124 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://casaluma9.github.io/casaluma</loc>
+    <loc>https://casaluma9.github.io/casaluma/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/bazar/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/bolsos-y-mochilas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/bombillas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/botellas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/cotillon/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/dia-de-la-madre/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/electronica/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/halloween/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/juego-de-mesa/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/jugueteria/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/libreria/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/mates/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/navidad/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/ofertas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/regaleria/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/set-de-mate/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/termicos/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/verano/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/categoria/yerberas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1786224985508-slime-c-avion/</loc>
@@ -391,6 +505,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435006704-llaves-mordillo/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7450077059402-loteria-spiderman-x48-cartones/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
@@ -709,6 +829,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435005073-verdura-y-frutas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7450077131702-walkie-takie/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
@@ -734,6 +860,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/2003148933993-yenga-mediano-liso-45-pcs/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435006124-set-de-cocina-duravit/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1057,7 +1189,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788211526943-camion-volcador-duravit-2-a-8-anos/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1788211526943-camion-volcador-duravit-2-a-8-anos-77cm/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1070,6 +1202,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/6926230446019-animales-de-granja-x4/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435006186-juego-de-mate-duravit/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1237,12 +1375,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792607062034-munecas-peponas/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/PRD-1792615274632-bleyblade-en-caja/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
@@ -1297,13 +1429,19 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/7792435002355-camion-volcador-c-casco-duravit-40x22-cm/</loc>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435002355-camion-volcador-c-casco-duravit-40x20cm/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7798052580351-slime-dr-lokus-con-bichitos/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435006285-mordillo-aro/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -1352,6 +1490,12 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7792025050261-set-herramientas-c-chaleco/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435002348-excavadora-c-casco-duravit/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -4477,25 +4621,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6900000018897-luces-led-multicolor-esfera/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/6900000018972-luces-led-multicolor-arbolito-a-pila/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6900000006467-cortina-de-luces-led-calida/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6900000006474-cortina-de-luces-led-multicolor/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -4562,12 +4688,6 @@
   </url>
   <url>
     <loc>https://casaluma9.github.io/casaluma/producto/6956988552489-adorno-p-puerta-redondo-30-cm/</loc>
-    <lastmod>2026-11-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://casaluma9.github.io/casaluma/producto/6950260403339-arbol-navidad-plegable-verde-1-20mt/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -4735,7 +4855,43 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435004120-banco-de-herramientas-duravit-50x40cm/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://casaluma9.github.io/casaluma/producto/7792435002041-constructor-x2-duravit-54cm/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435002010-super-constructor-x4-duravit/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435007091-masas-x10-duravit/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435005066-canasta-verduras-y-frutas/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435006995-estacion-3-niveles-duravit/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435007008-estacion-4-niveles-duravit/</loc>
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -4751,5 +4907,23 @@
     <lastmod>2026-11-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/7792435004137-set-herramientas-c-casco/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/producto/PRD-1795711447861-869-banquitos-osito/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://casaluma9.github.io/casaluma/devoluciones/</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>
