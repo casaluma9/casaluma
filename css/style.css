@@ -1059,7 +1059,21 @@ select:focus-visible{
     font-size:.92rem;
     line-height:1.5;
     margin:10px 0 0;
+    white-space:pre-line; /* respeta los saltos de línea de la descripción */
+    overflow-wrap:anywhere;
 }
+
+/* Características del producto (marca, material, medidas…) */
+.qv-caracteristicas{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:4px 14px;
+    margin:12px 0 0;
+    font-size:.88rem;
+    line-height:1.4;
+}
+.qv-caracteristicas dt{ color:var(--ink-600); font-weight:500; }
+.qv-caracteristicas dd{ margin:0; color:var(--ink-900); overflow-wrap:anywhere; }
 
 @media (max-width:576px){
     .qv-precio-grande{ font-size:1.6rem; }
@@ -2197,6 +2211,20 @@ body[data-temporada] .top-banner{ background:linear-gradient(90deg, var(--navy-9
 .pr-secundarios .btn-link{ font-size:14px; text-decoration:none; }
 .pr-nota{ font-size:12.5px; color:#64748b; margin:6px 0 0; }
 
+/* ===== Pagos online (v2.7.0) ===== */
+.pago-online-box{ margin-top:12px; }
+.pago-online-titulo{ font-weight:700; font-size:15px; margin-bottom:6px; }
+.pago-opcion{ display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:6px; cursor:pointer; background:#fff; transition:border-color .15s, background .15s; }
+.pago-opcion:hover{ border-color:#94a3b8; }
+.pago-opcion:has(input:checked){ border-color:#16a34a; background:#f0fdf4; }
+.pago-opcion input{ margin-top:4px; flex:0 0 auto; }
+.pago-opcion span{ display:flex; flex-direction:column; line-height:1.25; }
+.pago-opcion b{ font-size:14.5px; }
+.pago-opcion small{ color:#64748b; font-size:12.5px; margin-top:2px; }
+.pr-aviso-pago{ background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; border-radius:10px; padding:8px 12px; font-size:13.5px; margin-bottom:10px; text-align:left; }
+.pr-check.pendiente{ background:#f59e0b; box-shadow:0 8px 24px rgba(245,158,11,.35); }
+.pr-check.error{ background:#dc2626; box-shadow:0 8px 24px rgba(220,38,38,.35); }
+
 
 /* =========================================================
    REDES Y CONTACTO — botones con el color y el logo de cada red
@@ -2308,3 +2336,35 @@ body[data-temporada] .top-banner{ background:linear-gradient(90deg, var(--navy-9
     .beneficios .beneficio-link{ transition:none; }
     .beneficios .beneficio-link:hover{ transform:none; }
 }
+
+
+/* ===== Sección "Sobre Jireh Mayorista" + enlaces a categorías/productos (index.html) ===== */
+.card-product .card-link{ color:inherit; text-decoration:none; display:block; }
+.card-product h5 .card-link{ display:inline; }
+.card-product .card-img-wrap .card-link{ display:block; }
+
+.seo-info{ background:#fff; border-top:1px solid var(--paper-line); padding:28px 16px; margin-top:32px; color:var(--ink-900); }
+.seo-info-inner{ max-width:960px; margin:0 auto; }
+.seo-info h2{ font-size:1.25rem; font-weight:800; margin:0 0 10px; }
+.seo-info h3{ font-size:1rem; font-weight:700; margin:0 0 6px; }
+.seo-info p{ margin:0 0 12px; line-height:1.6; }
+.seo-info-cols{ display:flex; flex-wrap:wrap; gap:8px 32px; margin:8px 0 12px; }
+.seo-info-cols > div{ flex:1 1 260px; }
+.seo-enlaces{ display:flex; flex-wrap:wrap; gap:16px 32px; margin-top:8px; }
+.seo-enlaces > div{ flex:1 1 260px; min-width:0; }
+.seo-enlaces ul{ list-style:none; margin:0; padding:0; columns:2 200px; column-gap:24px; font-size:14px; line-height:1.9; }
+.seo-enlaces li{ break-inside:avoid; overflow:hidden; text-overflow:ellipsis; }
+.seo-enlaces a{ color:var(--indigo-700); }
+.seo-n{ color:var(--ink-600); }
+.seo-productos{ margin-top:24px; }
+.seo-cat{ margin:0 0 20px; }
+.seo-cat h4{ font-size:.95rem; font-weight:700; margin:0 0 8px; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+.seo-cat h4 > a{ color:var(--ink-900); text-decoration:none; }
+.seo-vermas{ font-size:13px; font-weight:500; color:var(--indigo-700); }
+.seo-grid{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+.seo-grid li{ background:#fff; border:1px solid var(--paper-line); border-radius:10px; padding:8px; min-width:0; }
+.seo-grid a{ display:block; text-decoration:none; color:var(--ink-900); }
+.seo-grid img{ display:block; width:100%; height:auto; aspect-ratio:1/1; object-fit:contain; }
+.seo-grid .n{ display:block; font-size:13px; line-height:1.3; margin:6px 0 2px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.seo-grid .p{ display:block; font-weight:700; font-size:14px; }
+@media (min-width:700px){ .seo-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; } }

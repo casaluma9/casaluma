@@ -168,6 +168,9 @@ async function cargarConfigCliente() {
 // que se consideran "recién agregados" y se destacan en el catálogo.
 const CANTIDAD_PRODUCTOS_NUEVOS = 8;
 
+// Días que dura el cartel "Nuevo" desde que se agregó el producto (FECHA_ALTA).
+const DIAS_PRODUCTO_NUEVO = 7;
+
 const PLACEHOLDER_IMG = "data:image/svg+xml;base64," + btoa(
     "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>" +
     "<rect width='100%' height='100%' fill='#eef1f6'/>" +
@@ -443,7 +446,18 @@ function procesarProductos(listaProductos){
         // descuenta antes el stock: si el último agregado está sin stock, no
         // le pasa el cartel a uno más viejo; simplemente no se ve.
         const codigosNuevos = new Set();
-        const conFila = (listaProductos || []).filter(p => Number(p._FILA) > 0);
+        let conFila = (listaProductos || []).filter(p => Number(p._FILA) > 0);
+        // El cartel dura DIAS_PRODUCTO_NUEVO días desde que se agregó el
+        // producto (columna FECHA_ALTA). Un producto sin fecha es viejo. Si el
+        // backend todavía no manda esa columna, solo rige el criterio de filas.
+        if((listaProductos || []).some(p => p.FECHA_ALTA !== undefined)){
+            const ahora = Date.now();
+            const limite = ahora - DIAS_PRODUCTO_NUEVO * 24 * 60 * 60 * 1000;
+            conFila = conFila.filter(p => {
+                const t = new Date(p.FECHA_ALTA).getTime();
+                return isFinite(t) && t >= limite && t <= ahora + 24 * 60 * 60 * 1000;
+            });
+        }
         if(conFila.length){
             conFila
                 .sort((a, b) => Number(b._FILA) - Number(a._FILA))
@@ -735,6 +749,12 @@ function mostrarProductos(lista){
         const categoria = escapeHtml(p.CATEGORIA);
         const imagen = escapeHtml(imgOptimizada(urlHttpSegura(p.IMAGEN), 480));
 
+        // Enlace rastreable a la ficha estática (/producto/CODIGO-slug/). Para el
+        // cliente se sigue abriendo el Quick View (ver el listener de clic más
+        // abajo, que cancela la navegación); para bots y "abrir en pestaña nueva"
+        // es un <a href> normal.
+        const href = escapeHtml(urlEstaticaProducto(p));
+
         const stock = obtenerEstadoStock(p.STOCK);
 
         return `
@@ -749,12 +769,14 @@ function mostrarProductos(lista){
                 ${String(p.OFERTA || "").trim().toUpperCase() === "SI" ? `<div class="ribbon-oferta">🔥 OFERTA</div>` : ""}
 
                 <div class="card-img-wrap">
-                    <img
-                        src="${imagen}"
-                        alt="${nombre}"
-                        loading="lazy"
-                        decoding="async"
-                        onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
+                    <a href="${href}" class="card-link" data-action="quickview" tabindex="-1" aria-hidden="true">
+                        <img
+                            src="${imagen}"
+                            alt="${nombre}"
+                            loading="lazy"
+                            decoding="async"
+                            onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'">
+                    </a>
                 </div>
 
                 <div class="ticket-perf"></div>
@@ -763,7 +785,7 @@ function mostrarProductos(lista){
 
                     <small>${categoria}</small>
 
-                    <h5>${nombre}</h5>
+                    <h5><a href="${href}" class="card-link" data-action="quickview">${nombre}</a></h5>
 
                     <div class="price">$${formatearPrecio(p.PRECIO)}</div>
 
@@ -851,6 +873,13 @@ document.getElementById("productos").addEventListener("click", function(e){
 
     const actionEl = e.target.closest("[data-action]");
     if(!actionEl) return;
+
+    // Enlaces <a href> de la tarjeta: clic normal → Quick View (sin navegar);
+    // Ctrl/Cmd/Shift/Alt + clic → el navegador abre la ficha estática como siempre.
+    if(actionEl.tagName === "A"){
+        if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return;
+        e.preventDefault();
+    }
 
     const card = actionEl.closest(".card-product");
     if(!card) return;
@@ -1040,6 +1069,48 @@ document.getElementById("qv-thumbs").addEventListener("click", function(e){
     });
 });
 
+/**
+ * Características que se muestran en el detalle (solo las que tienen dato).
+ * Mismas columnas que usan las fichas estáticas (scripts/generar-seo.js).
+ */
+function caracteristicasProducto(producto){
+    const t = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+    const filas = [
+        ["Marca", t(producto.MARCA)],
+        ["Material", t(producto.MATERIAL)],
+        ["Medidas", t(producto.MEDIDAS)],
+        ["Contenido", t(producto.CONTENIDO)],
+        ["Edad recomendada", t(producto.EDAD)]
+    ];
+    const colores = coloresProducto(producto);
+    if(colores.length > 1) filas.push(["Colores", colores.join(", ")]);
+    const unidades = Number(producto.UNIDADES_POR_CAJA) || 0;
+    if(unidades > 0) filas.push(["Caja", unidades + " unidades"]);
+    return filas.filter(([, v]) => v);
+}
+
+/** Colores del producto: COLOR (foto principal) + los de IMAGENES ("url|color, …"), sin repetir. */
+function coloresProducto(producto){
+    const lista = [];
+    const agregar = (c) => {
+        c = String(c || "").trim();
+        if(c && !lista.some(x => x.toLowerCase() === c.toLowerCase())) lista.push(c);
+    };
+    agregar(producto.COLOR);
+    String(producto.IMAGENES || "").split(",").forEach(par => agregar(par.split("|")[1]));
+    return lista;
+}
+
+/** GTIN (código de barras EAN/UPC) si el código del producto es uno válido. */
+function gtinProducto(codigo){
+    const c = String(codigo ?? "").trim();
+    if(!/^(\d{8}|\d{12,14})$/.test(c)) return "";
+    const d = c.split("").map(Number);
+    const verificador = d.pop();
+    const suma = d.reverse().reduce((s, x, i) => s + x * (i % 2 === 0 ? 3 : 1), 0);
+    return (10 - suma % 10) % 10 === verificador ? c : "";
+}
+
 function abrirQuickView(producto, actualizarUrl){
 
     if(!producto) return;
@@ -1056,9 +1127,19 @@ function abrirQuickView(producto, actualizarUrl){
     document.getElementById("qv-precio").textContent = "$" + formatearPrecio(producto.PRECIO);
 
     const descripcionEl = document.getElementById("qv-descripcion");
-    const descripcion = String(producto.DESCRIPCION || "").trim();
+    let descripcion = String(producto.DESCRIPCION || "").trim();
+    // Si la "descripción" es solo el nombre repetido, no se muestra (ya está en el título)
+    const soloNombre = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9áéíóúñü]+/g, " ").trim();
+    if(soloNombre(descripcion) === soloNombre(producto.PRODUCTO)) descripcion = "";
     descripcionEl.textContent = descripcion;
     descripcionEl.classList.toggle("d-none", !descripcion);
+
+    const caracteristicasEl = document.getElementById("qv-caracteristicas");
+    if(caracteristicasEl){
+        const filas = caracteristicasProducto(producto);
+        caracteristicasEl.innerHTML = filas.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("");
+        caracteristicasEl.classList.toggle("d-none", !filas.length);
+    }
 
     const stockEl = document.getElementById("qv-stock");
     const stock = obtenerEstadoStock(producto.STOCK);
@@ -1200,6 +1281,29 @@ function generarSlug(texto){
         .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Segmento de URL de la ficha estática: <CODIGO codificado>[-slug].
+ * DEBE coincidir con segmentoProducto() de scripts/seo-comun.js (lo usan el
+ * generador de fichas y el sitemap): si cambia uno, cambiar el otro.
+ */
+function segmentoProductoURL(producto){
+    const codigo = String(producto.CODIGO == null ? "" : producto.CODIGO).trim().replace(/[\/\\]+/g, "-");
+    const slug = generarSlug(producto.PRODUCTO);
+    return encodeURIComponent(codigo) + (slug ? "-" + slug : "");
+}
+
+/** Base pública del sitio (con "/" final): config.json/Sheets, o la URL actual como último recurso. */
+function baseSitioURL(){
+    const configurada = (typeof CONFIG_NEGOCIO !== "undefined" && CONFIG_NEGOCIO && CONFIG_NEGOCIO.URL_SITIO) || "";
+    if(configurada) return configurada.replace(/\/*$/, "/");
+    return urlBase || window.location.href.split("?")[0].split("#")[0];
+}
+
+/** URL canónica de la ficha estática de un producto (/producto/CODIGO-slug/). */
+function urlEstaticaProducto(producto){
+    return baseSitioURL() + "producto/" + segmentoProductoURL(producto) + "/";
+}
+
 function actualizarURLProducto(producto){
 
     if(!producto) return;
@@ -1225,7 +1329,7 @@ function actualizarURLProducto(producto){
     // se lista en sitemap.xml y la que conviene que Google indexe como
     // "la" URL de este producto, para no generar contenido duplicado
     // entre las dos versiones.
-    const urlCanonicaEstatica = urlBase + "producto/" + codigo + (slug ? "-" + slug : "") + "/";
+    const urlCanonicaEstatica = urlEstaticaProducto(producto);
     const tituloProducto = producto.PRODUCTO + (nombreNegocio ? " | " + nombreNegocio : "");
     const descripcionCorta = String(producto.DESCRIPCION || producto.PRODUCTO || "").slice(0, 160);
     const imagenProducto = producto.IMAGEN || "";
@@ -1298,8 +1402,13 @@ function actualizarSchemaProducto(producto, url, descripcion, imagen){
         "name": producto.PRODUCTO,
         "description": descripcion,
         "sku": String(producto.CODIGO),
+        "gtin": gtinProducto(producto.CODIGO) || undefined,
+        "brand": String(producto.MARCA || "").trim() ? { "@type": "Brand", "name": String(producto.MARCA).trim() } : undefined,
+        "material": String(producto.MATERIAL || "").trim() || undefined,
+        "color": coloresProducto(producto).join(", ") || undefined,
         "image": imagen || undefined,
         "category": producto.CATEGORIA || undefined,
+        "itemCondition": "https://schema.org/NewCondition",
         "offers": {
             "@type": "Offer",
             "url": url,
@@ -1380,6 +1489,24 @@ function abrirProductoDesdeURL(){
     else mostrarToast("Ese producto ya no está disponible en el catálogo.", "error");
 }
 
+// ?categoria=slug → filtra el catálogo por esa categoría. Lo usan los enlaces
+// "abrir esta categoría en el catálogo" de las páginas /categoria/<slug>/.
+function abrirCategoriaDesdeURL(){
+
+    const params = new URLSearchParams(window.location.search);
+    const param = params.get("categoria");
+    if(!param || params.get("producto")) return;
+
+    const slug = generarSlug(param);
+    const categoria = [...new Set(estado.productos.map(p => String(p.CATEGORIA || "").trim()))]
+        .find(c => c && generarSlug(c) === slug);
+    if(!categoria) return;
+
+    estado.categoria = categoria;
+    document.querySelectorAll("#categoria-chips .chip").forEach(c => c.classList.toggle("active", c.dataset.cat === categoria));
+    aplicarFiltros();
+}
+
 // ?producto=CODIGO-slug → producto. El código puede tener guiones
 // (ej. PRD-1792442698715-885), así que no se corta en el primer "-":
 // se busca el código más largo que coincida con el comienzo del parámetro.
@@ -1400,9 +1527,10 @@ function productoDesdeParametro(param){
 /* Compartir el producto abierto: menú nativo del celular
    (WhatsApp, Instagram, copiar…) o, si no existe, WhatsApp directo. */
 function linkDelProducto(producto){
-    const base = (urlBase || window.location.href.split("?")[0].split("#")[0]);
-    const slug = generarSlug(producto.PRODUCTO);
-    return base + "?producto=" + encodeURIComponent(producto.CODIGO) + (slug ? "-" + slug : "");
+    // Se comparte la URL estática canónica (/producto/CODIGO-slug/): es una
+    // ficha real, con vista previa correcta en WhatsApp/Facebook y la que
+    // indexa Google. Desde esa página, "Comprar en el catálogo" abre la SPA.
+    return urlEstaticaProducto(producto);
 }
 
 async function compartirProducto(producto){
@@ -2243,6 +2371,29 @@ function mostrarPedidoRecibido(datos){
     filaCupon.classList.toggle("d-none", !datos.cupon);
     if(datos.cupon) document.getElementById("prCupon").textContent = datos.cupon + " (−$" + formatearPrecio(datos.descuento) + ")";
     document.getElementById("prWhatsapp").href = datos.urlWhatsapp;
+    // Pago online (v2.7.0)
+    const cajaPago = document.getElementById("prPago");
+    const avisoPago = document.getElementById("prPagoError");
+    const textoPr = document.getElementById("prTexto");
+    const btnWa = document.getElementById("prWhatsapp");
+    if(datos.linkPago){
+        cajaPago.classList.remove("d-none");
+        const btnPagar = document.getElementById("prPagar");
+        btnPagar.href = datos.linkPago;
+        btnPagar.textContent = "Pagar $" + formatearPrecio(datos.total) + " con " + (datos.proveedorPago || "tarjeta");
+        textoPr.textContent = "Tu pedido ya quedó registrado. Pagalo ahora: cuando se acredite, lo vas a ver como pagado en el estado del pedido.";
+        btnWa.textContent = "Enviar también por WhatsApp";
+        btnWa.classList.replace("btn-success", "btn-outline-success");
+    } else {
+        cajaPago.classList.add("d-none");
+        textoPr.textContent = "Tu pedido ya quedó registrado. Envianos el detalle por WhatsApp para coordinar el pago y el envío.";
+        btnWa.textContent = "Enviar por WhatsApp";
+        btnWa.classList.replace("btn-outline-success", "btn-success");
+    }
+    avisoPago.classList.toggle("d-none", !datos.errorPago);
+    if(datos.errorPago){
+        avisoPago.textContent = "No pudimos abrir el pago online (" + datos.errorPago.replace(/\.$/, "") + "). Coordiná el pago por WhatsApp.";
+    }
     document.getElementById("prVerEstado").onclick = () => {
         bootstrap.Modal.getInstance(document.getElementById("pedidoRecibidoModal"))?.hide();
         abrirConsultaPedido();
@@ -2269,7 +2420,187 @@ function desactivarCargaCheckout(){
     const btn = document.getElementById("btn-checkout");
     const texto = document.getElementById("btn-checkout-texto");
     if(btn){ btn.disabled = false; btn.classList.remove("loading"); }
-    if(texto) texto.textContent = "Enviar pedido por WhatsApp";
+    if(texto) texto.textContent = metodoPagoElegido() ? "Confirmar pedido e ir a pagar" : "Enviar pedido por WhatsApp";
+}
+
+/* =========================================================
+   PAGOS ONLINE (v2.7.0) — Mercado Pago / Ualá Bis
+   El negocio los activa en el panel. El carrito pregunta cuáles hay
+   (directo a Apps Script, sin la caché del Worker) y muestra las
+   opciones. El link de pago lo arma el servidor con el total real.
+========================================================= */
+
+let metodosPagoOnline = { mp: false, uala: false };
+let _metodosPagoConsultadoEn = 0;
+const CLAVE_PAGOS_PENDIENTES = "veekPagosPendientes";
+const NOMBRE_METODO_PAGO = { mp: "Mercado Pago", uala: "Ualá" };
+
+function metodoPagoElegido(){
+    const r = document.querySelector('input[name="metodoPago"]:checked');
+    const v = r ? r.value : "";
+    return (v === "mp" && metodosPagoOnline.mp) || (v === "uala" && metodosPagoOnline.uala) ? v : "";
+}
+
+function pintarMetodosPagoOnline(){
+    const box = document.getElementById("pago-online-box");
+    if(!box) return;
+    const hay = metodosPagoOnline.mp || metodosPagoOnline.uala;
+    box.classList.toggle("d-none", !hay);
+    document.getElementById("pago-op-mp")?.classList.toggle("d-none", !metodosPagoOnline.mp);
+    document.getElementById("pago-op-uala")?.classList.toggle("d-none", !metodosPagoOnline.uala);
+    // Si la opción elegida ya no está disponible, vuelve a "coordinar por WhatsApp"
+    const elegido = document.querySelector('input[name="metodoPago"]:checked');
+    if(elegido && elegido.value && !metodosPagoOnline[elegido.value]){
+        const porDefecto = document.querySelector('input[name="metodoPago"][value=""]');
+        if(porDefecto) porDefecto.checked = true;
+    }
+    if(!enviandoPedido) desactivarCargaCheckout();
+}
+
+function cambiarMetodoPago(){
+    if(!enviandoPedido) desactivarCargaCheckout();
+}
+
+async function cargarMetodosPagoOnline(forzar){
+    if(!API_URL) return;
+    if(!forzar && Date.now() - _metodosPagoConsultadoEn < 5 * 60 * 1000){ pintarMetodosPagoOnline(); return; }
+    try{
+        const r = await fetchAPI(API_URL + (API_URL.indexOf("?") === -1 ? "?" : "&") + "action=metodosPagoOnline", { cache: "no-store" }, { timeoutMs: 20000, reintentos: 1 });
+        const j = await r.json();
+        if(j && j.success && j.metodos){
+            metodosPagoOnline = { mp: !!j.metodos.mp, uala: !!j.metodos.uala };
+            _metodosPagoConsultadoEn = Date.now();
+        }
+    }catch(e){ /* sin respuesta: se ofrece solo coordinar por WhatsApp */ }
+    pintarMetodosPagoOnline();
+}
+// Se consulta cada vez que se abre el carrito: si el negocio desactiva un
+// medio en el panel, deja de ofrecerse enseguida (no a los 5 minutos)
+document.getElementById("cartModal")?.addEventListener("show.bs.modal", () => cargarMetodosPagoOnline(true));
+
+/** Pagos online iniciados en este dispositivo (para verificar al volver), hasta 3 días */
+function _leerPagosPendientes(){
+    try{
+        const lista = JSON.parse(localStorage.getItem(CLAVE_PAGOS_PENDIENTES) || "{}") || {};
+        const limite = Date.now() - 3 * 24 * 3600 * 1000;
+        Object.keys(lista).forEach(k => { if(!(lista[k].creado > limite)) delete lista[k]; });
+        return lista;
+    }catch(e){ return {}; }
+}
+function _guardarPagoPendiente(datos){
+    try{
+        const lista = _leerPagosPendientes();
+        lista[datos.pedidoId] = Object.assign({ creado: Date.now() }, lista[datos.pedidoId] || {}, datos);
+        localStorage.setItem(CLAVE_PAGOS_PENDIENTES, JSON.stringify(lista));
+    }catch(e){}
+}
+function _quitarPagoPendiente(pedidoId){
+    try{ const lista = _leerPagosPendientes(); delete lista[pedidoId]; localStorage.setItem(CLAVE_PAGOS_PENDIENTES, JSON.stringify(lista)); }catch(e){}
+}
+
+/** Dirección a la que vuelve el cliente después de pagar: esta misma página, sin parámetros */
+function urlRetornoPago(){
+    return location.origin + location.pathname;
+}
+
+/** Pide un link de pago para un pedido ya hecho (reintento) y va a pagar */
+async function irAPagarPedido(pedidoId, dni, metodo, boton){
+    if(boton){ boton.disabled = true; boton.dataset.textoOriginal = boton.dataset.textoOriginal || boton.textContent; boton.textContent = "Abriendo el pago…"; }
+    try{
+        const r = await fetchAPI(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: "iniciarPagoOnline", pedidoId, dni, metodo, urlRetorno: urlRetornoPago() })
+        }, { timeoutMs: 45000, reintentos: 0 });
+        const j = await r.json();
+        if(j && j.success && j.link){
+            _guardarPagoPendiente({ pedidoId, dni, metodo });
+            location.href = j.link;
+            return;
+        }
+        mostrarToast((j && j.message) || "No pudimos abrir el pago. Probá de nuevo o coordinalo por WhatsApp.", "error", 6000);
+    }catch(e){
+        mostrarToast("No pudimos abrir el pago (sin respuesta del servidor). Probá de nuevo.", "error", 6000);
+    }
+    if(boton){ boton.disabled = false; boton.textContent = boton.dataset.textoOriginal; }
+}
+
+/**
+ * Al volver de Mercado Pago / Ualá (?pago=ok|error|pendiente&pedido=N):
+ * pregunta al servidor cómo quedó (el servidor le pregunta al proveedor) y
+ * lo muestra. Mientras el proveedor no confirme, reintenta unos segundos.
+ */
+async function procesarRetornoDePago(){
+    const params = new URLSearchParams(location.search);
+    const resultado = params.get("pago");
+    const pedidoId = (params.get("pedido") || "").replace(/[^A-Za-z0-9_-]/g, "");
+    if(!resultado || !pedidoId) return;
+
+    // Se limpia la dirección: recargar la página no vuelve a mostrar esto
+    try{
+        ["pago", "pedido", "collection_id", "collection_status", "payment_id", "status", "external_reference", "payment_type", "merchant_order_id", "preference_id", "site_id", "processing_mode", "merchant_account_id"].forEach(k => params.delete(k));
+        const q = params.toString();
+        history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
+    }catch(e){}
+
+    const pendiente = _leerPagosPendientes()[pedidoId] || {};
+    let dni = pendiente.dni || "";
+    if(!dni){ try{ dni = (JSON.parse(localStorage.getItem(CLAVE_DATOS_CLIENTE) || "{}") || {}).clienteDni || ""; }catch(e){} }
+
+    const modalEl = document.getElementById("pagoResultadoModal");
+    if(!modalEl || typeof bootstrap === "undefined") return;
+    const icono = document.getElementById("pagoResIcono");
+    const titulo = document.getElementById("pagoResultadoTitulo");
+    const texto = document.getElementById("pagoResTexto");
+    const btnReintentar = document.getElementById("pagoResReintentar");
+    const btnWhatsapp = document.getElementById("pagoResWhatsapp");
+    document.getElementById("pagoResNumero").textContent = pedidoId;
+    document.getElementById("pagoResVerEstado").onclick = () => {
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        abrirConsultaPedido();
+        setTimeout(() => {
+            const id = document.getElementById("consultaPedidoId"), d = document.getElementById("consultaDni");
+            if(id) id.value = pedidoId; if(d) d.value = dni || "";
+        }, 350);
+    };
+    const mostrar = (clase, t, x, conReintento) => {
+        icono.className = "pr-check" + (clase ? " " + clase : "");
+        icono.textContent = clase === "error" ? "!" : (clase === "pendiente" ? "…" : "✓");
+        titulo.textContent = t; texto.textContent = x;
+        btnReintentar.classList.toggle("d-none", !conReintento || !pendiente.metodo || !dni);
+        btnReintentar.onclick = () => irAPagarPedido(pedidoId, dni, pendiente.metodo, btnReintentar);
+        if(pendiente.urlWhatsapp){ btnWhatsapp.href = pendiente.urlWhatsapp; btnWhatsapp.classList.remove("d-none"); }
+        else btnWhatsapp.classList.add("d-none");
+    };
+    mostrar("pendiente", "Verificando tu pago…", "Estamos confirmando el pago con " + (NOMBRE_METODO_PAGO[pendiente.metodo] || "el medio de pago") + ". Esto puede tardar unos segundos.", false);
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    if(!dni){
+        mostrar("pendiente", "Volviste del pago", "Para ver si el pago se acreditó, consultá el estado del pedido con tu DNI.", false);
+        return;
+    }
+
+    let estado = "";
+    // Si el proveedor dijo "aprobado" o "pendiente", se espera un poco a que lo confirme
+    const intentos = resultado === "error" ? 1 : 6;
+    for(let i = 0; i < intentos; i++){
+        try{
+            const r = await fetchAPI(API_URL + (API_URL.indexOf("?") === -1 ? "?" : "&") + "action=verificarPagoOnline&pedidoId=" + encodeURIComponent(pedidoId) + "&dni=" + encodeURIComponent(dni), { cache: "no-store" }, { timeoutMs: 30000, reintentos: 1 }); // en fetchAPI "reintentos" es la cantidad de intentos: 0 = ninguno
+            const j = await r.json();
+            if(j && j.success) estado = j.estado;
+            if(estado === "PAGADO") break;
+        }catch(e){}
+        if(i < intentos - 1) await new Promise(res => setTimeout(res, 4000));
+    }
+
+    if(estado === "PAGADO"){
+        _quitarPagoPendiente(pedidoId);
+        mostrar("", "¡Pago confirmado!", "Recibimos el pago de tu pedido. Te avisamos cuando lo despachemos.", false);
+    } else if(resultado === "error" || estado === "RECHAZADO"){
+        mostrar("error", "El pago no se completó", "Tu pedido sigue registrado. Podés intentar pagar de nuevo o coordinar el pago por WhatsApp.", true);
+    } else {
+        mostrar("pendiente", "Pago en proceso", "Todavía no se acreditó (si pagaste en efectivo, puede tardar hasta que lo procesen). Cuando se acredite, el pedido se marca como pagado solo.", resultado !== "pendiente");
+    }
 }
 
 async function checkoutWhatsapp(){
@@ -2372,7 +2703,10 @@ async function checkoutWhatsapp(){
             dni,
             total,
             cupon: codigoCuponPedido,
-            carrito: estado.carrito
+            carrito: estado.carrito,
+            // Pago online (v2.7.0): el servidor arma el link con el total real
+            metodoPago: metodoPagoElegido(),
+            urlRetorno: urlRetornoPago()
         });
 
         let resultado = null;
@@ -2503,12 +2837,20 @@ Subtotal del pedido: $${formatearPrecio(subtotalPedido)}
         mensaje += `
 💰 TOTAL: $${formatearPrecio(total)}
 `;
+        if(resultado.linkPago){
+            mensaje += `💳 Pago: online con ${resultado.proveedorPago || "tarjeta"}
+`;
+        }
 
         const resumenRecibido = {
             pedidoId: resultado.pedidoId, total, dni,
             cupon: codigoCuponPedido, descuento: descuentoCuponPedido,
             lineas: estado.carrito.length,
-            unidades: estado.carrito.reduce((t, i) => t + (Number(i.cantidad) || 0), 0)
+            unidades: estado.carrito.reduce((t, i) => t + (Number(i.cantidad) || 0), 0),
+            linkPago: resultado.linkPago || "",
+            proveedorPago: resultado.proveedorPago || "",
+            errorPago: resultado.errorPago || "",
+            metodoPago: metodoPagoElegido()
         };
         guardarDatosCliente();
         _avisosCarrito = [];
@@ -2542,6 +2884,10 @@ Subtotal del pedido: $${formatearPrecio(subtotalPedido)}
         const numeroDestino = whatsappNumero ||
             String((typeof CONFIG_NEGOCIO_RESPALDO !== "undefined" && CONFIG_NEGOCIO_RESPALDO.WHATSAPP_NUMERO) || "");
         resumenRecibido.urlWhatsapp = `https://api.whatsapp.com/send?phone=${numeroDestino}&text=${encodeURIComponent(mensaje)}`;
+        if(resumenRecibido.linkPago){
+            // Para verificar el pago al volver (y ofrecer WhatsApp después)
+            _guardarPagoPendiente({ pedidoId: resumenRecibido.pedidoId, dni, metodo: resumenRecibido.metodoPago, urlWhatsapp: resumenRecibido.urlWhatsapp, total });
+        }
         setTimeout(() => mostrarPedidoRecibido(resumenRecibido), 350);
 
     }catch(error){
@@ -3108,7 +3454,11 @@ async function descargarCatalogoPDF(){
   apariencaCargadaPromise = aplicarApariencia();
   actualizarContador();
   await cargarProductos();
+  // Si viene de pagar con Mercado Pago / Ualá (v2.7.0): con la página ya
+  // cargada, para que el aviso no aparezca encima de la pantalla de carga
+  procesarRetornoDePago();
   abrirProductoDesdeURL();
+  abrirCategoriaDesdeURL();
 })();
 
 /* =========================================================

@@ -13,7 +13,7 @@
          que Google y WhatsApp los lean sin ejecutar JavaScript. Después,
          aplicarApariencia() (app.js) los ajusta con lo cargado en el panel. -->
     <title>CASA LUMA | Catálogo online</title>
-    <meta name="description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
+    <meta name="description" content="CASA LUMA: bazar, regalería, juguetes y artículos para el hogar al por mayor. Av. Rivadavia 2555, Once, CABA. Envíos a toda Argentina.">
     <meta name="keywords" content="mayorista, compra mayorista, artículos mayoristas, envíos todo el país">
     <meta name="robots" content="index, follow">
     <meta name="author" content="CASA LUMA">
@@ -23,7 +23,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://casaluma9.github.io/casaluma/">
     <meta property="og:title" content="CASA LUMA">
-    <meta property="og:description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
+    <meta property="og:description" content="CASA LUMA: bazar, regalería, juguetes y artículos para el hogar al por mayor. Av. Rivadavia 2555, Once, CABA. Envíos a toda Argentina.">
     <meta property="og:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -33,7 +33,7 @@
     <!-- ===== TWITTER / X CARD ===== -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="CASA LUMA">
-    <meta name="twitter:description" content="Catálogo mayorista de juguetes y artículos al por mayor con envíos a todo el país.">
+    <meta name="twitter:description" content="CASA LUMA: bazar, regalería, juguetes y artículos para el hogar al por mayor. Av. Rivadavia 2555, Once, CABA. Envíos a toda Argentina.">
     <meta name="twitter:image" content="https://casaluma9.github.io/casaluma/icon-512.png">
 
     <!-- ===== SCHEMA.ORG — datos estructurados para Google =====
@@ -44,8 +44,17 @@
       "@context": "https://schema.org",
       "@type": "Store",
       "name": "CASA LUMA",
-      "description": "Catálogo mayorista con envíos a todo el país.",
+      "description": "Venta al por mayor de bazar, regalería, juguetes y artículos para el hogar. Envíos a toda Argentina.",
       "url": "https://casaluma9.github.io/casaluma/",
+      "telephone": "+5491166252419",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Calle Castelli 9",
+        "addressLocality": "Ciudad Autónoma de Buenos Aires",
+        "addressRegion": "Ciudad Autónoma de Buenos Aires",
+        "postalCode": "C1034ACE",
+        "addressCountry": "AR"
+      },
       "logo": "icon-512.png",
       "image": "icon-512.png",
       "priceRange": "$$",
@@ -57,8 +66,8 @@
       },
       "hasOfferCatalog": {
         "@type": "OfferCatalog",
-        "name": "Catálogo mayorista de juguetes",
-        "description": "Juguetes y artículos varios al por mayor"
+        "name": "Catálogo mayorista",
+        "description": "Bazar, regalería, juguetes y artículos para el hogar al por mayor"
       }
     }
     </script>
@@ -83,7 +92,7 @@
     <link rel="preconnect" href="https://script.googleusercontent.com">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2.7.0">
 
     <!-- Datos del negocio (nombre, WhatsApp, SEO, etc.) — editar en config.js -->
     <!-- Catálogo: productos + configuración en un solo pedido al Worker (ver config.js) -->
@@ -244,11 +253,11 @@
         <div class="container text-center">
 
             <h1 class="display-5 fw-bold" id="hero-titulo">
-                Catálogo Mayorista
+                CASA LUMA: bazar, regalería, juguetes y artículos para el hogar al por mayor
             </h1>
 
             <p class="lead" id="hero-subtitulo">
-                Catálogo Mayorista Online
+                Av. Rivadavia 2555, Once, CABA · Envíos a toda Argentina
             </p>
 
         </div>
@@ -496,13 +505,38 @@
                         <div class="d-none" id="prCuponFila"><span>Cupón</span><b id="prCupon"></b></div>
                         <div class="pr-total"><span>Total</span><b id="prTotal"></b></div>
                     </div>
-                    <p class="pr-texto">Tu pedido ya quedó registrado. Envianos el detalle por WhatsApp para coordinar el pago y el envío.</p>
+                    <p class="pr-texto" id="prTexto">Tu pedido ya quedó registrado. Envianos el detalle por WhatsApp para coordinar el pago y el envío.</p>
+                    <!-- Pago online (v2.7.0) -->
+                    <div class="d-none" id="prPago">
+                        <a id="prPagar" class="btn btn-primary w-100 pr-boton mb-2" href="#">Pagar ahora</a>
+                    </div>
+                    <div class="pr-aviso-pago d-none" id="prPagoError" role="alert"></div>
                     <a id="prWhatsapp" class="btn btn-success w-100 pr-boton" href="#" rel="noopener">Enviar por WhatsApp</a>
                     <div class="pr-secundarios">
                         <button type="button" class="btn btn-link" id="prVerEstado">Ver el estado del pedido</button>
                         <button type="button" class="btn btn-link" data-bs-dismiss="modal">Seguir comprando</button>
                     </div>
                     <p class="pr-nota">Guardá el número: con él y tu DNI podés consultar el estado cuando quieras.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultado del pago online, al volver de Mercado Pago / Ualá (v2.7.0) -->
+    <div class="modal fade" id="pagoResultadoModal" tabindex="-1" aria-labelledby="pagoResultadoTitulo">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content pedido-recibido">
+                <div class="modal-body">
+                    <div class="pr-check" id="pagoResIcono" aria-hidden="true">✓</div>
+                    <h4 id="pagoResultadoTitulo">Verificando tu pago…</h4>
+                    <p class="pr-numero">Pedido N° <b id="pagoResNumero"></b></p>
+                    <p class="pr-texto" id="pagoResTexto">Estamos confirmando el pago. Esto puede tardar unos segundos.</p>
+                    <button type="button" class="btn btn-primary w-100 pr-boton mb-2 d-none" id="pagoResReintentar">Intentar pagar de nuevo</button>
+                    <a id="pagoResWhatsapp" class="btn btn-success w-100 pr-boton d-none" href="#" rel="noopener">Avisar por WhatsApp</a>
+                    <div class="pr-secundarios">
+                        <button type="button" class="btn btn-link" id="pagoResVerEstado">Ver el estado del pedido</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Seguir comprando</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -624,6 +658,23 @@
                             <div class="cupon-msg" id="cupon-msg" aria-live="polite"></div>
                         </div>
 
+                        <!-- Forma de pago (v2.7.0): solo aparece si el negocio activó pagos online -->
+                        <div class="pago-online-box d-none" id="pago-online-box" role="radiogroup" aria-labelledby="pago-online-titulo">
+                            <div class="pago-online-titulo" id="pago-online-titulo">¿Cómo querés pagar?</div>
+                            <label class="pago-opcion">
+                                <input type="radio" name="metodoPago" value="" checked onchange="cambiarMetodoPago()">
+                                <span><b>Coordinar el pago por WhatsApp</b><small>Transferencia, efectivo u otro medio que acuerdes con nosotros</small></span>
+                            </label>
+                            <label class="pago-opcion d-none" id="pago-op-mp">
+                                <input type="radio" name="metodoPago" value="mp" onchange="cambiarMetodoPago()">
+                                <span><b>Pagar ahora con Mercado Pago</b><small>Tarjetas, dinero en cuenta o efectivo en Rapipago / Pago Fácil</small></span>
+                            </label>
+                            <label class="pago-opcion d-none" id="pago-op-uala">
+                                <input type="radio" name="metodoPago" value="uala" onchange="cambiarMetodoPago()">
+                                <span><b>Pagar ahora con tarjeta (Ualá)</b><small>Crédito, débito o prepaga</small></span>
+                            </label>
+                        </div>
+
                         <hr>
 
                         <div class="cart-sub-row d-none" id="cart-subtotal-row">
@@ -725,6 +776,8 @@
 
                             <p class="qv-descripcion" id="qv-descripcion"></p>
 
+                            <dl class="qv-caracteristicas d-none" id="qv-caracteristicas"></dl>
+
                             <div class="qty-stepper mt-2">
                                 <button class="qty-btn" onclick="cambiarQtyInput('qv-cantidad',-1)" aria-label="Restar">−</button>
                                 <input type="number" id="qv-cantidad" class="qty-input" value="1" min="1">
@@ -783,7 +836,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" defer></script>
 
     <script src="js/temporadas.js" defer></script>
-    <script src="js/app.js" defer></script>
+    <script src="js/app.js?v=2.7.0" defer></script>
 
     <a
         id="whatsapp-float-btn"
@@ -804,6 +857,85 @@
         <span>¿Necesitás ayuda?</span>
 
     </a>
+
+    <!-- ===== SOBRE EL NEGOCIO (contenido visible y estático) =====
+         Texto y enlaces reales para quien lee la página sin JavaScript. El
+         bloque SEO-ENLACES lo regenera scripts/generar-seo.js en cada corrida
+         del workflow con las categorías y productos actuales. ===== -->
+    <section class="seo-info" id="sobre-jireh-mayorista" aria-labelledby="seo-info-titulo">
+      <div class="seo-info-inner">
+        <h2 id="seo-info-titulo">CASA LUMA: venta al por mayor de bazar, regalería, juguetes y artículos para el hogar</h2>
+        <p>En <strong>CASA LUMA</strong> vendemos al por mayor artículos de <strong>bazar</strong>, <strong>regalería</strong>, <strong>juguetes</strong> y productos para el <strong>hogar</strong>. Armá tu pedido en el catálogo online, enviá el detalle por WhatsApp y coordinamos el pago y el envío.</p>
+        <div class="seo-info-cols">
+          <div>
+            <h3>Dónde estamos</h3>
+            <p>Av. Rivadavia 2555, Once, Ciudad Autónoma de Buenos Aires (CABA), Argentina.</p>
+          </div>
+          <div>
+            <h3>Envíos a toda Argentina</h3>
+            <p>Despachamos pedidos a todo el país. Consultá el costo y el transporte al coordinar tu pedido por WhatsApp.</p>
+          </div>
+        </div>
+        <!-- SEO-ENLACES:INICIO (lo escribe scripts/generar-seo.js; no editar a mano) -->
+<div class="seo-enlaces">
+<div>
+<h3>Categorías</h3>
+<ul>
+<li><a href="categoria/accesorios/">ACCESORIOS</a> <span class="seo-n">(72)</span></li>
+<li><a href="categoria/aluminio/">ALUMINIO</a> <span class="seo-n">(5)</span></li>
+<li><a href="categoria/bombillas/">BOMBILLAS</a> <span class="seo-n">(2)</span></li>
+<li><a href="categoria/ceramica/">CERAMICA</a> <span class="seo-n">(13)</span></li>
+<li><a href="categoria/cocina/">COCINA</a> <span class="seo-n">(22)</span></li>
+<li><a href="categoria/electronicos/">ELECTRONICOS</a> <span class="seo-n">(43)</span></li>
+<li><a href="categoria/herramientas/">HERRAMIENTAS</a> <span class="seo-n">(3)</span></li>
+<li><a href="categoria/hogar/">HOGAR</a> <span class="seo-n">(41)</span></li>
+<li><a href="categoria/juguetes/">JUGUETES</a> <span class="seo-n">(344)</span></li>
+<li><a href="categoria/libreria/">LIBRERIA</a> <span class="seo-n">(22)</span></li>
+<li><a href="categoria/maquillaje/">MAQUILLAJE</a> <span class="seo-n">(53)</span></li>
+<li><a href="categoria/mates/">MATES</a> <span class="seo-n">(30)</span></li>
+<li><a href="categoria/navidad/">NAVIDAD</a> <span class="seo-n">(27)</span></li>
+<li><a href="categoria/ofertas/">OFERTAS</a> <span class="seo-n">(4)</span></li>
+<li><a href="categoria/pirotecnia/">PIROTECNIA</a> <span class="seo-n">(2)</span></li>
+<li><a href="categoria/plasticos/">PLASTICOS</a> <span class="seo-n">(41)</span></li>
+<li><a href="categoria/set-de-mate/">SET DE MATE</a> <span class="seo-n">(19)</span></li>
+<li><a href="categoria/termicos/">TERMICOS</a> <span class="seo-n">(59)</span></li>
+<li><a href="categoria/verano/">VERANO</a> <span class="seo-n">(81)</span></li>
+<li><a href="categoria/vidrio/">VIDRIO</a> <span class="seo-n">(14)</span></li>
+</ul>
+</div>
+<div>
+<h3>Productos del catálogo</h3>
+<ul>
+<li><a href="producto/PRD-1791564366355-109-antiparra-economica/">ANTIPARRA ECONOMICA</a></li>
+<li><a href="producto/ANTIPERS-antiparras-sonic/">ANTIPARRAS SONIC</a></li>
+<li><a href="producto/7798322282077-balde-castillo-con-pala-j050/">BALDE CASTILLO CON PALA  J050</a></li>
+<li><a href="producto/7798322280066-balde-cernidor-con-pala-y-rastrillo-z951/">BALDE CERNIDOR CON PALA Y RASTRILLO Z951</a></li>
+<li><a href="producto/6618825000064-balde-cernidor-pala-y-rastrillo-x006/">BALDE CERNIDOR PALA Y RASTRILLO  X006</a></li>
+<li><a href="producto/6618824000065-balde-cernidor-pala-y-rastrillo-x005/">BALDE CERNIDOR PALA Y RASTRILLO X005</a></li>
+<li><a href="producto/7798322280059-balde-con-moldes-pala-y-rastrillo/">BALDE CON MOLDES  PALA Y RASTRILLO</a></li>
+<li><a href="producto/AMOR7798-balde-con-pala-restrillo-y-molde-amor2/">BALDE CON PALA RESTRILLO Y MOLDE AMOR2</a></li>
+<li><a href="producto/7798322280011-balde-con-pala-z424/">BALDE CON PALA Z424</a></li>
+<li><a href="producto/6920388690447-chaleco-salvavidas-de-3-a-6-anos/">CHALECO SALVAVIDAS DE 3 A 6 AÑOS</a></li>
+<li><a href="producto/6942377607342-colchoneta-inflable-azul-183x69cm/">COLCHONETA INFLABLE AZUL 183X69CM</a></li>
+<li><a href="producto/6920388602594-colchoneta-inflable-multicolores-190x70cm/">COLCHONETA INFLABLE MULTICOLORES 190X70CM</a></li>
+<li><a href="producto/6942377607335-colchoneta-inflable-naranja-183x69cm/">COLCHONETA INFLABLE NARANJA 183X69CM</a></li>
+<li><a href="producto/6942377607328-colchoneta-inflable-verde-183x69cm/">COLCHONETA INFLABLE VERDE 183X69CM</a></li>
+<li><a href="producto/7450077085111-escudo-capitan-america-lanza-agua/">ESCUDO CAPITAN AMERICA LANZA AGUA</a></li>
+<li><a href="producto/6920388654647-flotador-alpaca-55cm-sunclub/">FLOTADOR ALPACA 55CM SUNCLUB</a></li>
+<li><a href="producto/6920388619042-flotador-inflable-para-bebe-73x75cm/">FLOTADOR INFLABLE PARA BEBE 73X75CM</a></li>
+<li><a href="producto/6926799214135-inflable-auto-pies-salvavida-36003-sunclub/">INFLABLE AUTO PIES SALVAVIDA 36003 SUNCLUB</a></li>
+<li><a href="producto/6920388697354-inflable-bracito-jirafa-22cmx20cm-sunclub/">INFLABLE BRACITO JIRAFA 22CMX20CM SUNCLUB</a></li>
+<li><a href="producto/6920388667227-inflable-bracitos-dino-23cmx19cm-sunclub/">INFLABLE BRACITOS  DINO 23CMX19CM SUNCLUB</a></li>
+<li><a href="producto/6926799213886-inflable-bracitos-caja-46091/">INFLABLE BRACITOS CAJA 46091</a></li>
+<li><a href="producto/6920388607094-inflable-cocodrilo-142x68cm/">INFLABLE COCODRILO 142X68CM</a></li>
+<li><a href="producto/6920388618649-inflable-de-animales-para-bebe-63x53cm/">INFLABLE DE ANIMALES PARA BEBE 63X53CM</a></li>
+<li><a href="producto/6942377608615-inflable-dinosaurio-para-bebe-57x57cm/">INFLABLE DINOSAURIO PARA BEBE 57X57CM</a></li>
+</ul>
+</div>
+</div>
+<!-- SEO-ENLACES:FIN -->
+      </div>
+    </section>
 
     <!-- ===== FOOTER SEO =====
          Texto estático visible para Google aunque no ejecute el JS.

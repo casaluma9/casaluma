@@ -741,6 +741,61 @@ function _ejecutarAccionConfirmada() {
   if (typeof fn === "function") fn();
 }
 
+/**
+ * Igual que confirmarAccion, pero devuelve una promesa: true si se
+ * aceptó, false si se canceló o se cerró el modal. Cancelar solo le
+ * saca la clase "show" al modal, así que se detecta con un observer
+ * (mismo criterio que confirmarAccionDestructiva en la app de escritorio).
+ */
+function confirmarAccionAsync(mensaje, titulo) {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById("modalConfirmGenericoBackdrop");
+    if (!backdrop) { resolve(window.confirm ? window.confirm(mensaje) : true); return; }
+    let resuelto = false;
+    const terminar = (valor) => {
+      if (resuelto) return;
+      resuelto = true;
+      observador.disconnect();
+      resolve(valor);
+    };
+    const observador = new MutationObserver(() => {
+      if (!backdrop.classList.contains("show")) terminar(false);
+    });
+    confirmarAccion(mensaje, () => terminar(true), titulo);
+    observador.observe(backdrop, { attributes: true, attributeFilter: ["class"] });
+  });
+}
+
+/**
+ * Pedidos sin preparar (Nuevo, sin stock descontado) que incluyen alguno
+ * de estos productos. Si no se puede consultar (sin internet, backend
+ * viejo), devuelve [] y la acción sigue como siempre.
+ */
+async function consultarPedidosAbiertosConProductos(codigos) {
+  const lista = (codigos || []).map(c => String(c || "").trim()).filter(Boolean);
+  if (!lista.length) return [];
+  try {
+    const params = new URLSearchParams({ action: "pedidosAbiertosConProductos", codigos: lista.join(",") });
+    const response = await fetchAPI(API_URL + "?" + params.toString(), {}, { timeoutMs: 10000 });
+    const data = await response.json();
+    return data && data.success && Array.isArray(data.pedidos) ? data.pedidos : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/** Texto de aviso para el modal de confirmación ("" si no hay pedidos). */
+function textoAvisoPedidosAbiertos(pedidos, queSeHace) {
+  if (!pedidos || !pedidos.length) return "";
+  const n = pedidos.length;
+  const ids = pedidos.slice(0, 8).map(p => "#" + p.PEDIDO_ID + (p.CLIENTE ? " (" + p.CLIENTE + ")" : "")).join(", ") +
+    (n > 8 ? ` y ${n - 8} más` : "");
+  const consecuencia = queSeHace === "eliminar"
+    ? "Si lo eliminás, esos pedidos no se van a poder pasar a Preparando hasta que restaures el producto o lo quites del pedido."
+    : "El pedido no cambia: revisá si todavía lo vas a poder entregar.";
+  return `⚠️ ${n === 1 ? "Hay 1 pedido sin preparar" : `Hay ${n} pedidos sin preparar`} con ${queSeHace === "eliminar" ? "este producto" : "estos productos"}: ${ids}. ${consecuencia}`;
+}
+
 /** Resets the form (and the saved sheet values) back to the generic empty defaults */
 function restablecerConfigNegocio() {
   confirmarAccion(
@@ -2236,7 +2291,9 @@ async function confirmarAnulacionVenta() {
       return;
     }
 
-    toast("Venta anulada — sigue en el historial pero ya no cuenta en caja", "success");
+    toast(data.yaAnulada
+          ? "Esa venta ya estaba anulada (el stock ya se había devuelto)"
+          : "Venta anulada — se devolvió el stock y ya no cuenta en caja", "success");
     if (window.ArcaUI) ArcaUI.trasAnulacion(venta, motivo); // nota de crédito si estaba facturada
     cerrarModalAnulacion();
     cargarVentasPOSHistorial();
@@ -2648,6 +2705,7 @@ function mostrarSeccion(id) {
 
     cargarConfigNegocioForm();
     actualizarEstadoUSBPrint();
+    cargarConfigPagosWeb(); // pagos online de la página web (v2.7.0, solo admin)
     // En Electron: mostrar tarjetas específicas de escritorio
     if (typeof window.veekpos !== "undefined" || typeof window.posOffline !== "undefined") {
       const bridge = window.veekpos || window.posOffline;
@@ -2698,6 +2756,8 @@ function mostrarSeccion(id) {
         tMp.style.display = "block";
         if (typeof mostrarEstadoMercadoPagoEnConfig === "function") mostrarEstadoMercadoPagoEnConfig();
       }
+      // Proveedor del cobro con QR y Ualá Bis (v2.6.0)
+      if (typeof cargarConfigProveedorCobro === "function") cargarConfigProveedorCobro();
     }
     actualizarPestanasConfigVisibles();
     setTimeout(actualizarPestanasConfigVisibles, 600); // la tarjeta de licencia se muestra async
@@ -2890,7 +2950,7 @@ const CACHE_TTL_SECCIONES = {
 
 function invalidarCache(...claves) {
   claves.forEach(c => {
-    try { localStorage.removeItem("vpos_cache_" + c); } catch(e) {}
+    try { localStorage.removeItem(_claveCacheSeccion(c)); localStorage.removeItem("vpos_cache_" + c); } catch(e) {}
     delete ULTIMA_CARGA_SECCION[c];
   });
 }
@@ -3113,9 +3173,20 @@ window.addEventListener("offline", () => actualizarBadgeVentasPendientes(_leerCo
 setInterval(() => sincronizarVentasPendientes(), 30000);
 document.addEventListener("DOMContentLoaded", () => actualizarBadgeVentasPendientes(_leerColaVentasPendientes().length));
 
+/**
+ * Las copias guardadas de cada sección son POR USUARIO: un vendedor solo
+ * ve sus pedidos y clientes, así que en una computadora compartida no
+ * puede aparecerle (ni por un instante) la copia que dejó otro usuario.
+ */
+function _claveCacheSeccion(clave) {
+  let u = "";
+  try { u = (sessionStorage.getItem("usuarioLogueado") || "").trim().toLowerCase(); } catch (e) {}
+  return "vpos_cache_" + (u ? u + "_" : "") + clave;
+}
+
 function cacheGet(clave) {
   try {
-    const raw = localStorage.getItem("vpos_cache_" + clave);
+    const raw = localStorage.getItem(_claveCacheSeccion(clave));
     if (!raw) return null;
     const { ts, data } = JSON.parse(raw);
     return { data, stale: Date.now() - ts > (CACHE_TTL_SECCIONES[clave] || 5 * 60 * 1000) };
@@ -3124,7 +3195,7 @@ function cacheGet(clave) {
 
 function cacheSet(clave, data) {
   try {
-    localStorage.setItem("vpos_cache_" + clave, JSON.stringify({ ts: Date.now(), data }));
+    localStorage.setItem(_claveCacheSeccion(clave), JSON.stringify({ ts: Date.now(), data }));
   } catch(e) {}
 }
 
@@ -3191,7 +3262,11 @@ async function _cargarPedidosImpl() {
     // hace falta destruir y reconstruir toda la lista — eso es lo que
     // hacía "saltar" la pantalla al principio cada vez que el polling
     // de 15s se disparaba, aunque no hubiera pedidos nuevos.
-    const firma = p => p.PEDIDO_ID + "|" + p.ESTADO + "|" + p.COBRADO + "|" + p.FORMA_PAGO_COBRO + "|" + p.TOTAL;
+    // Incluye los datos del cliente: si no, al corregir el teléfono con
+    // "Editar cliente" la tarjeta no se redibujaba y seguía mostrando el
+    // aviso ⚠️ (y el link de WhatsApp) del número viejo.
+    const firma = p => [p.PEDIDO_ID, p.ESTADO, p.COBRADO, p.FORMA_PAGO_COBRO, p.TOTAL, p.PAGO_ONLINE,
+      p.CLIENTE, p.TELEFONO, p.DNI, p.EMPRESA, p.DIRECCION, p.LOCALIDAD, p.PROVINCIA, p.PDF_URL].join("|");
     const cambio = !pedidosGlobal
       || pedidosGlobal.length !== data.pedidos.length
       || pedidosGlobal.some((p, i) => firma(p) !== firma(data.pedidos[i]));
@@ -3431,23 +3506,29 @@ async function repararStockPedidos(aplicar) {
   }
 }
 
-async function cambiarEstado(pedidoId, estado, el) {
+async function cambiarEstado(pedidoId, estado, el, confirmarSinStock) {
   pedidoId = String(pedidoId); // los números nuevos (1001…) pueden llegar como número
   if (_pedidosEnProceso.has(pedidoId)) return;
   _pedidosEnProceso.add(pedidoId);
   _marcarPedidoProcesando(pedidoId, el, "Guardando…");
-  let ok = false, mensaje = "";
+  let ok = false, mensaje = "", pedirConfirmacion = null;
   try {
     const response = await fetchAPI(
       API_URL +
       "?action=actualizarEstado" +
       "&pedidoId=" + encodeURIComponent(pedidoId) +
-      "&estado="   + encodeURIComponent(estado),
+      "&estado="   + encodeURIComponent(estado) +
+      // El backend avisa si no alcanza el stock (en vez de dejarlo en negativo sin decir nada)
+      "&verificarStock=SI" +
+      (confirmarSinStock ? "&confirmarSinStock=SI" : ""),
       {},
       { timeoutMs: 30000 }
     );
     const data = await _leerRespuestaJSON(response);
-    if (!data.success) {
+    if (!data.success && data.requiereConfirmacion) {
+      pedirConfirmacion = data.message || "No alcanza el stock para este pedido.";
+      mensaje = "falta stock";
+    } else if (!data.success) {
       mensaje = data.message || "No se pudo actualizar el pedido";
     } else {
       ok = true;
@@ -3465,6 +3546,17 @@ async function cambiarEstado(pedidoId, estado, el) {
     _terminarPedidoProcesando(pedidoId, el, true, "✓ Guardado");
     toast(`Pedido ${pedidoId}: estado cambiado a ${estado}`, "success");
     _refrescarPedidosConDestello(pedidoId);
+  } else if (pedirConfirmacion) {
+    // No alcanza el stock: se pregunta antes de dejarlo en negativo
+    _terminarPedidoProcesando(pedidoId, el, false, "Falta stock");
+    const seguir = await confirmarAccionAsync(
+      pedirConfirmacion + `\n\n¿Pasar el pedido ${pedidoId} a ${estado} igual?`,
+      "⚠️ No alcanza el stock"
+    );
+    if (seguir) {
+      if (el && el.tagName === "SELECT") el.value = estado;
+      await cambiarEstado(pedidoId, estado, el, true);
+    }
   } else {
     _terminarPedidoProcesando(pedidoId, el, false, "✕ No se guardó");
     toast(`No se pudo cambiar el estado: ${mensaje}`, "error");
@@ -3632,10 +3724,41 @@ function limpiarBusquedaPedidos() {
   programarBusquedaPedidosAntiguos(true);
 }
 
+/**
+ * Marca "quién hizo el pedido", visible a simple vista en la lista:
+ * 👤 nombre del vendedor (pedido cargado desde el POS) o 🌐 Web (lo hizo el cliente desde el catálogo).
+ */
+function chipVendedorPedido(p) {
+  const v = String((p && p.VENDEDOR) || "").trim();
+  return v
+    ? `<span class="pedido-vendedor-chip" title="Pedido cargado por ${escapeHtml(v)}">👤 ${escapeHtml(v)}</span>`
+    : `<span class="pedido-vendedor-chip es-web" title="Pedido hecho por el cliente desde el catálogo web">🌐 Web</span>`;
+}
+
+/** Arma las opciones del filtro "Vendedor" con los que aparecen en los pedidos cargados (mantiene la elección). */
+function actualizarOpcionesVendedorPedidos() {
+  const sel = document.getElementById("filtroPedidoVendedor");
+  if (!sel) return;
+  // Solo el admin ve pedidos de varios vendedores: para el resto el filtro no sirve
+  if (obtenerRolActual() !== "admin") { sel.style.display = "none"; sel.value = ""; return; }
+  sel.style.display = "";
+  const nombres = [...new Set(pedidosGlobal.concat(_pedidosAntiguos.lista || [])
+    .map(p => String(p.VENDEDOR || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  const firma = nombres.join("|");
+  if (sel.dataset.firma === firma) return;
+  const previo = sel.value;
+  sel.innerHTML = '<option value="">Todos los vendedores</option><option value="__WEB__">🌐 Web (clientes)</option>' +
+    nombres.map(n => `<option value="${escapeHtml(n)}">👤 ${escapeHtml(n)}</option>`).join("");
+  sel.dataset.firma = firma;
+  if (previo && [...sel.options].some(o => o.value === previo)) sel.value = previo;
+}
+
 function filtrarPedidos() {
   const texto = document.getElementById("buscarPedido").value.toLowerCase().trim();
   const textoNum = texto.replace(/\D/g, "");
   const estadoFiltro = (document.getElementById("filtroPedidoEstado")?.value || "").toUpperCase();
+  actualizarOpcionesVendedorPedidos();
+  const vendedorFiltro = document.getElementById("filtroPedidoVendedor")?.value || "";
   const b = _claveBusquedaPedidos();
   const desde = b.desde ? new Date(b.desde + "T00:00:00") : null;
   const hasta = b.hasta ? new Date(b.hasta + "T23:59:59") : null;
@@ -3647,15 +3770,18 @@ function filtrarPedidos() {
       String(p.CLIENTE   || "").toLowerCase().includes(texto) ||
       String(p.DNI       || "").toLowerCase().includes(texto) ||
       String(p.EMPRESA   || "").toLowerCase().includes(texto) ||
+      String(p.VENDEDOR  || "").toLowerCase().includes(texto) ||
       (textoNum.length >= 4 && String(p.TELEFONO || "").replace(/\D/g, "").includes(textoNum)) ||
       !!p._antiguo; // el servidor ya filtró (sin acentos, DNI con guiones, etc.)
     const coincideEstado = !estadoFiltro || String(p.ESTADO || "").toUpperCase() === estadoFiltro;
+    const coincideVendedor = !vendedorFiltro ||
+      (vendedorFiltro === "__WEB__" ? !String(p.VENDEDOR || "").trim() : String(p.VENDEDOR || "").trim() === vendedorFiltro);
     let coincideFecha = true;
     if (desde || hasta) {
       const f = new Date(p.FECHA);
       coincideFecha = !isNaN(f) && (!desde || f >= desde) && (!hasta || f <= hasta);
     }
-    return coincideTexto && coincideEstado && coincideFecha;
+    return coincideTexto && coincideEstado && coincideVendedor && coincideFecha;
   });
   renderPedidos(filtrados);
 }
@@ -3711,7 +3837,7 @@ async function abrirDetallePedido(pedidoId) {
     document.getElementById("pedidoDetalleBody").innerHTML = `
       <div class="config-preview-hint mb-3">
         <span class="ic">${ESTADO_ICONO_PEDIDO[pedido.ESTADO] || "📦"}</span>
-        Pedido <strong>${escapeHtml(pedido.PEDIDO_ID)}</strong> — Estado: <strong>${escapeHtml(pedido.ESTADO)}</strong>
+        Pedido <strong>${escapeHtml(pedido.PEDIDO_ID)}</strong> — Estado: <strong>${escapeHtml(pedido.ESTADO)}</strong> — ${chipVendedorPedido(pedido)}
       </div>
       <div class="mb-2"><strong style="font-size:15px;">${escapeHtml(pedido.CLIENTE)}</strong>${pedido.DNI ? ` · DNI/CUIT: ${escapeHtml(pedido.DNI)}` : ""}</div>
       ${pedido.TELEFONO ? `<div class="mb-1" style="font-size:13px;color:var(--slate-500);">📞 ${escapeHtml(pedido.TELEFONO)}</div>` : ""}
@@ -3854,6 +3980,18 @@ async function guardarEdicionClientePedido() {
     const accion = data.cliente && data.cliente.accion === "creado" ? "y se creó el cliente en Clientes" : "y en Clientes";
     toast(`Datos del cliente actualizados en el pedido ${accion}`, "success");
     if (data.pdfError) toast("Ojo: no se pudo regenerar el PDF del pedido", "error");
+
+    // La tarjeta del pedido se actualiza al instante con los datos nuevos
+    // (teléfono → aviso ⚠️ y link de WhatsApp), sin esperar la recarga.
+    const pedLocal = (pedidosGlobal || []).find(x => String(x.PEDIDO_ID) === String(pedidoId));
+    if (pedLocal) {
+      Object.assign(pedLocal, {
+        CLIENTE: cuerpo.nombre, DNI: cuerpo.dni, TELEFONO: cuerpo.telefono, DIRECCION: cuerpo.direccion,
+        LOCALIDAD: cuerpo.localidad, CODIGO_POSTAL: cuerpo.codigoPostal, PROVINCIA: cuerpo.provincia, EMPRESA: cuerpo.empresa
+      });
+      if (data.pdfUrl) pedLocal.PDF_URL = data.pdfUrl;
+      try { redibujarSinSalto("tablaPedidos", filtrarPedidos); } catch (e) {}
+    }
 
     // Que Clientes, el selector de clientes y la lista de pedidos vean los datos nuevos
     _clientesPedidoCache = [];
@@ -4804,42 +4942,44 @@ function _remitoAsegurarModal() {
 
 /**
  * Normaliza un número de teléfono argentino al formato internacional
- * que requiere wa.me (sin +, sin espacios, con código de país).
- * Maneja: 011XXXXXXXX, 15XXXXXXXX, 9XXXXXXXX, 54911XXXXXXXX, etc.
+ * que requiere wa.me (sin +, sin espacios, con código de país):
+ * 549 + área + número = 13 dígitos.
+ * Acepta, en cualquier combinación: +54 / 0054, el 9 de celular, el 0
+ * de larga distancia y el 15 después del área. Ejemplos que dan
+ * 5491123456789: "11 2345-6789", "011 15 2345-6789", "15 2345-6789",
+ * "9 11 2345 6789", "+54 9 11 2345-6789", "+54 11 15 2345-6789".
+ * Devuelve null si no lo reconoce (ej. un número de otro país): la
+ * tarjeta muestra el botón igual, con ⚠️.
  */
 function normalizarTelefonoWA(tel) {
   if (!tel) return null;
 
   // Quita todo lo que no sea dígito
   let num = String(tel).replace(/\D/g, "");
+  if (!num) return null;
 
-  // Si ya empieza con 54 y tiene 13 dígitos → ya está listo
-  if (num.startsWith("54") && num.length === 13) return num;
+  if (num.startsWith("00")) num = num.slice(2);                 // 0054…
+  if (num.startsWith("54") && num.length >= 12) num = num.slice(2); // código de país
+  if (num.startsWith("9") && num.length >= 11) num = num.slice(1);  // 9 de celular (ningún área argentina empieza con 9)
+  num = num.replace(/^0+/, "");                                  // 0 de larga distancia
 
-  // Si empieza con 54 pero le falta el 9 de celular (5411XXXXXXXX → 54911XXXXXXXX)
-  if (num.startsWith("54") && num.length === 12) return "549" + num.slice(2);
-
-  // Quita el 0 inicial de área si lo tiene (0351... → 351...)
-  if (num.startsWith("0")) num = num.slice(1);
-
-  // Quita el 15 de celular si lo tiene después del área (351158... → 35158...)
-  // Área argentina: 2-4 dígitos, luego el número. El 15 aparece en posición variable.
-  // Estrategia: si el número tiene exactamente 10 dígitos (área 2-4 + número 6-8)
-  // lo armamos directo. Si tiene 11, probablemente tenga el 15 incluido.
-  if (num.length === 11 && num.charAt(2) === "1" && num.charAt(3) === "5") {
-    num = num.slice(0, 2) + num.slice(4); // quita el 15 tras el área de 2 dígitos
-  } else if (num.length === 11 && num.charAt(3) === "1" && num.charAt(4) === "5") {
-    num = num.slice(0, 3) + num.slice(5); // quita el 15 tras el área de 3 dígitos
-  } else if (num.length === 11 && num.charAt(4) === "1" && num.charAt(5) === "5") {
-    num = num.slice(0, 4) + num.slice(6); // quita el 15 tras el área de 4 dígitos
+  // 15 de celular después del área (2, 3 o 4 dígitos). Con área 11 es
+  // seguro que el área tiene 2 dígitos; si no, se prueba con 3 y con 4.
+  if (num.length === 12) {
+    const posiciones = num.startsWith("11") ? [2] : [3, 4];
+    for (const pos of posiciones) {
+      if (num.substr(pos, 2) === "15") { num = num.slice(0, pos) + num.slice(pos + 2); break; }
+    }
   }
 
-  // Agrega código de país Argentina + 9 de celular
-  // (WA Argentina requiere 549 + área + número = 13 dígitos total)
-  if (num.length === 10) return "549" + num;
-  if (num.length === 8)  return "5491" + num; // número corto sin área, asume GBA
+  // Celular sin área: se asume Buenos Aires (11)
+  if (num.length === 10 && num.startsWith("15")) num = "11" + num.slice(2);
+  if (num.length === 8) num = "11" + num;
 
-  return null; // no se pudo normalizar — el botón no se muestra
+  // Las áreas argentinas empiezan con 1, 2 o 3: cualquier otra cosa es
+  // un número mal escrito (ej. "+54 9 11 2345 678", al que le falta un dígito)
+  if (num.length === 10 && /^[123]/.test(num)) return "549" + num;
+  return null;
 }
 
 /** Genera el mensaje de WhatsApp según el estado del pedido */
@@ -4925,6 +5065,12 @@ function renderPedidos(listaOriginal) {
         : "";
       const badgeCobrado = estaCobrado
         ? `<span class="pedido-cobrado-badge">✓ Cobrado <span class="pedido-cobrado-forma">${formaPagoActual}</span></span>` : "";
+      // Pago online desde la página web (v2.7.0): "PENDIENTE · Mercado Pago", "PAGADO · Ualá Bis"...
+      const pagoOnline = String(p.PAGO_ONLINE || "");
+      const badgePagoOnline = !pagoOnline ? "" : (/^PAGADO/.test(pagoOnline)
+        ? `<div class="mt-1"><span class="pedido-pago-online pagado" title="${escapeHtml(pagoOnline)}">💳 ${escapeHtml(pagoOnline.replace(/^PAGADO · /, "Pagó online con "))}</span></div>`
+        : `<div class="mt-1"><span class="pedido-pago-online pendiente" title="El cliente eligió pagar online y todavía no se acreditó">⏳ ${escapeHtml(pagoOnline.replace(/^PENDIENTE · /, "Pago online pendiente · "))}</span>
+             <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size:11.5px;" onclick="verificarPagoOnlinePanel('${escapeHtml(p.PEDIDO_ID)}', this)">Verificar</button></div>`);
       const selectCobrado = estaCobrado
         ? `<div class="pedido-cobrado-controles">
              <span class="pedido-cobrado-badge">✓ Cobrado</span>
@@ -4942,7 +5088,7 @@ function renderPedidos(listaOriginal) {
       tmp.innerHTML = `<div class="pedido-card estado-${claseEstado}${_pedidosEnProceso.has(String(p.PEDIDO_ID)) ? " pedido-procesando" : ""}" data-pedido-card="${escapeHtml(p.PEDIDO_ID)}">
         <div class="pedido-card-top">
           <div>
-            <div class="pedido-card-id">${escapeHtml(p.PEDIDO_ID)}${p._antiguo ? ' <span class="pedido-antiguo-badge" title="Pedido de hace más de 30 días: no está en la lista general, apareció por la búsqueda">Anterior</span>' : ""}</div>
+            <div class="pedido-card-id">${escapeHtml(p.PEDIDO_ID)} ${chipVendedorPedido(p)}${p._antiguo ? ' <span class="pedido-antiguo-badge" title="Pedido de hace más de 30 días: no está en la lista general, apareció por la búsqueda">Anterior</span>' : ""}</div>
             <div class="pedido-card-cliente">${escapeHtml(p.CLIENTE || p.NOMBRE || "")}${p.EMPRESA ? ` <span style="font-weight:500;color:var(--slate-500);font-size:13px;">· 🚚 ${escapeHtml(p.EMPRESA)}</span>` : ""}</div>
             ${p.DIRECCION ? `<div class="pedido-card-dir">📍 ${escapeHtml(p.DIRECCION)}${p.LOCALIDAD ? ", " + escapeHtml(p.LOCALIDAD) : ""}</div>` : ""}
             <div class="pedido-card-fecha">📅 ${new Date(p.FECHA).toLocaleDateString("es-AR", {day:"2-digit", month:"2-digit", year:"numeric"})}</div>
@@ -4951,6 +5097,7 @@ function renderPedidos(listaOriginal) {
             <div class="pedido-card-total">$${Number(p.TOTAL || 0).toLocaleString("es-AR")}</div>
             <div class="mt-1"><span class="pedido-estado-badge ${claseEstado}">${estadoIcono[p.ESTADO] || ""} ${escapeHtml(p.ESTADO)}</span></div>
             ${badgeCobrado ? `<div class="mt-1">${badgeCobrado}</div>` : ""}
+            ${badgePagoOnline}
           </div>
         </div>
         <div class="pedido-card-controls">
@@ -4979,6 +5126,103 @@ function renderPedidos(listaOriginal) {
   };
 
   requestAnimationFrame(renderChunk);
+}
+
+/* ===================== PAGOS ONLINE DE LA PÁGINA WEB (v2.7.0) ===================== */
+
+/** Pregunta al proveedor si ya se acreditó el pago online de un pedido */
+async function verificarPagoOnlinePanel(pedidoId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Verificando…"; }
+  try {
+    const r = await fetchAPI(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "verificarPagoPedido", pedidoId: String(pedidoId) }) }, { timeoutMs: 45000 });
+    const j = await _leerRespuestaJSON(r);
+    if (!j || !j.success) { toast((j && j.message) || "No se pudo verificar el pago", "error"); return; }
+    const textos = { PAGADO: "✓ Pago acreditado: el pedido quedó cobrado", RECHAZADO: "El pago fue rechazado (el cliente puede reintentar)", PENDIENTE: "Todavía no se acreditó el pago", SIN_PAGO: "Este pedido no tiene pagos online" };
+    toast("Pedido " + pedidoId + ": " + (textos[j.estado] || j.estado), j.estado === "PAGADO" ? "success" : "info");
+    if (j.estado === "PAGADO") { invalidarCache("pedidos"); setTimeout(() => { try { recargarPedidos(); } catch (e) {} }, 300); }
+  } catch (e) {
+    toast("No se pudo verificar el pago (sin conexión)", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Verificar"; }
+  }
+}
+
+async function cargarConfigPagosWeb() {
+  const card = document.getElementById("cardPagosOnlineWeb");
+  if (!card) return;
+  const esAdmin = obtenerRolActual() === "admin";
+  const enDeposito = typeof esModoDeposito === "function" && esModoDeposito(); // el depósito no tiene catálogo web
+  card.style.display = esAdmin && !enDeposito ? "block" : "none";
+  if (card.style.display === "none") { actualizarPestanasConfigVisibles(); return; }
+  actualizarPestanasConfigVisibles();
+  const estado = document.getElementById("pagosWebEstado");
+  try {
+    const r = await fetchAPI(API_URL + "?action=configPagosOnline", {}, { timeoutMs: 30000 });
+    const c = await _leerRespuestaJSON(r);
+    if (!c || !c.success) { estado.textContent = (c && c.message) || "No se pudo leer la configuración (¿backend actualizado a la 2.7.0?)."; return; }
+    _pintarConfigPagosWeb(c);
+  } catch (e) {
+    estado.textContent = "No se pudo leer la configuración (sin conexión).";
+  }
+}
+
+function _pintarConfigPagosWeb(c) {
+  const estado = document.getElementById("pagosWebEstado");
+  const linea = (nombre, x) => x.disponible ? `<div style="color:var(--green-600); font-weight:600;">✓ ${nombre}: activo en la página</div>`
+    : (x.configurado ? `<div class="text-muted">${nombre}: configurado, desactivado</div>` : `<div class="text-muted">${nombre}: sin configurar</div>`);
+  estado.innerHTML = linea("Mercado Pago", c.mp) + linea("Ualá Bis" + (c.uala.prueba ? " (modo prueba)" : ""), c.uala);
+  // Si todavía no se cargó, se propone la "URL del catálogo" ya configurada en Catálogo web
+  const urlCatalogo = String((configNegocioCache && configNegocioCache.urlCatalogo) || "").trim();
+  document.getElementById("cfgPagosWebUrl").value = c.urlSitio || (/^https:\/\//i.test(urlCatalogo) ? urlCatalogo.replace(/\/+$/, "") + "/" : "");
+  document.getElementById("cfgPagosWebMpActivo").checked = !!c.mp.activo;
+  document.getElementById("cfgPagosWebMpToken").value = "";
+  document.getElementById("cfgPagosWebMpTokenActual").textContent = c.mp.configurado ? "Token guardado: " + c.mp.tokenParcial : "";
+  document.getElementById("cfgPagosWebUalaActivo").checked = !!c.uala.activo;
+  document.getElementById("cfgPagosWebUalaUsuario").value = c.uala.usuario || "";
+  document.getElementById("cfgPagosWebUalaClientId").value = c.uala.clientId || "";
+  document.getElementById("cfgPagosWebUalaSecret").value = "";
+  document.getElementById("cfgPagosWebUalaPrueba").checked = !!c.uala.prueba;
+  document.getElementById("btnPagosWebQuitarMp").style.display = c.mp.configurado ? "inline-block" : "none";
+  document.getElementById("btnPagosWebQuitarUala").style.display = c.uala.configurado ? "inline-block" : "none";
+}
+
+async function _enviarConfigPagosWeb(cuerpo, btn) {
+  const texto = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "Verificando…"; }
+  try {
+    const r = await fetchAPI(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ action: "guardarConfigPagosOnline" }, cuerpo)) }, { timeoutMs: 60000 });
+    const c = await _leerRespuestaJSON(r);
+    if (!c || !c.success) { toast((c && c.message) || "No se pudo guardar", "error"); return false; }
+    _pintarConfigPagosWeb(c);
+    return true;
+  } catch (e) {
+    toast("No se pudo guardar (sin conexión)", "error");
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = texto; }
+  }
+}
+
+async function guardarConfigPagosWeb() {
+  const v = id => document.getElementById(id).value.trim();
+  const ok = await _enviarConfigPagosWeb({
+    urlSitio: v("cfgPagosWebUrl"),
+    mpActivo: document.getElementById("cfgPagosWebMpActivo").checked ? "SI" : "NO",
+    mpToken: v("cfgPagosWebMpToken"),
+    ualaActivo: document.getElementById("cfgPagosWebUalaActivo").checked ? "SI" : "NO",
+    ualaUsuario: v("cfgPagosWebUalaUsuario"),
+    ualaClientId: v("cfgPagosWebUalaClientId"),
+    ualaSecret: v("cfgPagosWebUalaSecret"),
+    ualaPrueba: document.getElementById("cfgPagosWebUalaPrueba").checked ? "SI" : "NO"
+  }, document.getElementById("btnGuardarPagosWeb"));
+  if (ok) toast("Pagos online guardados. La página los ofrece desde el próximo pedido.", "success");
+}
+
+async function quitarCredencialPagosWeb(cual) {
+  const nombre = cual === "mp" ? "Mercado Pago" : "Ualá Bis";
+  if (!await confirmarAccionAsync("¿Quitar las credenciales de " + nombre + " de la página web? Los clientes ya no van a poder pagar online con " + nombre + ".", "Quitar " + nombre)) return;
+  const ok = await _enviarConfigPagosWeb(cual === "mp" ? { quitarMp: "SI", mpActivo: "NO" } : { quitarUala: "SI", ualaActivo: "NO" });
+  if (ok) toast(nombre + " quitado de la página web", "success");
 }
 
 /* ===================== PRODUCTOS (tabla admin) ===================== */
@@ -5520,6 +5764,7 @@ let productosAdminGlobal = [];
 function nuevoProducto() {
   window._pmStockOriginal = null; // no aplica en modo creación — ver editarProducto
   document.getElementById("productModalTitle").textContent = "+ Nuevo Producto";
+  { const bh = document.getElementById("btnHistorialProducto"); if (bh) bh.style.display = "none"; }
   document.getElementById("pmCodigoOriginal").value = "";
   document.getElementById("pmCodigo").value = "";
   document.getElementById("pmCodigo").disabled = false;
@@ -5537,6 +5782,7 @@ function nuevoProducto() {
   document.getElementById("pmColorPrimario").value = "";
   document.getElementById("pmGaleriaWrap").innerHTML = "";
   _pmGaleriaContador = 0;
+  cargarFichaProductoFormulario({});
   document.getElementById("pmPublicado").checked = true;
   document.getElementById("pmDestacado").checked = false;
   document.getElementById("pmOferta").checked = false;
@@ -5566,6 +5812,7 @@ function editarProducto(codigo) {
   window._pmStockOriginal = Number(p.STOCK || 0);
 
   document.getElementById("productModalTitle").textContent = "Editar Producto";
+  { const bh = document.getElementById("btnHistorialProducto"); if (bh) bh.style.display = ""; }
   document.getElementById("pmCodigoOriginal").value = p.CODIGO;
   document.getElementById("pmCodigo").value = p.CODIGO;
   document.getElementById("pmNombre").value = p.PRODUCTO || "";
@@ -5582,6 +5829,7 @@ function editarProducto(codigo) {
   document.getElementById("pmGaleriaWrap").innerHTML = "";
   _pmGaleriaContador = 0;
   parsearGaleriaAdminString(p.IMAGENES).forEach(f => agregarFilaGaleria(f.color, f.url));
+  cargarFichaProductoFormulario(p);
   document.getElementById("pmPublicado").checked = String(p.PUBLICADO || "").toUpperCase() === "SI";
   document.getElementById("pmDestacado").checked = String(p.DESTACADO || "").toUpperCase() === "SI";
   document.getElementById("pmOferta").checked = String(p.OFERTA || "").toUpperCase() === "SI";
@@ -5602,6 +5850,44 @@ function editarProducto(codigo) {
 function toggleVentaPorCaja() {
   const activo = document.getElementById("pmVentaPorCaja").checked;
   document.getElementById("pmCajaWrap").style.display = activo ? "" : "none";
+}
+
+/* ---- Descripción y características del producto (catálogo web / buscadores) ----
+   Columnas de la hoja PRODUCTOS. Se mandan siempre desde este formulario
+   (vacías incluidas, para poder borrarlas); un cliente que no las manda
+   (app vieja, edición rápida del POS) no las toca — ver actualizarProducto
+   en code.gs. */
+const CAMPOS_FICHA_PRODUCTO = { MARCA: "pmMarca", MATERIAL: "pmMaterial", MEDIDAS: "pmMedidas", CONTENIDO: "pmContenido", EDAD: "pmEdad" };
+
+function cargarFichaProductoFormulario(p) {
+  const desc = document.getElementById("pmDescripcion");
+  if (!desc) return;
+  desc.value = String(p.DESCRIPCION ?? "");
+  Object.entries(CAMPOS_FICHA_PRODUCTO).forEach(([col, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = String(p[col] ?? "");
+  });
+  actualizarContadorDescripcion();
+  // Abierto si el producto ya tiene algo cargado; cerrado si está vacío
+  const wrap = document.getElementById("pmFichaWrap");
+  if (wrap) wrap.open = !!(desc.value || Object.keys(CAMPOS_FICHA_PRODUCTO).some(c => String(p[c] ?? "").trim()));
+}
+
+function leerFichaProductoFormulario() {
+  const desc = document.getElementById("pmDescripcion");
+  if (!desc) return null; // panel sin la sección: no se manda nada (el backend conserva lo que había)
+  const out = { DESCRIPCION: desc.value.replace(/\r\n?/g, "\n").trim() };
+  Object.entries(CAMPOS_FICHA_PRODUCTO).forEach(([col, id]) => {
+    const el = document.getElementById(id);
+    if (el) out[col] = el.value.replace(/\s+/g, " ").trim();
+  });
+  return out;
+}
+
+function actualizarContadorDescripcion() {
+  const desc = document.getElementById("pmDescripcion");
+  const cont = document.getElementById("pmDescripcionContador");
+  if (desc && cont) cont.textContent = desc.value.trim().length;
 }
 
 function cerrarModalProducto() {
@@ -6590,6 +6876,22 @@ function avisarCodigoDuplicadoFormulario() {
   return msg;
 }
 
+/**
+ * Al guardar la edición de un producto: si se lo está ocultando (estaba
+ * publicado y ahora no) y está en pedidos sin preparar, pide confirmación.
+ * Devuelve false si la persona canceló. La usa también la app de escritorio.
+ */
+async function confirmarOcultarProductoConPedidos(codigoOriginal, publicado) {
+  if (!codigoOriginal || publicado !== "NO") return true;
+  const actual = (typeof productosAdminGlobal !== "undefined" ? productosAdminGlobal : [])
+    .find(p => String(p.CODIGO) === String(codigoOriginal));
+  const estabaPublicado = !actual || String(actual.PUBLICADO || "SI").trim().toUpperCase() !== "NO";
+  if (!estabaPublicado) return true;
+  const aviso = textoAvisoPedidosAbiertos(await consultarPedidosAbiertosConProductos([codigoOriginal]), "ocultar");
+  if (!aviso) return true;
+  return confirmarAccionAsync(aviso + "\n\n¿Ocultar el producto igual?", "⚠️ Producto en pedidos");
+}
+
 async function guardarProductoForm() {
   const codigoOriginal = document.getElementById("pmCodigoOriginal").value.trim();
   const codigo   = document.getElementById("pmCodigo").value.trim();
@@ -6621,6 +6923,9 @@ async function guardarProductoForm() {
   if (avisarCodigoDuplicadoFormulario()) return;
 
   const esEdicion = !!codigoOriginal;
+
+  // Se oculta un producto que estaba publicado: avisar si está en pedidos sin preparar
+  if (!(await confirmarOcultarProductoConPedidos(codigoOriginal, publicado))) return;
   const btn = document.getElementById("btnGuardarProducto");
   const textoOriginal = btn.innerHTML;
   btn.disabled = true;
@@ -6647,6 +6952,7 @@ async function guardarProductoForm() {
       PRECIO_CAJA: precioCaja || 0
     });
     if (esEdicion) params.set("codigoOriginal", codigoOriginal);
+    { const ficha = leerFichaProductoFormulario(); if (ficha) Object.entries(ficha).forEach(([k, v]) => params.set(k, v)); }
     // Alícuota de IVA: solo si el campo está a la vista (facturación de RI);
     // si no, no se manda y el backend conserva la que tenía.
     if (_alicuotaIvaFormulario() !== null) params.set("ALICUOTA_IVA", _alicuotaIvaFormulario());
@@ -6684,12 +6990,19 @@ async function guardarProductoForm() {
  * de texto deja de responder hasta recargar. Por eso en todo el panel
  * se usa este patrón de modal propio en vez de confirm() nativo.
  */
-function eliminarProducto(codigo) {
+async function eliminarProducto(codigo) {
   window._codigoProductoParaEliminar = codigo;
+
+  // Avisa si el producto está en pedidos que todavía no se prepararon
+  const aviso = textoAvisoPedidosAbiertos(await consultarPedidosAbiertosConProductos([codigo]), "eliminar");
 
   const backdrop = document.getElementById("modalEliminarProdBackdrop");
   const texto = document.getElementById("modalEliminarProdTexto");
-  if (texto) texto.textContent = `¿Mover el producto "${codigo}" a la papelera? Lo vas a poder restaurar desde Productos → Papelera.`;
+  if (texto) {
+    texto.style.whiteSpace = "pre-line";
+    texto.textContent = `¿Mover el producto "${codigo}" a la papelera? Lo vas a poder restaurar desde Productos → Papelera.` +
+      (aviso ? "\n\n" + aviso : "");
+  }
   if (backdrop) backdrop.classList.add("show");
 }
 
@@ -6745,6 +7058,131 @@ async function _postPapelera(cuerpo) {
     data.message = "El backend todavía no tiene la papelera: agregá el archivo PapeleraYClientes.gs en Apps Script y publicá una nueva versión (ver LEEME).";
   }
   return data;
+}
+
+/* ===================== HISTORIAL DE CAMBIOS DE PRODUCTOS (v2.5.1) ===================== */
+
+let _historialProductos = [];
+let _historialCodigo = "";   // "" = todos los productos
+let _historialHayMas = false;
+
+function _fechaInputHistorial(d) {
+  const z = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+}
+
+/**
+ * Abre el historial. Con código: solo ese producto (sin límite de
+ * fechas). Sin código: todos los productos de los últimos 7 días.
+ */
+function abrirHistorialProductos(codigo, nombre) {
+  const backdrop = document.getElementById("historialProductosModalBackdrop");
+  if (!backdrop) return;
+  _historialCodigo = String(codigo || "").trim();
+  const titulo = document.getElementById("historialProductosTitulo");
+  if (titulo) titulo.textContent = _historialCodigo
+    ? `Historial de ${nombre || "producto"} (${_historialCodigo})`
+    : "Historial de cambios de productos";
+  const verTodos = document.getElementById("btnHistorialVerTodos");
+  if (verTodos) verTodos.style.display = _historialCodigo ? "inline-flex" : "none";
+
+  const hoy = new Date();
+  const hace7 = new Date(); hace7.setDate(hoy.getDate() - 7);
+  const desde = document.getElementById("historialDesde");
+  const hasta = document.getElementById("historialHasta");
+  if (desde) desde.value = _historialCodigo ? "" : _fechaInputHistorial(hace7);
+  if (hasta) hasta.value = _historialCodigo ? "" : _fechaInputHistorial(hoy);
+  const buscar = document.getElementById("historialBuscar");
+  if (buscar) buscar.value = "";
+
+  backdrop.classList.add("show");
+  cargarHistorialProductos();
+}
+
+function cerrarHistorialProductos() {
+  const backdrop = document.getElementById("historialProductosModalBackdrop");
+  if (backdrop) backdrop.classList.remove("show");
+}
+
+async function cargarHistorialProductos() {
+  const cont = document.getElementById("historialProductosLista");
+  if (!cont) return;
+  cont.innerHTML = `<div class="text-center text-muted py-4">Cargando historial...</div>`;
+  const params = new URLSearchParams({ action: "historialProductos", limite: "1000" });
+  if (_historialCodigo) params.set("codigo", _historialCodigo);
+  const desde = (document.getElementById("historialDesde") || {}).value || "";
+  const hasta = (document.getElementById("historialHasta") || {}).value || "";
+  if (desde) params.set("desde", desde);
+  if (hasta) params.set("hasta", hasta);
+  try {
+    const response = await fetchAPI(API_URL + "?" + params.toString(), {}, { timeoutMs: 30000 });
+    const data = await _leerRespuestaJSON(response);
+    if (!data || !data.success) {
+      let msg = (data && data.message) || "No se pudo cargar el historial";
+      if (/no v[aá]lida|desconocida|no reconocida|invalid/i.test(msg)) msg = "El backend todavía no tiene el historial: publicá el Code.gs de la versión 2.5.1 (ver LEEME).";
+      cont.innerHTML = `<div class="text-center text-danger py-4" style="font-size:13px;">${escapeHtml(msg)}</div>`;
+      return;
+    }
+    _historialProductos = data.movimientos || [];
+    _historialHayMas = !!data.hayMas;
+    renderHistorialProductos();
+  } catch (error) {
+    console.error("Error al cargar el historial de productos:", error);
+    cont.innerHTML = `<div class="text-center text-danger py-4" style="font-size:13px;">Error de conexión al cargar el historial. Revisá tu internet.</div>`;
+  }
+}
+
+function renderHistorialProductos() {
+  const cont = document.getElementById("historialProductosLista");
+  const resumen = document.getElementById("historialProductosResumen");
+  if (!cont) return;
+
+  const filtro = normalizarBusquedaPOS((document.getElementById("historialBuscar") || {}).value || "");
+  const lista = _historialProductos.filter(m => {
+    if (filtro && !normalizarBusquedaPOS([m.PRODUCTO, m.CODIGO, m.USUARIO, m.REFERENCIA, m.ACCION, m.ANTES, m.DESPUES].join(" ")).includes(filtro)) return false;
+    return true;
+  });
+
+  if (resumen) {
+    resumen.textContent = _historialProductos.length === 0 ? "" :
+      `${lista.length === 1 ? "1 cambio" : lista.length + " cambios"}` +
+      (lista.length !== _historialProductos.length ? ` (de ${_historialProductos.length})` : "") +
+      (_historialHayMas ? " — se muestran los 1000 más recientes: acotá las fechas para ver más atrás." : "");
+  }
+
+  if (_historialProductos.length === 0) {
+    cont.innerHTML = `<div class="text-center text-muted py-5" style="font-size:13.5px;">No hay cambios registrados ${_historialCodigo ? "para este producto" : "en esas fechas"}.<br><span style="font-size:12px;">El historial empieza a registrarse desde la versión 2.5.1. Las ventas, pedidos e ingresos de mercadería tienen su propio registro.</span></div>`;
+    return;
+  }
+  if (lista.length === 0) {
+    cont.innerHTML = `<div class="text-center text-muted py-4" style="font-size:13px;">Ningún cambio coincide con el filtro</div>`;
+    return;
+  }
+
+  const nombreCampo = { STOCK: "Stock", PRODUCTO: "Nombre", CODIGO: "Código" };
+  const fmtValor = v => v === "" || v === null || v === undefined ? "—" : escapeHtml(String(v));
+  cont.innerHTML = lista.map(m => {
+    const dif = m.DIFERENCIA === "" || m.DIFERENCIA === null || m.DIFERENCIA === undefined ? "" : Number(m.DIFERENCIA);
+    const difHtml = dif === "" || isNaN(dif) || dif === 0 ? "" :
+      ` <strong style="color:${dif > 0 ? "var(--green-600, #16a34a)" : "var(--red-600, #dc2626)"};">(${dif > 0 ? "+" : ""}${dif.toLocaleString("es-AR")})</strong>`;
+    const [dia, hora] = String(m.FECHA || "").split(" ");
+    const diaTxt = dia ? dia.split("-").reverse().join("/") : "";
+    return `
+    <div style="padding:8px 4px; border-bottom:1px solid var(--slate-200); font-size:13px;">
+      <div class="d-flex justify-content-between gap-2 flex-wrap">
+        <div style="min-width:0;">
+          <span style="font-weight:600;">${escapeHtml(m.PRODUCTO || "(sin nombre)")}</span>
+          <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--slate-500);"> ${escapeHtml(m.CODIGO)}</span>
+        </div>
+        <div style="font-size:11.5px; color:var(--slate-500); white-space:nowrap;">${escapeHtml(diaTxt)} ${escapeHtml((hora || "").slice(0, 5))} · ${escapeHtml(m.USUARIO || "sin usuario")}</div>
+      </div>
+      <div style="margin-top:2px;">
+        <span class="badge bg-primary" style="font-weight:500;">${escapeHtml(m.ACCION)}</span>
+        ${escapeHtml(nombreCampo[m.CAMPO] || m.CAMPO || "")}: ${fmtValor(m.ANTES)} → ${fmtValor(m.DESPUES)}${difHtml}
+      </div>
+      ${m.REFERENCIA ? `<div style="font-size:11.5px; color:var(--slate-500); margin-top:2px;">${escapeHtml(m.REFERENCIA)}</div>` : ""}
+    </div>`;
+  }).join("");
 }
 
 function abrirPapeleraProductos() {
@@ -7020,6 +7458,7 @@ function renderTablaClientes(lista) {
             ${c.ALIAS ? `<span style="font-weight:500;color:var(--slate-500);font-size:13px;">· ${escapeHtml(c.ALIAS)}</span>` : ""}
           </div>
           <div class="pedido-card-dir" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:10px;">
+            ${c.CREADO_POR && obtenerRolActual() === "admin" ? `<span class="pedido-vendedor-chip" title="Cliente cargado por ${escapeHtml(c.CREADO_POR_NOMBRE || c.CREADO_POR)}">👤 ${escapeHtml(c.CREADO_POR_NOMBRE || c.CREADO_POR)}</span>` : ""}
             ${c.EMPRESA   ? `<span>🚚 ${escapeHtml(c.EMPRESA)}</span>` : ""}
             ${c.TELEFONO  ? `<span>📞 ${escapeHtml(c.TELEFONO)}</span>` : ""}
             ${c.DIRECCION ? `<span>📍 ${escapeHtml(c.DIRECCION)}</span>` : ""}
@@ -8790,6 +9229,7 @@ let mfvTipoDescuento = "PORCENTAJE";
 let mfvModoDescuento = "DESCUENTO"; // "DESCUENTO" | "RECARGO"
 let mfvFormaPago = "EFECTIVO";
 let mfvMpDisponible = false; // cacheado al abrir el modal — ¿hay MP configurado y usable?
+let mfvProveedorQR = "";      // "mp" | "mp_orders" | "uala" ("" = no se sabe: caja cliente o versión web) — v2.6.0
 let mfvGenerarQR = false;    // elección del cajero cuando la forma de pago es TRANSFERENCIA:
                               // true = generar QR para que el cliente escanee y pague ahí mismo;
                               // false (default) = el cliente ya transfirió directo al alias/CVU,
@@ -8888,6 +9328,11 @@ async function verificarMpDisponibleParaModal() {
     } catch (error) {
       mfvMpDisponible = false;
     }
+    // Con Ualá Bis (cobra con tarjeta) el QR se ofrece también al elegir "Tarjeta"
+    mfvProveedorQR = "";
+    if (mfvMpDisponible && typeof bridge.obtenerConfigCobroQR === "function") {
+      try { const c = await bridge.obtenerConfigCobroQR(); mfvProveedorQR = (c && c.proveedor) || ""; } catch (e) {}
+    }
   }
   mfvActualizarVisibilidadQR();
 }
@@ -8897,8 +9342,18 @@ function mfvActualizarVisibilidadQR() {
   const wrap = document.getElementById("mfvQrWrap");
   if (!wrap) return;
 
-  const mostrar = mfvFormaPago === "TRANSFERENCIA" && mfvMpDisponible;
+  const conTarjetaUala = mfvFormaPago === "TARJETA" && mfvProveedorQR === "uala";
+  const mostrar = mfvMpDisponible && (mfvFormaPago === "TRANSFERENCIA" || conTarjetaUala);
   wrap.style.display = mostrar ? "block" : "none";
+  // Textos según la forma de pago (v2.6.0)
+  {
+    const lbl = wrap.querySelector(".mfv-label");
+    const bNo = document.getElementById("mfvQrNo");
+    const bSi = document.getElementById("mfvQrSi");
+    if (lbl) lbl.textContent = conTarjetaUala ? "¿Cómo se cobra con tarjeta?" : "¿Cómo se cobra la transferencia?";
+    if (bNo) bNo.textContent = conTarjetaUala ? "Ya la cobré" : "Ya me transfirió";
+    if (bSi) bSi.textContent = conTarjetaUala ? "Generar QR de Ualá" : "Generar QR";
+  }
   if (!mostrar) mfvGenerarQR = false; // si se oculta (no hay MP, o cambiaron de forma de pago), nunca queda "generar QR" activo por error
 
   const btnSi = document.getElementById("mfvQrSi");
@@ -9050,7 +9505,7 @@ async function confirmarFinalizarVenta() {
   // era obligatorio siempre que MP estuviera configurado, y si la
   // generación del QR fallaba por cualquier motivo, la venta quedaba
   // completamente bloqueada sin forma de simplemente registrarla.
-  if (mfvFormaPago === "TRANSFERENCIA" && mfvGenerarQR) {
+  if ((mfvFormaPago === "TRANSFERENCIA" || mfvFormaPago === "TARJETA") && mfvGenerarQR) {
     const bridge = window.veekpos || window.posOffline;
     if (bridge && typeof bridge.mercadoPagoDisponible === "function") {
       const mpDisponible = await bridge.mercadoPagoDisponible().catch(() => false);
@@ -9370,6 +9825,7 @@ async function confirmarPedidoAdmin() {
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS contra Apps Script
       body: JSON.stringify({
         action: "guardarPedidoAdmin",
+        vendedor: sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "",
         nombre, empresa, direccion, localidad, provincia, codigoPostal, telefono, dni,
         total: totalEnviar,
         moneda: moneda,
@@ -13419,7 +13875,7 @@ function _textoCambioLote(cambios) {
   return partes.join(", ");
 }
 
-function aplicarCambioLote(cambios) {
+async function aplicarCambioLote(cambios) {
   cerrarMenuLote();
   const codigos = obtenerCodigosSeleccionados();
   if (codigos.length === 0) { toast("Seleccioná al menos un producto", "error"); return; }
@@ -13439,7 +13895,9 @@ function aplicarCambioLote(cambios) {
   const accion = _textoCambioLote(cambios);
   const mensaje = `¿${accion.charAt(0).toUpperCase() + accion.slice(1)}: ${codigos.length === 1 ? "1 producto" : codigos.length + " productos"}?` +
     (yaEstan ? ` (${yaEstan} ya estaba${yaEstan === 1 ? "" : "n"} así)` : "") +
-    (cambios.PUBLICADO === "NO" ? "\n\nLos productos ocultos no se ven en la página ni en el POS, pero no se borran: se vuelven a mostrar con \"Mostrar (publicar)\" (filtro \"Ocultos\")." : "");
+    (cambios.PUBLICADO === "NO" ? "\n\nLos productos ocultos no se ven en la página ni en el POS, pero no se borran: se vuelven a mostrar con \"Mostrar (publicar)\" (filtro \"Ocultos\")." : "") +
+    // Productos que se ocultan y están en pedidos sin preparar: se avisa
+    (cambios.PUBLICADO === "NO" ? (t => t ? "\n\n" + t : "")(textoAvisoPedidosAbiertos(await consultarPedidosAbiertosConProductos(codigos), "ocultar")) : "");
 
   confirmarAccion(mensaje, async () => {
     const btn = document.getElementById("btnCambiarLote");
@@ -15016,6 +15474,125 @@ async function guardarConfigRed() {
 }
 
 
+/* ===================== PROVEEDOR DEL COBRO CON QR + UALÁ BIS (v2.6.0) ===================== */
+
+async function cargarConfigProveedorCobro() {
+  const bridge = window.veekpos;
+  const card = document.getElementById("cardProveedorCobro");
+  const cardUala = document.getElementById("cardUalaBis");
+  if (!bridge || typeof bridge.obtenerConfigCobroQR !== "function" || !card) return;
+  card.style.display = "block";
+
+  let cfg;
+  try { cfg = await bridge.obtenerConfigCobroQR(); }
+  catch (e) { return; }
+
+  const aviso = document.getElementById("cobroProveedorClienteAviso");
+  const opciones = document.getElementById("cobroProveedorOpciones");
+  if (cfg.esCliente) {
+    // Como Mercado Pago: el cobro con QR lo resuelve la caja servidor
+    if (aviso) { aviso.style.display = "block"; aviso.textContent = "Esta caja cobra a través de la caja servidor: el proveedor y las credenciales se configuran ahí."; }
+    if (opciones) opciones.style.display = "none";
+    if (cardUala) cardUala.style.display = "none";
+    return;
+  }
+  if (aviso) aviso.style.display = "none";
+  if (opciones) opciones.style.display = "block";
+  if (cardUala) cardUala.style.display = "block";
+
+  // Solo se muestran los medios que están configurados (v2.7.0)
+  const configurados = { mp: !!cfg.mpConfigurado, mp_orders: !!cfg.mpConfigurado, uala: !!(cfg.uala && cfg.uala.configurado) };
+  let alguno = false;
+  document.querySelectorAll('input[name="cobroProveedor"]').forEach(r => {
+    const hay = !!configurados[r.value];
+    alguno = alguno || hay;
+    const fila = r.closest("label");
+    if (fila) { fila.style.display = hay ? "" : "none"; fila.classList.toggle("d-flex", hay); }
+    r.checked = hay && r.value === cfg.proveedor;
+  });
+  if (opciones) opciones.style.display = alguno ? "block" : "none";
+  { const sinNada = document.getElementById("cobroProveedorSinNada"); if (sinNada) sinNada.style.display = alguno ? "none" : "block"; }
+
+  const u = cfg.uala || {};
+  const box = document.getElementById("ualaEstadoBox");
+  if (box) {
+    box.innerHTML = u.configurado
+      ? `<div style="color:var(--green-600); font-weight:600;">✓ Configurado${u.prueba ? " (modo prueba)" : ""}</div><div class="text-muted" style="font-size:12.5px; margin-top:2px;">Usuario: ${escapeHtml(u.usuario || "")}</div>`
+      : `<span class="text-muted">No configurado.</span>`;
+  }
+  const campo = (id, v) => { const el = document.getElementById(id); if (el && !el.value) el.value = v || ""; };
+  campo("cfgUalaUsuario", u.usuario);
+  campo("cfgUalaClientId", u.clientId);
+  const chk = document.getElementById("cfgUalaPrueba");
+  if (chk) chk.checked = !!u.prueba;
+  const btnQuitar = document.getElementById("btnQuitarUala");
+  if (btnQuitar) btnQuitar.style.display = u.configurado ? "inline-block" : "none";
+}
+
+async function cambiarProveedorCobroQR(proveedor) {
+  try {
+    const r = await window.veekpos.fijarProveedorCobroQR(proveedor);
+    if (!r || !r.success) {
+      toast((r && r.message) || "No se pudo cambiar el proveedor", "error");
+    } else {
+      const nombres = { mp: "Mercado Pago (API actual)", mp_orders: "Mercado Pago (API nueva)", uala: "Ualá Bis" };
+      toast("El cobro con QR ahora usa " + nombres[proveedor], "success");
+    }
+  } catch (e) {
+    toast("No se pudo cambiar el proveedor", "error");
+  }
+  cargarConfigProveedorCobro(); // vuelve a marcar el que quedó realmente guardado
+}
+
+function _datosFormUala() {
+  return {
+    usuario: document.getElementById("cfgUalaUsuario").value.trim(),
+    clientId: document.getElementById("cfgUalaClientId").value.trim(),
+    clientSecret: document.getElementById("cfgUalaSecret").value.trim(),
+    prueba: document.getElementById("cfgUalaPrueba").checked
+  };
+}
+
+async function guardarConfigUalaForm() {
+  const btn = document.getElementById("btnGuardarUala");
+  const texto = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "Verificando...";
+  try {
+    const r = await window.veekpos.guardarConfigUala(_datosFormUala());
+    if (!r || !r.success) { toast((r && r.message) || "No se pudieron guardar las credenciales de Ualá", "error"); return; }
+    document.getElementById("cfgUalaSecret").value = "";
+    toast("Ualá Bis configurado. Elegilo arriba para cobrar con él.", "success");
+    cargarConfigProveedorCobro();
+  } catch (e) {
+    toast("Error al guardar la configuración de Ualá", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = texto;
+  }
+}
+
+async function probarConfigUalaBtn() {
+  try {
+    const r = await window.veekpos.probarConfigUala(_datosFormUala());
+    toast(r && r.success ? "Conexión con Ualá Bis correcta" : ((r && r.message) || "No se pudo conectar con Ualá"), r && r.success ? "success" : "error");
+  } catch (e) {
+    toast("Error al probar la conexión con Ualá", "error");
+  }
+}
+
+async function quitarConfigUala() {
+  if (!await confirmarAccionAsync("¿Quitar las credenciales de Ualá Bis? Si estaba elegido para cobrar, se vuelve a Mercado Pago.", "Quitar Ualá Bis")) return;
+  try {
+    await window.veekpos.borrarConfigUala();
+    ["cfgUalaUsuario", "cfgUalaClientId", "cfgUalaSecret"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    toast("Configuración de Ualá Bis eliminada", "success");
+    cargarConfigProveedorCobro();
+  } catch (e) {
+    toast("Error al quitar la configuración", "error");
+  }
+}
+
 async function mostrarEstadoMercadoPagoEnConfig() {
   const box = document.getElementById("mpEstadoBox");
   const formularioWrap = document.getElementById("mpFormularioWrap");
@@ -15189,6 +15766,12 @@ function abrirModalQRDePrueba() {
 
 async function iniciarCobroMercadoPago(total) {
   if (typeof window.enviarTokenAlProcesoPrincipal === "function") window.enviarTokenAlProcesoPrincipal(); // para avisar el QR a la pantalla del celular
+  // El proveedor (Mercado Pago o Ualá Bis) lo decide Configuración → Cobros;
+  // el título y la forma de pago se ajustan cuando responde
+  mpNombreProveedorActual = "Mercado Pago";
+  mpFormaPagoCobro = "TRANSFERENCIA";
+  { const t = document.getElementById("mpQrTitulo"); if (t) t.textContent = "Cobrar con QR"; }
+  { const a = document.getElementById("mpQrAyuda"); if (a) { a.textContent = ""; a.style.display = "none"; } }
   document.getElementById("mpQrMontoLabel").textContent = "$" + Number(total).toLocaleString("es-AR");
   document.getElementById("mpQrError").style.display = "none";
   document.getElementById("mpQrEsperando").style.display = "block";
@@ -15211,6 +15794,10 @@ async function iniciarCobroMercadoPago(total) {
     }
 
     mpReferenciaActual = referencia;
+    mpNombreProveedorActual = resultado.nombreProveedor || "Mercado Pago";
+    mpFormaPagoCobro = resultado.formaPago || "TRANSFERENCIA";
+    { const t = document.getElementById("mpQrTitulo"); if (t) t.textContent = "Cobrar con " + mpNombreProveedorActual; }
+    { const a = document.getElementById("mpQrAyuda"); if (a && resultado.ayuda) { a.textContent = resultado.ayuda; a.style.display = "block"; } }
     document.getElementById("mpQrImagen").src = resultado.qrImagenDataUrl;
     mpPollingIniciadoEn = Date.now();
     mpProcesandoConfirmacion = false;
@@ -15229,6 +15816,8 @@ async function iniciarCobroMercadoPago(total) {
 
 let mpPollingIntervalId = null;
 let mpReferenciaActual  = null;
+let mpNombreProveedorActual = "Mercado Pago"; // con qué se está cobrando (v2.6.0)
+let mpFormaPagoCobro = "TRANSFERENCIA";       // Ualá Bis cobra con tarjeta → "TARJETA"
 let mpVentaEnCurso      = null; // { subtotal, total, itemsSnapshot, recibido }
 
 // Dos problemas reales que tenía este polling, arreglados acá:
@@ -15269,11 +15858,17 @@ async function consultarCobroMercadoPagoPolling() {
     // esta esperaba su propia respuesta — no hacer nada, ya se procesó.
     if (mpProcesandoConfirmacion) return;
 
+    // El cobro ya no se puede pagar (venció o se canceló en el proveedor)
+    if (resultado.success && !resultado.pagada && resultado.finalizada) {
+      mostrarErrorCobroMercadoPago("El cobro venció o fue anulado en " + mpNombreProveedorActual + ". Si el cliente todavía va a pagar, generá el QR de nuevo.");
+      return;
+    }
+
     if (resultado.success && resultado.pagada) {
       mpProcesandoConfirmacion = true; // a partir de acá, ninguna otra vuelta en vuelo va a duplicar esto (ver comentario arriba)
       detenerPollingMercadoPago();
       document.getElementById("mpQrBackdrop").classList.remove("show");
-      toast("Pago de Mercado Pago confirmado ✓", "success");
+      toast("Pago de " + mpNombreProveedorActual + " confirmado ✓", "success");
 
       if (mpVentaEnCurso) {
         const { subtotal, total, itemsSnapshot, recibido } = mpVentaEnCurso;
@@ -15290,9 +15885,12 @@ async function consultarCobroMercadoPagoPolling() {
           ventaIdTemp: ventaId,
           total, subtotal,
           descuento: subtotal - total,
-          formaPago: "TRANSFERENCIA",
+          formaPago: mpFormaPagoCobro,
           vendedor: sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("usuarioLogueado") || "",
-          observaciones: etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
+          observaciones: [
+            etiquetaDescuento ? (ajusteModoPOS === "RECARGO" ? "Recargo: " : "Descuento: ") + etiquetaDescuento : "",
+            mpNombreProveedorActual !== "Mercado Pago" ? "Cobrado con " + mpNombreProveedorActual : ""
+          ].filter(Boolean).join(" · "),
           carrito: itemsSnapshot
         });
         if (guardadoMP && guardadoMP.ventaId) ventaId = guardadoMP.ventaId;
@@ -15302,7 +15900,7 @@ async function consultarCobroMercadoPagoPolling() {
           ventaId, items: itemsSnapshot, total, subtotal,
           descuento: subtotal - total,
           descuentoEtiqueta: etiquetaDescuento,
-          formaPago: "TRANSFERENCIA", fecha: new Date(), recibido: 0
+          formaPago: mpFormaPagoCobro, fecha: new Date(), recibido: 0
         };
 
         mostrarRecibo(ventaId, itemsSnapshot, total, subtotal, subtotal - total, recibido);
@@ -15355,6 +15953,7 @@ function cancelarCobroMercadoPago() {
   mpPollingIniciadoEn = null;
   const backdrop = document.getElementById("mpQrBackdrop");
   if (backdrop) backdrop.classList.remove("show");
+  const referenciaCancelada = mpReferenciaActual; // con la API nueva de MP, se anula la orden
   mpReferenciaActual = null;
   mpVentaEnCurso = null;
 
@@ -15364,7 +15963,7 @@ function cancelarCobroMercadoPago() {
   // hay ninguna pantalla conectada, ni si esto corre en la versión web.
   const bridge = window.veekpos || window.posOffline;
   if (bridge && typeof bridge.cancelarCobroQR === "function") {
-    bridge.cancelarCobroQR().catch(() => {});
+    bridge.cancelarCobroQR(referenciaCancelada).catch(() => {});
   }
 
   toast("Cobro cancelado — el ticket sigue abierto", "info");
@@ -18116,7 +18715,7 @@ async function calcularComisiones() {
 
     const norm = t => String(t || "").trim().toLowerCase();
     const vendedores = usuariosGlobal.filter(u => (u.ROL === "comisionista" || (u.COMISION_PORC !== "" && u.COMISION_PORC !== undefined)) );
-    const filas = vendedores.map(u => ({ u, pct: Number(u.COMISION_PORC) || 0, cant: 0, total: 0, anuladas: 0, cantCredito: 0, credito: 0 }));
+    const filas = vendedores.map(u => ({ u, pct: Number(u.COMISION_PORC) || 0, cant: 0, total: 0, anuladas: 0, cantCredito: 0, credito: 0, pedidos: 0 }));
     const porNombre = {};
     filas.forEach(f => { porNombre[norm(f.u.NOMBRE)] = f; porNombre[norm(f.u.USERNAME)] = f; });
 
@@ -18131,6 +18730,37 @@ async function calcularComisiones() {
       f.total += Number(v.TOTAL) || 0;
     });
 
+    // Pedidos que cargó cada vendedor y que ya se cobraron en el período. Al
+    // cobrarse generan una venta "PEDIDO WEB" sin vendedor, por eso se suman
+    // acá a partir del pedido (columna VENDEDOR). Se usa la lista de pedidos
+    // actual (en curso + últimos 30 días) y una búsqueda ampliada para atrás.
+    try {
+      const mapaPedidos = {};
+      const traer = async url => {
+        const r = await fetchAPI(url); const d = await r.json();
+        (d.pedidos || []).forEach(p => { mapaPedidos[String(p.PEDIDO_ID)] = p; });
+      };
+      await traer(API_URL + "?action=pedidos");
+      const d0 = new Date(desdeEl.value + "T00:00:00"); d0.setDate(d0.getDate() - 60);
+      const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      await traer(API_URL + "?" + new URLSearchParams({ action: "buscarPedidos", desde: iso(d0), hasta: hastaEl.value }).toString()).catch(() => {});
+      const ini = new Date(desdeEl.value + "T00:00:00"), fin = new Date(hastaEl.value + "T23:59:59");
+      Object.values(mapaPedidos).forEach(p => {
+        const f = porNombre[norm(p.VENDEDOR)];
+        if (!f) return;
+        if (String(p.COBRADO || "").toUpperCase() !== "SI") return;
+        if (String(p.ESTADO || "").toUpperCase() === "CANCELADO") return;
+        if (String(p.MONEDA || "ARS").toUpperCase() === "USD") return;
+        const fc = new Date(p.FECHA_COBRO);
+        if (isNaN(fc) || fc < ini || fc > fin) return;
+        if (_normTxtComision(p.FORMA_PAGO_COBRO) === "CREDITO") { f.cantCredito++; f.credito += Number(p.TOTAL) || 0; return; }
+        f.cant++; f.pedidos++;
+        f.total += Number(p.TOTAL) || 0;
+      });
+    } catch (e) {
+      console.warn("No se pudieron sumar los pedidos a las comisiones:", e);
+    }
+
     if (!filas.length) {
       cuerpo.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Todavía no hay vendedores con comisión. Creá un usuario «Vendedor por comisión» o cargale un % a un vendedor.</td></tr>';
       return;
@@ -18144,7 +18774,7 @@ async function calcularComisiones() {
       const inactivo = String(f.u.ACTIVO || "SI").toUpperCase() === "NO" ? ' <span class="badge bg-secondary">Inactivo</span>' : "";
       return `<tr>
         <td>${escapeHtml(f.u.NOMBRE || f.u.USERNAME)}${inactivo}</td>
-        <td class="text-end">${f.cant}${f.anuladas ? ` <span class="text-muted" style="font-size:11px;">(+${f.anuladas} anuladas)</span>` : ""}</td>
+        <td class="text-end">${f.cant}${f.pedidos ? ` <span class="text-muted" style="font-size:11px;">(${f.pedidos} pedido${f.pedidos === 1 ? "" : "s"})</span>` : ""}${f.anuladas ? ` <span class="text-muted" style="font-size:11px;">(+${f.anuladas} anuladas)</span>` : ""}</td>
         <td class="text-end">${fm(f.total)}</td>
         <td class="text-end">${f.pct} %</td>
         <td class="text-end fw-bold">${fm(com)}</td>
@@ -18152,7 +18782,7 @@ async function calcularComisiones() {
       </tr>`;
     }).join("") + `<tr class="table-light fw-bold">
         <td>Total</td><td class="text-end">${totVentas}</td><td class="text-end">${fm(totMonto)}</td><td></td><td class="text-end">${fm(totCom)}</td><td></td></tr>`;
-    if (pie) pie.textContent = "Comisión = total cobrado × porcentaje del vendedor, entre " + desdeEl.value + " y " + hastaEl.value + ". No cuentan las ventas anuladas ni las ventas a crédito (cuenta corriente): esas se muestran aparte, sin comisión, porque todavía no se cobraron.";
+    if (pie) pie.textContent = "Comisión = total cobrado × porcentaje del vendedor, entre " + desdeEl.value + " y " + hastaEl.value + ". Suma las ventas del POS y los pedidos que cargó el vendedor y ya se cobraron en esas fechas. No cuentan las ventas anuladas, los pedidos cancelados ni las ventas a crédito (cuenta corriente): esas se muestran aparte, sin comisión, porque todavía no se cobraron.";
   } catch (error) {
     console.error("Error al calcular comisiones:", error);
     cuerpo.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">No se pudieron calcular las comisiones. Probá de nuevo.</td></tr>';

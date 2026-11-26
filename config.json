@@ -11,11 +11,44 @@
 
   "whatsapp": "5491166252419",
   "direccion": "",
+  "direccionComercial": "Calle Castelli 9, Once, CABA",
   "moneda": "ARS",
   "pais": "Argentina",
   "colorTema": "#241536",
 
-  "googleVerificacion": "google1a690aa2baf89ec2.html",
+  "googleVerificacion": "googlee02dbbff66505213.html",
+  "indexNowClave": "",
+
+  "politicaDevoluciones": {
+    "_LEEME": "Genera /devoluciones/ y /arrepentimiento/ (scripts/generar-politicas.js) y sus enlaces en el pie. Plazos en días corridos. compensacion: 'cupon' | 'reemplazo' | 'reintegro'. vigenciaCuponDias: 0 = sin vencimiento. arrepentimiento: botón exigido por ley para ventas online a consumidores.",
+    "activo": true,
+    "aceptaCambios": false,
+    "aceptaDevoluciones": false,
+    "defectos": {
+      "activo": true,
+      "soloPedidosEnviados": true,
+      "plazoDias": 7,
+      "evidencia": "fotos o video",
+      "devolverProducto": false,
+      "compensacion": "cupon",
+      "vigenciaCuponDias": 90
+    },
+    "noCubre": [],
+    "textoAdicional": "",
+    "email": "",
+    "arrepentimiento": true
+  },
+
+  "feedGoogle": {
+    "_LEEME": "Feed de productos para Google Merchant Center (feed-google.xml). activo: false para no generarlo. titulos: 'normalizar' (MAYÚSCULAS → Normal) u 'original'. marcaPorDefecto: solo si los productos son de marca propia. excluirCategorias / excluirCodigos: lo que no puede ir a Google (pirotecnia, armas, etc.). categoriasGoogle: opcional, categoría propia → categoría de Google.",
+    "activo": true,
+    "titulos": "normalizar",
+    "marcaPorDefecto": "",
+    "excluirCategorias": ["PIROTECNIA"],
+    "excluirCodigos": [],
+    "categoriasGoogle": {},
+    "agregarCaracteristicas": true
+  },
 
   "version": "1.1",
   "generadoEn": "2026-10-07"
